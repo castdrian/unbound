@@ -10,7 +10,7 @@ function MarketplacePage() {
 	return (
 		<View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
 			<Discord.Text variant='text-lg/semibold' color='text-muted'>
-				{Messages.UNBOUND_MARKETPLACE_COMING_SOON}
+				{Messages.UNBOUND_COMING_SOON}
 			</Discord.Text>
 		</View>
 	);

@@ -138,7 +138,7 @@ export interface DesignModule {
 	showConfirmModal: Fn;
 	showSimpleActionSheet: Fn;
 	hideContextMenu: Fn<void>;
-	useNavigation: <T = any>() => Navigation$1<T>;
+	useNavigation: <T = any>() => Navigation<T>;
 	setColorOpacity: (color: string, opacity: number) => string;
 	darkenColor: (color: string, amount: number) => string;
 	brightenColor: (color: string, amount: number) => string;
@@ -188,6 +188,15 @@ export interface InternalToastOptions extends ToastOptions {
 	closing?: boolean;
 	date?: number;
 }
+export interface Navigation<T = any> {
+	push: (route: string, params?: T) => void;
+	pop: () => void;
+	navigate: (route: string, params?: T) => void;
+	goBack: () => void;
+	setOptions: (options: Record<string, any>) => void;
+	addListener: (event: string, callback: Fn) => Fn<void>;
+	[key: string]: any;
+}
 export interface RowButtonProps {
 	label?: ReactNode;
 	icon?: ReactNode;
@@ -217,6 +226,10 @@ export interface SettingsEntry {
 	parent: string | null;
 	section?: string;
 	excludeFromDisplay?: boolean;
+	/** The manifest id of the addon this entry belongs to, so its card can surface a settings button. */
+	addonId?: string;
+	/** Also show this entry as a row in the main Settings menu. Defaults to false. */
+	pinned?: boolean;
 	IconComponent?: ComponentType<any>;
 	screen: SettingsScreen;
 }
@@ -603,15 +616,6 @@ export type UnboundAsset = DiscordAsset & {
 	iconPackScale?: number;
 };
 
-interface Navigation$1<T = any> {
-	push: (route: string, params?: T) => void;
-	pop: () => void;
-	navigate: (route: string, params?: T) => void;
-	goBack: () => void;
-	setOptions: (options: Record<string, any>) => void;
-	addListener: (event: string, callback: Fn) => Fn<void>;
-	[key: string]: any;
-}
 /** The lifecycle and settings contract implemented by a plugin. */
 interface Plugin$1 {
 	start?(): void;
@@ -619,4 +623,4 @@ interface Plugin$1 {
 	getSettingsPanel?(): ReactNode;
 }
 
-export { Navigation$1 as Navigation, Plugin$1 as Plugin };
+export { Plugin$1 as Plugin };

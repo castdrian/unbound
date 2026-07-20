@@ -8,6 +8,7 @@ import { ManagerKind } from '~/lib/constants';
 import { getManager } from '~/managers/utils';
 import { Theme } from '~/api/metro/common';
 
+import AddonSettingsButton from './addon-settings-button';
 import AddonCardHeader from './addon-card-header';
 import AddonOverflow from './addon-overflow';
 import useStyles from './addon-card.style';
@@ -56,6 +57,7 @@ function AddonCard({ addon, kind }: AddonCardProps) {
 				</View>
 				<View style={styles.trailing}>
 					{trailing}
+					{kind === ManagerKind.Plugins ? <AddonSettingsButton addon={addon} /> : null}
 					<AddonOverflow addon={addon} kind={kind} />
 				</View>
 			</View>

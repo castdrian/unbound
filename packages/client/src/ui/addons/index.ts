@@ -1,3 +1,4 @@
+export { default as AddonSettingsButton } from './addon-settings-button';
 export { default as AddonCardHeader } from './addon-card-header';
 export { default as InstallUrlModal } from './install-url-modal';
 export { default as AddonOverflow } from './addon-overflow';

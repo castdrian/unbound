@@ -45,6 +45,7 @@ function route({ key, useTitle, getComponent, icon, hidden }: RouteOptions): Set
 		parent: null,
 		section: hidden ? undefined : CLIENT_NAME,
 		excludeFromDisplay: hidden,
+		pinned: !hidden,
 		IconComponent: icon ? () => <Discord.TableRowIcon source={getIDByName(icon)} /> : undefined,
 		screen: { route: key, getComponent },
 	};
@@ -155,7 +156,7 @@ function patchOverview() {
 		if (!node || !Array.isArray(node.sections)) return result;
 
 		const keys = Object.values(allEntries())
-			.filter((entry) => !entry.excludeFromDisplay)
+			.filter((entry) => entry.pinned && !entry.excludeFromDisplay)
 			.map((entry) => entry.key);
 
 		// Rebuild from the native sections only (dropping any Unbound section a prior render of this

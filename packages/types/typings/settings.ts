@@ -14,6 +14,10 @@ export interface SettingsEntry {
 	parent: string | null;
 	section?: string;
 	excludeFromDisplay?: boolean;
+	/** The manifest id of the addon this entry belongs to, so its card can surface a settings button. */
+	addonId?: string;
+	/** Also show this entry as a row in the main Settings menu. Defaults to false. */
+	pinned?: boolean;
 	IconComponent?: ComponentType<any>;
 	screen: SettingsScreen;
 }

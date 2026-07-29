@@ -10,6 +10,7 @@ import { Theme } from '~/api/metro/common';
 
 import AddonCardHeader from './addon-card-header';
 import AddonOverflow from './addon-overflow';
+import AddonSettings from './addon-settings';
 import useStyles from './addon-card.style';
 import AddonSwitch from './addon-switch';
 import AddonRadio from './addon-radio';
@@ -54,10 +55,15 @@ function AddonCard({ addon, kind }: AddonCardProps) {
 				<View style={styles.body}>
 					<AddonCardHeader addon={addon} />
 				</View>
-				<View style={styles.trailing}>
-					{trailing}
+			</View>
+			<View style={styles.footer}>
+				<View style={styles.actions}>
+					{kind === ManagerKind.Plugins ? (
+						<AddonSettings addon={addon} disabled={disabled} />
+					) : null}
 					<AddonOverflow addon={addon} kind={kind} />
 				</View>
+				{trailing}
 			</View>
 			{error ? (
 				<Discord.Text

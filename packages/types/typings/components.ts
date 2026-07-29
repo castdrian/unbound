@@ -197,6 +197,13 @@ export interface TableSwitchRowProps {
 	onValueChange: (value: boolean) => void;
 }
 
+export interface SwitchProps {
+	value: boolean;
+	disabled?: boolean;
+	accessibilityLabel?: string;
+	onValueChange: (value: boolean) => void;
+}
+
 export interface TableCheckboxRowProps {
 	label?: ReactNode;
 	subLabel?: ReactNode;

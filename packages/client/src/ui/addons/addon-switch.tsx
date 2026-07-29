@@ -1,7 +1,7 @@
 import type { Addon } from '@unbound-app/types';
-import { Switch } from 'react-native';
-import { memo } from 'react';
+import { useState, memo } from 'react';
 
+import { Switch } from '~/api/metro/components';
 import { ManagerKind } from '~/lib/constants';
 import { getManager } from '~/managers/utils';
 import { useAddonState } from '~/ui/hooks';
@@ -18,13 +18,26 @@ type AddonSwitchProps = {
  */
 function AddonSwitch({ addon, kind, disabled }: AddonSwitchProps) {
 	const { enabled } = useAddonState(kind, addon.id);
+	const [transitioning, setTransitioning] = useState(false);
 	const manager = getManager(kind);
+
+	async function handleValueChange() {
+		setTransitioning(true);
+
+		try {
+			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+			await manager.toggle(addon.id);
+		} finally {
+			setTransitioning(false);
+		}
+	}
 
 	return (
 		<Switch
 			value={enabled}
-			disabled={disabled}
-			onValueChange={() => manager.toggle(addon.id)}
+			disabled={disabled || transitioning}
+			accessibilityLabel={`${addon.data.name} enabled`}
+			onValueChange={handleValueChange}
 		/>
 	);
 }

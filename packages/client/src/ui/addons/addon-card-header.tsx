@@ -21,15 +21,21 @@ function AddonCardHeader({ addon }: AddonCardHeaderProps) {
 	const styles = useStyles();
 	const { name, version, authors, description } = addon.data;
 	const author = authors?.map((a) => a.name).join(', ');
+	const icon = addon.data.icon;
+	const iconSource = typeof icon === 'string' ? Icons[icon] : icon;
 
 	return (
 		<View style={styles.container}>
 			<View style={styles.iconContainer}>
-				<TintedIcon
-					source={Icons['PuzzlePieceIcon'] ?? 0}
-					size={22}
-					tint={Theme.colors.TEXT_STRONG}
-				/>
+				{typeof icon === 'object' ? (
+					<Image source={iconSource} style={{ width: 22, height: 22 }} />
+				) : (
+					<TintedIcon
+						source={iconSource ?? Icons['PuzzlePieceIcon'] ?? 0}
+						size={22}
+						tint={Theme.colors.TEXT_STRONG}
+					/>
+				)}
 			</View>
 			<View style={styles.content}>
 				<View style={styles.titleRow}>

@@ -1,14 +1,9 @@
-// TODO: Rewrite this dogshit
-
 import { parseMessage } from '@unbound-app/debugger-protocol';
 import { createLogger } from '@unbound-app/logger';
 import { createPatcher } from 'possess';
 
 import storage, { type SettingsPayload } from '~/api/storage';
-
-// TEMP: forced on with a hardcoded address until the settings UI is ported. Edit this to point the
-// debugger at your machine.
-const DEBUGGER_ADDRESS = '192.168.64.1:9090';
+import { DEBUGGER_ADDRESS } from '~/lib/constants';
 
 const Patcher = createPatcher('Debugger');
 const Logger = createLogger('Debugger');
@@ -48,7 +43,16 @@ function connect(isReconnect = false) {
 		reconnectTimer = null;
 	}
 
-	ws = new WebSocket(`ws://${DEBUGGER_ADDRESS}`);
+	const address = resolveAddress();
+
+	if (!address) {
+		Logger.error(
+			'No debugger address configured; set `debugger.address` in developer settings.',
+		);
+		return;
+	}
+
+	ws = new WebSocket(`ws://${address}`);
 
 	ws.addEventListener('open', () => {
 		Logger.success(isReconnect ? 'Reconnected' : 'Connected');
@@ -71,6 +75,13 @@ function connect(isReconnect = false) {
 	ws.addEventListener('message', (message) => {
 		handleEvalRequest(message.data);
 	});
+}
+
+// Read per attempt rather than once at load, so an address edited in settings takes effect on the
+// reconnect the change triggers. Falls back to the address baked in at build time, which tracks the
+// dev host and is empty in production builds.
+function resolveAddress() {
+	return storage.get('unbound', 'debugger.address', '') || DEBUGGER_ADDRESS;
 }
 
 function scheduleReconnect() {
@@ -155,8 +166,7 @@ export function stop() {
 }
 
 export function shouldStart() {
-	// TEMP: forced on until the settings UI is ported. Was: Settings.get('debugger.enabled', false).
-	return true;
+	return storage.get('unbound', 'debugger.enabled', false);
 }
 
 function patchLoggingHook() {
@@ -214,8 +224,9 @@ function attachSettingsListener() {
 		} else if (payload.key === 'debugger.address') {
 			if (ws?.readyState === WebSocket.OPEN) {
 				Logger.info('Address changed, reconnecting...');
+				// The close handler clears `ws` and schedules the retry; dialling here would hit the
+				// `if (ws) return` guard, since `close()` doesn't clear the socket synchronously.
 				ws.close();
-				connect(true);
 			}
 		}
 	};

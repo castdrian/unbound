@@ -1,51 +1,63 @@
-import type { Fn, ColorString } from './typings/utils';
 import type { AddonManifest } from './typings/addons';
+import type { Fn } from './typings/utils';
 
 declare global {
-	/** The raw `UnboundNative` JSI bridge the tweak installs directly on the JS global. */
 	type UnboundNativeModule = {
-		// Utilities
-		getDeviceModel(): string;
-		getiOSVersionString(): string;
-		isJailbroken(): boolean;
-		isSystemApp(): Promise<boolean>;
-		isVerifiedBuild(): boolean;
-		isAppStoreApp(): boolean;
-		isTestFlightApp(): boolean;
-		isTrollStoreApp(): boolean;
-		isLiveContainerApp(): boolean;
-		getTrollStoreVariant(): string;
-		getApplicationEntitlements(): unknown;
-		getAppSource(): string;
-		getEntitlementsAsPlist(): string;
-		showToolboxMenu(): void;
-
-		// Plugin API
-		showNotification(
-			title: string,
-			content: string,
-			scheduledTime: number,
-			sound: boolean,
-			notificationId: string,
-		): void;
-		playPiPVideo(videoURL: string): void;
-
-		// Chat UI
-		setAvatarCornerRadius(radius: number): void;
-		resetAvatarCornerRadius(): void;
-		getAvatarCornerRadius(): number;
-		setMessageBubblesEnabled(
-			enabled: boolean,
-			lightColor: ColorString | null,
-			darkColor: ColorString | null,
-		): void;
-		setMessageBubbleColors(lightColor: ColorString, darkColor: ColorString): void;
-		getMessageBubbleLightColor(): ColorString;
-		getMessageBubbleDarkColor(): ColorString;
-		getMessageBubblesEnabled(): boolean;
-		getMessageBubbleCornerRadius(): number;
-		setMessageBubbleCornerRadius(radius: number): void;
-		resetMessageBubbles(): void;
+		getNativeModuleVersion(): string;
+		supportsFeature(name: string): boolean;
+		getFeatureInfo(name: string): Record<string, unknown>;
+		isFeatureDeprecated(name: string): boolean;
+		isFeatureRemoved(name: string): boolean;
+		getSupportedFeatures(): string[];
+		getDeprecatedFeatures(): string[];
+		getRemovedFeatures(): string[];
+		evaluateBytecode(bytecode: string, tag?: string): unknown;
+		device: {
+			getModel(): string;
+			getiOSVersionString(): string;
+			isJailbroken(): boolean;
+			isSystemApp(): boolean;
+			isVerifiedBuild(): boolean;
+			getEntitlements(): Record<string, unknown>;
+			getEntitlementsAsPlist(): string;
+		};
+		app: {
+			getSource(): string;
+		};
+		notifications: {
+			show(
+				title: string,
+				content: string,
+				scheduledTime: number,
+				sound: boolean,
+				notificationId: string,
+			): string;
+		};
+		pip: {
+			playVideo(url: string): string | null;
+		};
+		chat: {
+			getAvatarCornerRadius(): number;
+			setAvatarCornerRadius(radius: number): void;
+			resetAvatarCornerRadius(): void;
+			getMessageBubbleLightColor(): string | null;
+			getMessageBubbleDarkColor(): string | null;
+			getMessageBubblesEnabled(): boolean;
+			getMessageBubbleCornerRadius(): number;
+			setMessageBubblesEnabled(
+				enabled: boolean,
+				lightColor?: string,
+				darkColor?: string,
+			): void;
+			setMessageBubbleColors(lightColor: string, darkColor: string): void;
+			setMessageBubbleCornerRadius(radius: number): void;
+			resetMessageBubbles(): void;
+			setReactionAvatarGroups(groups: string): void;
+			clearReactionAvatarGroups(): void;
+		};
+		toolbox: {
+			showMenu(): void;
+		};
 	};
 
 	/**

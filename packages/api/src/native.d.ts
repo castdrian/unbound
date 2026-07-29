@@ -9,6 +9,53 @@ export declare const BundleInfo: BundleInfoType;
 export declare const BundleManager: DCDBundleManagerType;
 /** The resolved native device module, exposing hardware and OS details. */
 export declare const DeviceInfo: DeviceInfoType;
+export declare const app: {
+	getSource: () => string;
+};
+export declare const chat: {
+	clearReactionAvatarGroups: () => boolean;
+	getAvatarCornerRadius: () => number;
+	getMessageBubbleCornerRadius: () => number;
+	getMessageBubbleDarkColor: () => string | null;
+	getMessageBubbleLightColor: () => string | null;
+	getMessageBubblesEnabled: () => boolean;
+	resetAvatarCornerRadius: () => void | undefined;
+	resetMessageBubbles: () => void | undefined;
+	setAvatarCornerRadius: (radius: number) => void | undefined;
+	setMessageBubbleColors: (lightColor: string, darkColor: string) => void | undefined;
+	setMessageBubbleCornerRadius: (radius: number) => void | undefined;
+	setMessageBubblesEnabled: (
+		enabled: boolean,
+		lightColor?: string,
+		darkColor?: string,
+	) => void | undefined;
+	setReactionAvatarGroups: (groups: ReactionAvatarGroup[]) => boolean;
+};
+export declare const device: {
+	getEntitlements: () => Record<string, unknown>;
+	getEntitlementsAsPlist: () => string;
+	getModel: () => string;
+	getiOSVersionString: () => string;
+	isJailbroken: () => boolean;
+	isSystemApp: () => boolean;
+	isVerifiedBuild: () => boolean;
+};
+export declare const notifications: {
+	show: (
+		title: string,
+		content: string,
+		scheduledTime: number,
+		sound: boolean,
+		notificationId: string,
+	) => string | null;
+};
+export declare const pip: {
+	playVideo: (url: string) => string | null;
+};
+export declare const toolbox: {
+	showMenu: () => void | undefined;
+};
+export declare function getFeatureInfo(feature: string): NativeFeatureInfo | null;
 /**
  * @description Resolves the first available native module matching any of the given names, checking both `NativeModules` and the `TurboModuleRegistry`.
  * @template T The type of the resolved native module.
@@ -23,6 +70,7 @@ export declare function getNativeModule<T = any>(...names: string[]): T;
  * @returns The runtime property map, or an empty object when Hermes internals are unavailable.
  */
 export declare function getRuntimeProperties(): Record<string, any>;
+export declare function isFeatureSupported(feature: string): boolean;
 /**
  * @description Persists pending settings to storage, then reloads the native bundle.
  */
@@ -89,6 +137,20 @@ export interface DeviceInfoType {
 	deviceBrand: string;
 	ramSize: string;
 	device: string;
+}
+export interface NativeFeatureInfo {
+	introducedIn?: string;
+	deprecatedIn?: string;
+	removedIn?: string;
+	replacement?: string;
+	known: boolean;
+	name: string;
+	status: string;
+	supported?: boolean;
+}
+export interface ReactionAvatarGroup {
+	avatarURLs: string[];
+	id: string;
 }
 /** The text encodings accepted by the native `DCDFileManager` read/write operations. */
 export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';

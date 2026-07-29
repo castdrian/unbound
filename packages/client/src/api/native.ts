@@ -124,3 +124,90 @@ if (!UnboundNative) {
 		'UnboundNative is not present in this environment. Please report this issue immediately.',
 	);
 }
+
+export interface NativeFeatureInfo {
+	introducedIn?: string;
+	deprecatedIn?: string;
+	removedIn?: string;
+	replacement?: string;
+	known: boolean;
+	name: string;
+	status: string;
+	supported?: boolean;
+}
+
+export interface ReactionAvatarGroup {
+	avatarURLs: string[];
+	id: string;
+}
+
+export function isFeatureSupported(feature: string): boolean {
+	return UnboundNative?.supportsFeature(feature) ?? false;
+}
+
+export function getFeatureInfo(feature: string): NativeFeatureInfo | null {
+	return (UnboundNative?.getFeatureInfo(feature) as NativeFeatureInfo | undefined) ?? null;
+}
+
+export const device = {
+	getEntitlements: () => UnboundNative?.device.getEntitlements() ?? {},
+	getEntitlementsAsPlist: () => UnboundNative?.device.getEntitlementsAsPlist() ?? '',
+	getModel: () => UnboundNative?.device.getModel() ?? 'unknown',
+	getiOSVersionString: () => UnboundNative?.device.getiOSVersionString() ?? 'unknown',
+	isJailbroken: () => UnboundNative?.device.isJailbroken() ?? false,
+	isSystemApp: () => UnboundNative?.device.isSystemApp() ?? false,
+	isVerifiedBuild: () => UnboundNative?.device.isVerifiedBuild() ?? false,
+};
+
+export const app = {
+	getSource: () => UnboundNative?.app.getSource() ?? 'unknown',
+};
+
+export const notifications = {
+	show: (
+		title: string,
+		content: string,
+		scheduledTime: number,
+		sound: boolean,
+		notificationId: string,
+	) =>
+		UnboundNative?.notifications.show(title, content, scheduledTime, sound, notificationId) ??
+		null,
+};
+
+export const pip = {
+	playVideo: (url: string) => UnboundNative?.pip.playVideo(url) ?? null,
+};
+
+export const chat = {
+	clearReactionAvatarGroups: (): boolean => {
+		if (!isFeatureSupported('chat.reactionAvatars')) return false;
+
+		UnboundNative?.chat.clearReactionAvatarGroups();
+		return true;
+	},
+	getAvatarCornerRadius: () => UnboundNative?.chat.getAvatarCornerRadius() ?? -1,
+	getMessageBubbleCornerRadius: () => UnboundNative?.chat.getMessageBubbleCornerRadius() ?? 10,
+	getMessageBubbleDarkColor: () => UnboundNative?.chat.getMessageBubbleDarkColor() ?? null,
+	getMessageBubbleLightColor: () => UnboundNative?.chat.getMessageBubbleLightColor() ?? null,
+	getMessageBubblesEnabled: () => UnboundNative?.chat.getMessageBubblesEnabled() ?? false,
+	resetAvatarCornerRadius: () => UnboundNative?.chat.resetAvatarCornerRadius(),
+	resetMessageBubbles: () => UnboundNative?.chat.resetMessageBubbles(),
+	setAvatarCornerRadius: (radius: number) => UnboundNative?.chat.setAvatarCornerRadius(radius),
+	setMessageBubbleColors: (lightColor: string, darkColor: string) =>
+		UnboundNative?.chat.setMessageBubbleColors(lightColor, darkColor),
+	setMessageBubbleCornerRadius: (radius: number) =>
+		UnboundNative?.chat.setMessageBubbleCornerRadius(radius),
+	setMessageBubblesEnabled: (enabled: boolean, lightColor?: string, darkColor?: string) =>
+		UnboundNative?.chat.setMessageBubblesEnabled(enabled, lightColor, darkColor),
+	setReactionAvatarGroups: (groups: ReactionAvatarGroup[]): boolean => {
+		if (!isFeatureSupported('chat.reactionAvatars')) return false;
+
+		UnboundNative?.chat.setReactionAvatarGroups(JSON.stringify(groups));
+		return true;
+	},
+};
+
+export const toolbox = {
+	showMenu: () => UnboundNative?.toolbox.showMenu(),
+};

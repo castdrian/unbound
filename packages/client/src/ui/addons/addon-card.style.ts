@@ -2,21 +2,25 @@ import { Discord } from '~/api/metro/components';
 
 export default Discord.createStyles({
 	card: {
-		gap: 12,
-		padding: 12,
+		gap: 14,
+		padding: 16,
 	},
 	row: {
 		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 12,
 	},
 	body: {
 		flex: 1,
 	},
-	trailing: {
+	footer: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		gap: 8,
+		justifyContent: 'space-between',
+		minHeight: 32,
+	},
+	actions: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4,
 	},
 	failed: {
 		opacity: 0.5,

@@ -7,6 +7,8 @@ import { TintedIcon } from '~/ui/components';
 import { Theme } from '~/api/metro/common';
 import { Icons } from '~/api/assets';
 
+import useStyles from './addon-card-header.style';
+
 type AddonCardHeaderProps = {
 	addon: Addon;
 };
@@ -16,32 +18,52 @@ type AddonCardHeaderProps = {
  * and the description. Pure and memoized; it reads nothing from any manager.
  */
 function AddonCardHeader({ addon }: AddonCardHeaderProps) {
+	const styles = useStyles();
 	const { name, version, authors, description } = addon.data;
 	const author = authors?.map((a) => a.name).join(', ');
 
 	return (
-		<View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-			<TintedIcon source={Icons['PuzzlePieceIcon'] ?? 0} size={20} />
-			<View style={{ flex: 1, gap: 2 }}>
-				<Discord.Text
-					variant='text-md/semibold'
-					style={{ color: Theme.colors.TEXT_STRONG }}
-				>
-					{name}
-					{version ? ` v${version}` : ''}
-				</Discord.Text>
+		<View style={styles.container}>
+			<View style={styles.iconContainer}>
+				<TintedIcon
+					source={Icons['PuzzlePieceIcon'] ?? 0}
+					size={22}
+					tint={Theme.colors.TEXT_STRONG}
+				/>
+			</View>
+			<View style={styles.content}>
+				<View style={styles.titleRow}>
+					<Discord.Text
+						variant='text-md/semibold'
+						style={[styles.title, { color: Theme.colors.TEXT_STRONG }]}
+						numberOfLines={1}
+					>
+						{name}
+					</Discord.Text>
+					{version ? (
+						<View style={styles.versionBadge}>
+							<Discord.Text
+								variant='text-xxs/semibold'
+								style={{ color: Theme.colors.TEXT_MUTED }}
+							>
+								v{version}
+							</Discord.Text>
+						</View>
+					) : null}
+				</View>
 				{author ? (
 					<Discord.Text
 						variant='text-xs/medium'
 						style={{ color: Theme.colors.TEXT_MUTED }}
+						numberOfLines={1}
 					>
-						{author}
+						by {author}
 					</Discord.Text>
 				) : null}
 				{description ? (
 					<Discord.Text
 						variant='text-sm/normal'
-						style={{ color: Theme.colors.TEXT_DEFAULT }}
+						style={[styles.description, { color: Theme.colors.TEXT_DEFAULT }]}
 					>
 						{description}
 					</Discord.Text>

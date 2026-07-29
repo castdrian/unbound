@@ -1,10 +1,11 @@
 import { memo } from 'react';
 
-import { ManagerKind, ManagerNames } from '~/lib/constants';
+import { ManagerKind, ManagerNames, DEV } from '~/lib/constants';
 import { Empty } from '~/ui/components';
 import { useAddons } from '~/ui/hooks';
 import { format } from '~/api/i18n';
 
+import sampleAddons from './sample-addons';
 import AddonCard from './addon-card';
 
 type AddonListProps = {
@@ -16,7 +17,9 @@ type AddonListProps = {
  * to the manager through {@link useAddons}, so installs, deletes, and toggles reflect automatically.
  */
 function AddonList({ kind }: AddonListProps) {
-	const addons = useAddons(kind);
+	const managedAddons = useAddons(kind);
+	const addons =
+		DEV && kind === ManagerKind.Plugins && !managedAddons.length ? sampleAddons : managedAddons;
 
 	if (!addons.length) {
 		const type = ManagerNames[kind].toLowerCase();

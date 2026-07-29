@@ -114,8 +114,10 @@ export class Fonts extends Manager<FontEntity, FontsEvents> {
 	async install(url: string): Promise<string | undefined> {
 		try {
 			const file = url.split('/').pop() ?? `font-${Date.now()}.ttf`;
+
 			const data = await fetch(url, { cache: 'no-cache' }).then((res) => {
 				if (!res.ok) throw new Error(`Failed to fetch font (${res.status}).`);
+
 				return res.arrayBuffer();
 			});
 

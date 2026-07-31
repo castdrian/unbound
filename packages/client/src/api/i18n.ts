@@ -1,6 +1,6 @@
 import { createLogger } from '@unbound-app/logger';
 
-import { Dispatcher, i18n as Discord } from '~/api/metro/common';
+import { Dispatcher, i18n as Discord, Moment } from '~/api/metro/common';
 import { DEV, I18N_BASE_URL } from '~/lib/constants';
 import { findByName } from '~/api/metro';
 import { getStore } from '~/api/storage';
@@ -32,6 +32,16 @@ let MessageFormat: any;
 function getMessageFormat() {
 	MessageFormat ??= findByName('MessageFormat');
 	return MessageFormat;
+}
+
+function syncDateLocale(locale: string) {
+	const normalizedLocale = locale.replace('_', '-').toLowerCase();
+	const language = normalizedLocale.split('-')[0];
+	const appliedLocale = Moment.locale(normalizedLocale);
+
+	if (appliedLocale === normalizedLocale || appliedLocale === language) return;
+
+	Moment.locale('en');
 }
 
 const subscriptions: Array<() => void> = [];
@@ -163,11 +173,14 @@ export async function init(): Promise<void> {
 		currentLocale = 'en-US';
 	}
 
+	syncDateLocale(currentLocale);
+
 	async function handler({ locale }: I18nLoadSuccess) {
 		if (!locale) return;
 
 		await ensureLocale(locale);
 		currentLocale = locale;
+		syncDateLocale(locale);
 	}
 
 	Dispatcher.subscribe('I18N_LOAD_SUCCESS', handler);

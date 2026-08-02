@@ -6,12 +6,14 @@ import { ROOT, readManifest, loadWorkspaces, workspaceDependencies } from './wor
 
 const API = 'packages/api';
 
-function setVersion(dir: string, version: string) {
+function setVersion(dir: string, version: string): string {
 	const path = join(ROOT, dir, 'package.json');
 	const manifest = readManifest(path);
 
 	manifest.version = version;
 	writeFileSync(path, JSON.stringify(manifest, null, '\t') + '\n');
+
+	return path;
 }
 
 function changedSince(tag: string): string[] {
@@ -53,10 +55,12 @@ function prepare() {
 		}
 	}
 
+	const written: string[] = [];
+
 	for (const dir of bumped) {
 		if (dir === API) continue;
 
-		setVersion(dir, version);
+		written.push(setVersion(dir, version));
 	}
 
 	if (bumped.has(API)) {
@@ -64,11 +68,20 @@ function prepare() {
 
 		// The generator emits `<client version>-<content hash>`, which npm treats as a prerelease
 		// that ranges like `^1.1.0` never match; the published manifest carries the plain version.
-		setVersion(API, version);
+		written.push(setVersion(API, version));
 
 		// The git plugin stages assets by globbing existing files, so a file the generator no
 		// longer emits would escape the release commit; staging here captures the deletions too.
 		execFileSync('git', ['add', '-A', join(API, 'src')], { cwd: ROOT, stdio: 'inherit' });
+	}
+
+	// `setVersion` appends `version` in insertion order, but oxfmt sorts it after `name`; format the
+	// bumped manifests so the release commit passes the pre-commit `fmt:check` hook.
+	if (written.length > 0) {
+		execFileSync('oxfmt', ['--config', '.oxfmtrc.json', ...written], {
+			cwd: ROOT,
+			stdio: 'inherit',
+		});
 	}
 
 	execFileSync('bun', ['install'], { cwd: ROOT, stdio: 'inherit' });

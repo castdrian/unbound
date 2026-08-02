@@ -83,3 +83,7 @@ function Toggle() {
 <Tip>
 	Outside React, subscribe imperatively with `storage.addListener(predicate, callback)`. It returns an unsubscribe function. Clean it up when your addon stops.
 </Tip>
+
+<Note>
+	This module owns the values. To give your addon a screen of its own in Discord's settings list, see [settings](/modules/settings). The keys the loader itself reads from the same file are listed in the [settings reference](/loader/settings).
+</Note>

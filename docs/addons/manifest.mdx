@@ -6,6 +6,10 @@ icon: 'circle-info'
 
 Every addon (a [plugin](/plugins/introduction), [theme](/themes/introduction), or [icon pack](/icon-packs/introduction)) ships a **manifest**: a block of metadata that describes it. They all use the **same shape**, validated by the same [manager](/modules/managers) before the addon loads. This page is the single source of truth for that shape; each addon kind documents only what's specific to it.
 
+<Note>
+	Fonts are the exception. A font is a bare file dropped in the `Fonts` folder, with no manifest and no folder of its own. See [Fonts](#fonts) below.
+</Note>
+
 ### Required fields
 
 These must be present and defined, or the addon is rejected when it loads.
@@ -35,7 +39,7 @@ These must be present and defined, or the addon is rejected when it loads.
 	The addon's version. Bump it on every release so clients can detect updates.
 </ParamField>
 <ParamField path='main' type='string' required>
-	The entry point the bundle is built from.
+	The entry point the bundle is built from. Themes ignore this field; see [Themes](#themes) below.
 </ParamField>
 
 ### Optional fields
@@ -75,16 +79,47 @@ Used for display and updates. Leaving them out is fine.
 
 ### Per-addon details
 
-The shape is shared, but a couple of fields carry extra meaning depending on the addon kind.
+The shape is shared, but the addon kinds diverge in what they need on disk and which fields actually do anything. The loader scans `Plugins`, `Themes`, and `Fonts` at startup, while icon packs are installed by the client under `Unbound/Icons`. See [iOS](/loader/ios) for where these live on device.
 
 <AccordionGroup>
 	<Accordion title='Plugins' icon='plug'>
-		`main` is the entry your bundle is built from, and Unbound evaluates it into your plugin's running instance. See [Creating an Addon](/addons/creating).
+		A plugin is a **directory** inside `Plugins` containing a `manifest.json`. Entries that aren't directories, or that have no manifest, are skipped.
+
+		`main` is required and must resolve to a real file. Resolution works one of two ways:
+
+		- A value starting with `/` is treated as an **absolute path** and used as-is.
+		- Anything else resolves **relative to the plugin's own folder**.
+
+		Either way the resolved path must exist and must not be a directory, otherwise the plugin is skipped. Unbound reads that file and evaluates it into your plugin's running instance. See [Creating an Addon](/addons/creating).
 	</Accordion>
 	<Accordion title='Themes' icon='paintbrush'>
-		Besides identifying the theme, its `id` is the value stored as `applied` while it's the active theme. Only one theme is applied at a time, so this is how Unbound remembers which. The theme's actual palette and background live in its definition, not the manifest. See [Theme Types](/themes/types).
+		A theme is a **directory** containing both a `manifest.json` and a **`bundle.json`**. The bundle file name is fixed: the loader looks for exactly `bundle.json` next to the manifest, and skips the theme if it isn't there or isn't a JSON object.
+
+		<Warning>
+			**Themes ignore `main` entirely.** The field is still required by manifest validation, but the loader never reads it when locating a theme's bundle. Pointing it at a differently named file does nothing; rename the file to `bundle.json` instead.
+		</Warning>
+
+		Besides identifying the theme, its `id` is the value stored as `applied` while it's the active theme. Only one theme is applied at a time, so this is how Unbound remembers which. The palette and background live in `bundle.json`, not the manifest. See [Theme Types](/themes/types).
 	</Accordion>
 	<Accordion title='Icon Packs' icon='icons'>
-		Icon packs are still being reimplemented in the current client rewrite. They use the shared manifest above; pack-specific fields, such as how icon overrides are listed, will be documented once that surface lands.
+		An icon pack is a **folder of image files** mirroring Discord's asset tree, installed under `Unbound/Icons/<id>`. It uses the shared manifest above, plus two fields of its own:
+
+		<ParamField path='type' type="'icon-pack'">
+			Tags the manifest as an icon pack. When present on install it must match, otherwise the install is rejected.
+		</ParamField>
+		<ParamField path='source' type="'github' | 'other'">
+			How the pack's files are fetched. If omitted, it's inferred from `main`: a `github.com` URL means `github`, anything else means `other`.
+		</ParamField>
+
+		For a `github` pack, `main` is the repo URL (optionally with a `/tree/<branch>/<path>` suffix) and Unbound downloads that tree's images into the pack folder. For `other`, the pack installs through the shared bundle path like any other addon. See [Icon Packs](/icon-packs/introduction).
+	</Accordion>
+	<Accordion title='Fonts' icon='font'>
+		A font has **no manifest and no folder**. It's a single font file dropped directly into the `Fonts` directory, and the loader registers it by reading the font's own internal full name, not its file name.
+
+		Registering a font does not apply it. Fonts only take effect through the `unbound.font-states` setting, which maps a font family name to the name of the font to use instead. See [Settings](/loader/settings) for that key.
+
+		<Warning>
+			The key `"*"` in `font-states` is a wildcard that overrides **every** font request in the app, ignoring whatever family was asked for. If a wildcard entry is set, per-family entries never take effect.
+		</Warning>
 	</Accordion>
 </AccordionGroup>

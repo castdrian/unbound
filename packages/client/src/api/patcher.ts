@@ -4,3 +4,12 @@
  * This is the public surface behind `unbound.patcher` and `@unbound-app/api/patcher`.
  */
 export * from 'possess';
+
+import { createPatcher } from 'possess';
+
+const a = createPatcher('t');
+
+const test = { hi: () => {} };
+a.after(test, 'hi', ({ args }) => {
+	args[0].variant = 'primary';
+});

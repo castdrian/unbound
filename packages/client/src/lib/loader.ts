@@ -6,6 +6,31 @@ globalThis.window ??= globalThis as typeof window;
 
 const logger = createLogger('Loader');
 
+type ReadyCallback = () => void;
+
+type ReadyState = {
+	ready: boolean;
+	callbacks: ReadyCallback[];
+};
+
+type RuntimeGlobal = typeof globalThis & {
+	__unboundReady?: ReadyState;
+};
+
+const runtimeGlobal = globalThis as RuntimeGlobal;
+const readyState = (runtimeGlobal.__unboundReady ??= {
+	ready: false,
+	callbacks: [],
+});
+
+export function markReady(): void {
+	if (readyState.ready) return;
+
+	readyState.ready = true;
+
+	for (const callback of readyState.callbacks.splice(0)) callback();
+}
+
 /** A native → JS call held back until our initialization has finished. */
 type DeferredCall = {
 	object: any;

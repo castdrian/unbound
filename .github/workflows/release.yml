@@ -31,11 +31,13 @@ jobs:
           persist-credentials: false
 
       # bun.lock is lockfileVersion 2, which stable bun cannot parse until 1.4 releases.
+      # canary's frozen-lockfile check fails on a self-generated lockfile (round-trip bug),
+      # so install without it until stable 1.4 lands.
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: canary
 
-      - run: bun install --frozen-lockfile
+      - run: bun install
 
       # Publishing uses npm trusted publishing (OIDC), which needs npm >= 11.5.1; the runner's
       # preinstalled npm is older.

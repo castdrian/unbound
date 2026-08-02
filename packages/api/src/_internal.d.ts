@@ -138,7 +138,7 @@ export interface DesignModule {
 	showConfirmModal: Fn;
 	showSimpleActionSheet: Fn;
 	hideContextMenu: Fn<void>;
-	useNavigation: <T = any>() => Navigation$1<T>;
+	useNavigation: <T = any>() => Navigation<T>;
 	setColorOpacity: (color: string, opacity: number) => string;
 	darkenColor: (color: string, amount: number) => string;
 	brightenColor: (color: string, amount: number) => string;
@@ -187,6 +187,15 @@ export interface InternalToastOptions extends ToastOptions {
 	id: string;
 	closing?: boolean;
 	date?: number;
+}
+export interface Navigation<T = any> {
+	push: (route: string, params?: T) => void;
+	pop: () => void;
+	navigate: (route: string, params?: T) => void;
+	goBack: () => void;
+	setOptions: (options: Record<string, any>) => void;
+	addListener: (event: string, callback: Fn) => Fn<void>;
+	[key: string]: any;
 }
 export interface RowButtonProps {
 	label?: ReactNode;
@@ -263,6 +272,12 @@ export interface StackProps extends ViewProps {
 	align?: 'start' | 'center' | 'end' | 'stretch';
 	justify?: 'start' | 'center' | 'end' | 'between' | 'around';
 	children?: ReactNode;
+}
+export interface SwitchProps {
+	value: boolean;
+	disabled?: boolean;
+	accessibilityLabel?: string;
+	onValueChange: (value: boolean) => void;
 }
 export interface TableCheckboxRowProps {
 	label?: ReactNode;
@@ -604,15 +619,6 @@ export type UnboundAsset = DiscordAsset & {
 	iconPackScale?: number;
 };
 
-interface Navigation$1<T = any> {
-	push: (route: string, params?: T) => void;
-	pop: () => void;
-	navigate: (route: string, params?: T) => void;
-	goBack: () => void;
-	setOptions: (options: Record<string, any>) => void;
-	addListener: (event: string, callback: Fn) => Fn<void>;
-	[key: string]: any;
-}
 /** The lifecycle and settings contract implemented by a plugin. */
 interface Plugin$1 {
 	start?(): void;
@@ -620,4 +626,4 @@ interface Plugin$1 {
 	getSettingsPanel?(): ReactNode;
 }
 
-export { Navigation$1 as Navigation, Plugin$1 as Plugin };
+export { Plugin$1 as Plugin };

@@ -1,12 +1,17 @@
+import type { PluginPushRequest } from '@unbound-app/debugger-protocol';
 import { parseMessage } from '@unbound-app/debugger-protocol';
+import type { PluginEntity } from '@unbound-app/types';
 import { createLogger } from '@unbound-app/logger';
 import { createPatcher } from 'possess';
 
-import storage, { type SettingsPayload } from '~/api/storage';
 import { DEBUGGER_ADDRESS } from '~/lib/constants';
+import { plugins } from '~/managers/plugins';
+import { showToast } from '~/api/toasts';
+import storage from '~/api/storage';
 
 const Patcher = createPatcher('Debugger');
 const Logger = createLogger('Debugger');
+const Settings = storage.getStore('unbound');
 
 // How long to wait before re-dialling the bridge after a drop or failed attempt, so a reloaded app
 // or a restarted bridge reconnects on its own without waiting for the next AppState transition.
@@ -17,20 +22,40 @@ let sending = false;
 let stopped = false;
 let backgrounded = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let appStateSubscription: { remove: () => void } | null = null;
 
-const listeners = new Set<(payload: any) => void>();
+const disposers = new Set<() => void>();
 
 export function start() {
 	stopped = false;
 
 	patchLoggingHook();
-	attachAppStateListener();
-	attachSettingsListener();
+
+	// start() is re-entered by the settings listener on toggle; the disposers already registered mean
+	// the subscriptions below are live, and stacking a second set would fire every toast twice.
+	if (!disposers.size) {
+		disposers.add(listenToAppState());
+		disposers.add(listenToSettings());
+		for (const dispose of listenToReloads()) disposers.add(dispose);
+	}
 
 	// The socket only carries data reliably once the app is interactive, so connect on AppState
 	// `active`. Attempt once now too, in case the app is already active and won't fire a transition.
 	connect();
+}
+
+export function stop() {
+	stopped = true;
+	Patcher.unpatchAll();
+
+	clearReconnectTimer();
+	closeSocket();
+
+	for (const dispose of disposers) dispose();
+	disposers.clear();
+}
+
+export function shouldStart() {
+	return Settings.get('debugger.enabled', false);
 }
 
 function connect(isReconnect = false) {
@@ -38,10 +63,7 @@ function connect(isReconnect = false) {
 	if (ws || stopped) return;
 
 	// A retry beat us to it; the pending attempt will run instead.
-	if (reconnectTimer) {
-		clearTimeout(reconnectTimer);
-		reconnectTimer = null;
-	}
+	clearReconnectTimer();
 
 	const address = resolveAddress();
 
@@ -73,7 +95,7 @@ function connect(isReconnect = false) {
 	});
 
 	ws.addEventListener('message', (message) => {
-		handleEvalRequest(message.data);
+		handleMessage(message.data);
 	});
 }
 
@@ -81,7 +103,7 @@ function connect(isReconnect = false) {
 // reconnect the change triggers. Falls back to the address baked in at build time, which tracks the
 // dev host and is empty in production builds.
 function resolveAddress() {
-	return storage.get('unbound', 'debugger.address', '') || DEBUGGER_ADDRESS;
+	return Settings.get('debugger.address', '') || DEBUGGER_ADDRESS;
 }
 
 function scheduleReconnect() {
@@ -95,23 +117,59 @@ function scheduleReconnect() {
 	}, RECONNECT_DELAY_MS);
 }
 
-function handleEvalRequest(raw: any) {
+function clearReconnectTimer() {
+	if (!reconnectTimer) return;
+
+	clearTimeout(reconnectTimer);
+	reconnectTimer = null;
+}
+
+function closeSocket() {
+	if (!ws) return;
+
+	if (ws.readyState === WebSocket.OPEN) ws.close();
+	ws = null;
+}
+
+function handleMessage(raw: any) {
 	const request = parseMessage(raw);
 
-	if (request?.type !== 'eval') return;
+	if (request?.type === 'eval') {
+		void handleEvalRequest(request.id, request.code);
+		return;
+	}
 
-	// Await thenables so `await`-style expressions resolve to their value, not a pending Promise.
-	Promise.resolve()
-		.then(() => {
-			// oxlint-disable-next-line no-eval
-			return (0, eval)(request.code);
-		})
-		.then(
-			(value) =>
-				reply({ type: 'eval-result', id: request.id, ok: true, value: inspect(value) }),
-			(error) =>
-				reply({ type: 'eval-result', id: request.id, ok: false, error: inspect(error) }),
-		);
+	if (request?.type === 'plugin-push') {
+		void handlePluginPush(request);
+	}
+}
+
+async function handleEvalRequest(id: string, code: string) {
+	try {
+		// Await so `await`-style expressions resolve to their value, not a pending Promise.
+		// oxlint-disable-next-line no-eval
+		const value = await (0, eval)(code);
+		reply({ type: 'eval-result', id, ok: true, value: inspect(value) });
+	} catch (error: any) {
+		reply({ type: 'eval-result', id, ok: false, error: inspect(error) });
+	}
+}
+
+// A thin transport caller: the reload lifecycle lives on the Plugins manager. Report the manager's
+// own returned outcome straight back over the wire so the CLI stages the reload result.
+async function handlePluginPush(request: PluginPushRequest) {
+	try {
+		const result = await plugins.reload(request.addonId, request.bundle, request.manifest);
+
+		reply({
+			type: 'plugin-push-result',
+			id: request.id,
+			ok: result.ok,
+			error: result.ok ? void 0 : inspect(result.error),
+		});
+	} catch (error: any) {
+		reply({ type: 'plugin-push-result', id: request.id, ok: false, error: inspect(error) });
+	}
 }
 
 function reply(payload: object) {
@@ -139,36 +197,6 @@ function inspect(value: any): string {
 	}
 }
 
-export function stop() {
-	stopped = true;
-	Patcher.unpatchAll();
-
-	if (reconnectTimer) {
-		clearTimeout(reconnectTimer);
-		reconnectTimer = null;
-	}
-
-	if (ws) {
-		if (ws.readyState === WebSocket.OPEN) ws.close();
-		ws = null;
-	}
-
-	if (appStateSubscription) {
-		appStateSubscription.remove();
-		appStateSubscription = null;
-	}
-
-	for (const listener of listeners) {
-		storage.removeListener(listener);
-	}
-
-	listeners.clear();
-}
-
-export function shouldStart() {
-	return storage.get('unbound', 'debugger.enabled', false);
-}
-
 function patchLoggingHook() {
 	Patcher.before(globalThis, 'nativeLoggingHook', ({ args }) => {
 		const [message, level] = args;
@@ -190,10 +218,10 @@ function patchLoggingHook() {
 	});
 }
 
-function attachAppStateListener() {
+function listenToAppState() {
 	const { AppState } = globalThis.ReactNative;
 
-	appStateSubscription = AppState.addEventListener('change', (state: string) => {
+	const subscription = AppState.addEventListener('change', (state: string) => {
 		switch (state) {
 			case 'active':
 				backgrounded = false;
@@ -201,38 +229,66 @@ function attachAppStateListener() {
 				break;
 			case 'background':
 				backgrounded = true;
-				if (reconnectTimer) {
-					clearTimeout(reconnectTimer);
-					reconnectTimer = null;
-				}
+				clearReconnectTimer();
 				if (ws?.readyState === WebSocket.OPEN) ws.close();
 				break;
 		}
 	});
+
+	return () => subscription.remove();
 }
 
-function attachSettingsListener() {
-	const handler = (payload: SettingsPayload) => {
-		if (!payload.key?.startsWith('debugger.')) return;
+function listenToSettings() {
+	return Settings.addListener(
+		(payload) => Boolean(payload.key?.startsWith('debugger.')),
+		(payload) => {
+			if (payload.key === 'debugger.enabled') {
+				if (payload.value) {
+					start();
+				} else {
+					stop();
+				}
 
-		if (payload.key === 'debugger.enabled') {
-			if (payload.value) {
-				start();
-			} else {
-				stop();
+				return;
 			}
-		} else if (payload.key === 'debugger.address') {
-			if (ws?.readyState === WebSocket.OPEN) {
+
+			if (payload.key === 'debugger.address' && ws?.readyState === WebSocket.OPEN) {
 				Logger.info('Address changed, reconnecting...');
 				// The close handler clears `ws` and schedules the retry; dialling here would hit the
 				// `if (ws) return` guard, since `close()` doesn't clear the socket synchronously.
 				ws.close();
 			}
-		}
+		},
+	);
+}
+
+// Surface hot reloads on the device itself: the debugger builtin only runs when the debugger is
+// enabled, so this is inherently dev-gated. A push-driven reload emits `reloaded`/`reload-error` on
+// the plugins manager; turn each into a toast naming the plugin.
+function listenToReloads() {
+	const onReloaded = (entity: PluginEntity) => {
+		showToast({
+			id: `reload:${entity.id}`,
+			title: 'Hot reload',
+			content: `Reloaded ${entity.data.name}.`,
+		});
 	};
 
-	storage.on('changed', handler);
-	listeners.add(handler);
+	const onReloadError = (entity: PluginEntity, error: Error) => {
+		showToast({
+			id: `reload:${entity.id}`,
+			title: 'Hot reload failed',
+			content: `${entity.data.name} failed to reload: ${error.message}`,
+		});
+	};
+
+	plugins.on('reloaded', onReloaded);
+	plugins.on('reload-error', onReloadError);
+
+	return [
+		() => void plugins.off('reloaded', onReloaded),
+		() => void plugins.off('reload-error', onReloadError),
+	];
 }
 
 export default { start, stop, shouldStart };

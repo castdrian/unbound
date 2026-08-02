@@ -24,7 +24,8 @@
           "loader/introduction",
           "loader/configuration",
           "loader/local-build",
-          "loader/ios"
+          "loader/ios",
+          "loader/settings"
         ]
       },
       {
@@ -80,7 +81,8 @@
           "modules/utilities",
           "modules/components",
           "modules/fs",
-          "modules/managers"
+          "modules/managers",
+          "modules/settings"
         ]
       }
     ],

@@ -8,9 +8,13 @@ A theme changes how Discord looks. Where a [plugin](/plugins/introduction) is co
 
 ### How themes work
 
-Discord styles its UI from a palette of named colors. A theme overrides that palette: you provide values for the color names you want to change, Unbound parses your definition, and the theme store pushes it into the app. Because a theme is just parsed JSON with no `start`/`stop` to run, applying or removing one is instant.
+Discord styles its UI from a palette of named colors. A theme overrides that palette: you provide values for the color names you want to change, and Unbound applies them to the app. Because a theme is just parsed JSON with no `start`/`stop` to run, applying or removing one is instant.
 
 Themes are governed by the same [manager](/modules/managers) as plugins. They are loaded, enabled, disabled, and persisted through the same lifecycle. The one difference is that enabling a theme *applies* it: only one theme is active at a time, so enabling a new one replaces the previous.
+
+<Note>
+	Colors are applied **natively**, not from JavaScript. The loader reads your theme's `bundle.json` at startup and swizzles Discord's color lookups, so a theme takes effect only after a restart, and there is no JavaScript hook that recolors a running app. See [Theme Types](/themes/types) for the bundle's shape.
+</Note>
 
 ### What a theme defines
 

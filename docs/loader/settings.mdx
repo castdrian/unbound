@@ -1,0 +1,133 @@
+---
+title: 'Settings Reference'
+description: 'Every key the loader reads from settings.json, with its default and effect.'
+icon: 'sliders'
+---
+
+The loader keeps all of its configuration in a single `settings.json` file. This page lists every key the native loader reads or writes, what it defaults to when absent, and what changing it does.
+
+### File location
+
+`settings.json` lives in the app's documents directory, under an `Unbound` folder. On iOS you can reach it through the Files app at `On My iPhone` -> `<App Name>` -> `Unbound`, as described in the [iOS page](/loader/ios).
+
+If the file does not exist when the loader starts, it is created containing `{}`.
+
+### Structure
+
+The root of the file is an object of **stores**. Each store is a namespace, and the loader reads exclusively from the store named `unbound`. Addons get their own store, keyed by their id, which is why an addon's storage can never collide with the loader's keys. See [storage](/modules/storage) for the addon-facing side of the same file.
+
+Within a store, keys are dot-paths that map onto nested objects. `loader.update.url` is stored as:
+
+```json settings.json
+{
+	"unbound": {
+		"loader": {
+			"update": {
+				"url": "http://localhost:4040/unbound.bundle"
+			}
+		}
+	}
+}
+```
+
+<Note>
+	The `unbound` store is shared between the native loader and Unbound's own JavaScript settings. Keys the loader does not recognise, such as `staff-mode` or `toasts.*`, belong to the client and are documented alongside the features that own them.
+</Note>
+
+### Keys
+
+Every key below sits inside the `unbound` store.
+
+<ParamField path="loader.enabled" type="boolean" default="true">
+	Gates the entire loader. When this is `false` the loader logs `Loader is disabled. Aborting.` and hands the bundle load straight back to Discord, so no plugins, themes, fonts, updater, or hot reload run at all.
+
+	This is the only key that is enabled by default. It is also the recovery lever: see [disabling the loader](#disabling-the-loader).
+</ParamField>
+
+<ParamField path="loader.devtools" type="boolean" default="false">
+	Evaluates the bundled DevTools script into the JavaScript runtime before the main bundle, which is what makes React DevTools able to attach. Leave it off unless you are actively debugging.
+</ParamField>
+
+<ParamField path="loader.update" type="object">
+	Controls where the JavaScript bundle comes from and when it is refetched.
+
+	<Expandable title="properties">
+		<ParamField path="loader.update.url" type="string" default="https://raw.githubusercontent.com/unbound-app/builds/refs/heads/main/">
+			Base URL the bundle is downloaded from. If the value ends in `.bundle` or `.js` it is treated as a direct file URL, otherwise it is treated as a directory and the filename is appended.
+
+			The downloaded file is written next to `settings.json` as `unbound.bundle` or `unbound.js`, matching the extension of the URL. When the extension changes, the stale file from the other extension is deleted.
+
+			This value also seeds hot reload: the origin (scheme and host) of this URL is where the loader opens its hot reload stream.
+		</ParamField>
+
+		<ParamField path="loader.update.force" type="boolean" default="false">
+			Skips ETag revalidation and redownloads the bundle on every launch. Without it, the loader sends the stored ETag as an `If-None-Match` header and keeps the existing file on a `304`.
+		</ParamField>
+
+		<ParamField path="loader.update.hmr" type="boolean" default="false">
+			Opens a hot reload connection to the origin of `loader.update.url`. If that key is empty, or does not parse into a URL with both a scheme and a host, no connection is made.
+		</ParamField>
+
+		<ParamField path="loader.update.etag" type="string" default="">
+			Written by the loader, not by you. It stores the `etag` response header from the last successful bundle download so the next launch can revalidate instead of redownloading. Deleting it forces one full download.
+		</ParamField>
+	</Expandable>
+</ParamField>
+
+<ParamField path="recovery" type="boolean" default="false">
+	Recovery mode. When enabled the loader skips swizzling semantic colors, so themes stop being applied, and addons are started with an empty no-op instance instead of having their bundle evaluated. Addons still appear in the UI, so you can use a working app to disable whatever broke it. The toolbox toggles this key and reloads the app.
+</ParamField>
+
+<ParamField path="font-states" type="object" default="{}">
+	Maps a font state name to the name of the font that should replace it. The native font layer resolves each override against both the custom fonts you have installed and the system fonts, and logs an error for any override whose font is not loaded, leaving that state untouched.
+
+	This key is normally managed for you by Unbound's font settings. See [theme types](/themes/types) and the [addon manifest](/addons/manifest) for how fonts are declared.
+</ParamField>
+
+<Warning>
+	**Three toggles are not in `settings.json` at all.** The toolbox's own switches are backed by `NSUserDefaults`, so editing `settings.json` will never change them:
+
+	- `UnboundShakeGestureEnabled` (default on) opens the toolbox on a shake
+	- `UnboundThreeFingerGestureEnabled` (default on) opens the toolbox on a three finger long press
+	- `UnboundAppIconEnabled` swaps the app icon, and is only offered on non-App Store and non-TestFlight installs
+
+	The two gesture toggles are mutually protected: turning one off forces the other back on, so you can never lock yourself out of the toolbox.
+
+	`NSUserDefaults` also holds `UnboundDevOverlayButtonRelativeX` and `UnboundDevOverlayButtonRelativeY`, which persist where you dragged the dev overlay button as a fraction of screen size.
+</Warning>
+
+### External edits reload live
+
+The loader watches `settings.json` for changes and reloads it in place, so you can edit the file from the Files app, over SSH, or with any other tool and the new values take effect without restarting the app. On each change the loader reparses the file and posts an internal change notification that the rest of the loader listens to.
+
+<Note>
+	Live reload updates the values the loader holds. It does not retroactively re-run work that already happened at startup, so keys read once during launch, such as `loader.enabled` and `loader.devtools`, still need an app restart to take effect.
+</Note>
+
+Writes made from inside the app are debounced by 300ms before being flushed to disk, so a burst of changes results in one write.
+
+### Corrupt files are backed up, not fatal
+
+If `settings.json` fails to parse, or parses into anything other than a JSON object, the loader does not crash the app. It copies the file to `settings.json.corrupt-<timestamp>` in the same directory, where `<timestamp>` is the Unix time in whole seconds, then resets `settings.json` to `{}` and carries on.
+
+```
+settings.json.corrupt-1753488000
+```
+
+Your old configuration is still readable in that backup, so a bad hand edit costs you a restart at worst.
+
+### Disabling the loader
+
+Setting `loader.enabled` to `false` is the cleanest way to turn Unbound off without uninstalling anything. Because the check happens before any plugin, theme, or bundle work, it takes the loader entirely out of the picture and gives you a stock app.
+
+```json settings.json
+{
+	"unbound": {
+		"loader": {
+			"enabled": false
+		}
+	}
+}
+```
+
+Reach for this when a bad bundle or addon makes the app unusable and you cannot get far enough into the UI to fix it. If you only need addons out of the way, `recovery` is the lighter option. For a full list of the flags you can combine here, see [configuration](/loader/configuration).

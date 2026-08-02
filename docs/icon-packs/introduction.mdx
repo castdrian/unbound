@@ -18,14 +18,44 @@ Internally each overridden asset carries an `iconPackPath` (where your replaceme
 
 ### What an icon pack ships
 
+Unlike a [plugin](/plugins/introduction), a pack ships no code. It's a folder of image files mirroring Discord's asset tree, installed under `Unbound/Icons/<id>` (see [iOS](/loader/ios) for where that is on device).
+
 <CardGroup cols={2}>
 	<Card title='Manifest' icon='circle-info' href='/addons/manifest'>
-		Metadata identifying the pack: name, authors, version.
+		Metadata identifying the pack: name, authors, version, plus `type` and `source`.
 	</Card>
 	<Card title='Assets' icon='face-smile' href='/modules/assets'>
 		How Discord's icons are named and discovered: the names a pack overrides.
 	</Card>
 </CardGroup>
+
+### File layout
+
+Each image mirrors the asset it replaces. The path is the asset's own location with the leading `assets/` stripped, then the asset name, then its extension:
+
+```
+Unbound/Icons/my-pack/images/ic_message_delete.png
+Unbound/Icons/my-pack/images/ic_message_delete@2x.png
+```
+
+Scale variants use the `@2x`, `@3x` suffix, and the bare name is scale `1`. Unbound picks the **highest** scale present for each asset, so shipping only an `@3x` file is fine. An asset with no matching file in the pack keeps Discord's original.
+
+### Installing
+
+Packs install from a manifest URL. The `source` field decides how the files are fetched:
+
+<AccordionGroup>
+	<Accordion title='github' icon='github'>
+		`main` is the repo URL, optionally narrowed with `/tree/<branch>/<subpath>`. Unbound reads the repo's file tree and downloads every file under that path into the pack folder. If `source` is omitted and `main` is a `github.com` URL, this is what's used.
+	</Accordion>
+	<Accordion title='other' icon='link'>
+		The pack installs through the same bundle download path as any other addon.
+	</Accordion>
+</AccordionGroup>
+
+<Note>
+	Only one pack applies at a time, like a [theme](/themes/introduction). Enabling a pack replaces the applied one, and disabling falls back to the built-in `default` pack, which renders Discord's own icons. See [managers](/modules/managers) for the toggle surface.
+</Note>
 
 <Tip>
 	Match Discord's icon names exactly. An override only applies when its name lines up with the asset Discord is asking for. A mismatched name simply does nothing.

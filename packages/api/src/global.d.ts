@@ -41,6 +41,7 @@ export type {
 	StackProps,
 	StyleSheetSpec,
 	StyleSheetSpecOrFactory,
+	SwitchProps,
 	TableCheckboxRowProps,
 	TableRadioRowProps,
 	TableRowComponent,
@@ -69,48 +70,116 @@ export type {
 } from './_internal';
 import type { ColorString } from './utils';
 declare global {
-	/** The raw `UnboundNative` JSI bridge the tweak installs directly on the JS global. */
-	type UnboundNativeModule = {
-		// Utilities
-		getDeviceModel(): string;
+	/** A feature name published by the native module's capability table. */
+	type UnboundNativeFeature =
+		| 'device.info'
+		| 'device.entitlements'
+		| 'app.source'
+		| 'notifications'
+		| 'pip.video'
+		| 'chat.avatar'
+		| 'chat.messageBubbles'
+		| 'toolbox.menu'
+		| 'native.evaluateBytecode';
+	/**
+	 * The lifecycle status of a native feature on the running build. `unknown` and `unavailable`
+	 * both mean "do not call"; only `supported` and `deprecated` are safe.
+	 */
+	type UnboundNativeFeatureStatus =
+		| 'unknown'
+		| 'removed'
+		| 'deprecated'
+		| 'supported'
+		| 'unavailable';
+	/**
+	 * The full metadata record for a native feature. Everything but `name` and `known` is absent
+	 * when the feature is not in this build's table.
+	 */
+	type UnboundNativeFeatureInfo = {
+		name: string;
+		known: boolean;
+		status: UnboundNativeFeatureStatus;
+		supported?: boolean;
+		introducedIn?: string;
+		deprecatedIn?: string;
+		removedIn?: string;
+		replacement?: UnboundNativeFeature;
+	};
+	/** Hardware, OS, and install-integrity details for the device Unbound is running on. */
+	type UnboundNativeDevice = {
+		getModel(): string;
 		getiOSVersionString(): string;
 		isJailbroken(): boolean;
-		isSystemApp(): Promise<boolean>;
+		isSystemApp(): boolean;
 		isVerifiedBuild(): boolean;
-		isAppStoreApp(): boolean;
-		isTestFlightApp(): boolean;
-		isTrollStoreApp(): boolean;
-		isLiveContainerApp(): boolean;
-		getTrollStoreVariant(): string;
-		getApplicationEntitlements(): unknown;
-		getAppSource(): string;
+		getEntitlements(): Record<string, any>;
 		getEntitlementsAsPlist(): string;
-		showToolboxMenu(): void;
-		// Plugin API
-		showNotification(
-			title: string,
-			content: string,
-			scheduledTime: number,
-			sound: boolean,
-			notificationId: string,
-		): void;
-		playPiPVideo(videoURL: string): void;
-		// Chat UI
-		setAvatarCornerRadius(radius: number): void;
-		resetAvatarCornerRadius(): void;
+	};
+	/** How this copy of the app was installed. */
+	type UnboundNativeApp = {
+		getSource(): string;
+	};
+	/** Local notification scheduling. */
+	type UnboundNativeNotifications = {
+		show(
+			title?: string,
+			body?: string,
+			timeDelay?: number,
+			soundEnabled?: boolean,
+			identifier?: string,
+		): string;
+	};
+	/** Picture-in-picture video playback. */
+	type UnboundNativePiP = {
+		playVideo(url: string): string | null;
+	};
+	/**
+	 * Native chat appearance controls. The getters read synchronously; every setter hops to the
+	 * main queue and returns immediately, so a value read back on the next line may still be stale.
+	 */
+	type UnboundNativeChat = {
 		getAvatarCornerRadius(): number;
-		setMessageBubblesEnabled(
-			enabled: boolean,
-			lightColor: ColorString | null,
-			darkColor: ColorString | null,
-		): void;
-		setMessageBubbleColors(lightColor: ColorString, darkColor: ColorString): void;
+		setAvatarCornerRadius(radius?: number): void;
+		resetAvatarCornerRadius(): void;
+		getMessageBubblesEnabled(): boolean;
 		getMessageBubbleLightColor(): ColorString;
 		getMessageBubbleDarkColor(): ColorString;
-		getMessageBubblesEnabled(): boolean;
 		getMessageBubbleCornerRadius(): number;
-		setMessageBubbleCornerRadius(radius: number): void;
+		setMessageBubblesEnabled(
+			enabled: boolean,
+			lightColor?: ColorString,
+			darkColor?: ColorString,
+		): void;
+		setMessageBubbleColors(lightColor?: ColorString, darkColor?: ColorString): void;
+		setMessageBubbleCornerRadius(radius?: number): void;
 		resetMessageBubbles(): void;
+	};
+	/** The native toolbox menu, drawn natively so it survives a broken JS bundle. */
+	type UnboundNativeToolbox = {
+		showMenu(): void;
+	};
+	/** The raw `UnboundNative` JSI bridge the tweak installs directly on the JS global. */
+	type UnboundNativeModule = {
+		getNativeModuleVersion(): string;
+		supportsFeature(name: UnboundNativeFeature): boolean;
+		getFeatureInfo(name: UnboundNativeFeature): UnboundNativeFeatureInfo;
+		isFeatureDeprecated(name: UnboundNativeFeature): boolean;
+		isFeatureRemoved(name: UnboundNativeFeature): boolean;
+		getSupportedFeatures(): UnboundNativeFeature[];
+		getDeprecatedFeatures(): UnboundNativeFeature[];
+		getRemovedFeatures(): UnboundNativeFeature[];
+		/**
+		 * Runs Hermes bytecode in the app's JS runtime and returns whatever it evaluates to.
+		 * Throws when the buffer is not an `ArrayBuffer`, is empty, or is not Hermes bytecode;
+		 * anything the bytecode itself throws propagates too.
+		 */
+		evaluateBytecode(bytecode: ArrayBuffer, tag?: string): any;
+		device: UnboundNativeDevice;
+		app: UnboundNativeApp;
+		notifications: UnboundNativeNotifications;
+		pip: UnboundNativePiP;
+		chat: UnboundNativeChat;
+		toolbox: UnboundNativeToolbox;
 	};
 	/**
 	 * Build-time token, replaced with a boolean literal by the build's `transform.define`. Folds at

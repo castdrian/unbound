@@ -7,6 +7,9 @@ import fs from '~/api/fs';
 
 type AddonResolveable = string | Addon;
 
+/** The outcome of {@link Addons.reload}: success, or failure carrying the recorded error. */
+export type ReloadResult = { ok: true } | { ok: false; error: Error };
+
 type AddonEvents<T extends Addon> = {
 	loaded: (entity: T) => void;
 	unloaded: (entity: T) => void;
@@ -16,6 +19,7 @@ type AddonEvents<T extends Addon> = {
 	disabled: (entity: T) => void;
 	toggled: (entity: T) => void;
 	reloaded: (entity: T) => void;
+	'reload-error': (entity: T, error: Error) => void;
 	installed: (entity: T) => void;
 	'install-error': (error: Error) => void;
 	deleted: (entity: T) => void;
@@ -94,6 +98,111 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	}
 
 	/**
+	 * @description Hot-reloads an addon from a freshly pushed bundle and manifest: upserts it into the
+	 * manager, persists it to disk so the reload survives the next launch, and emits `reloaded` on
+	 * success. A loaded addon is swapped in place (bundle + manifest replaced, old instance stopped,
+	 * new one started only if it was running); an absent one is loaded fresh, honouring its persisted
+	 * enabled state. A throwing `stop()` or a failing `start()` is caught, never aborting the swap, and
+	 * drives a `reload-error` emit for on-device feedback. Returns the outcome so the caller reports it
+	 * over the wire rather than reading it back out of shared state.
+	 * @param entity The addon to reload, as its id or the entity itself.
+	 * @param bundle The freshly built bundle source.
+	 * @param manifest The freshly built, validated manifest.
+	 * @returns The reload outcome: `{ ok: true }`, or `{ ok: false, error }` on failure.
+	 */
+	async reload(
+		entity: AddonResolveable,
+		bundle: string,
+		manifest: AddonManifest,
+	): Promise<ReloadResult> {
+		const resolved = this.resolve(entity);
+
+		// The target id and the manifest's id must agree: everything past here keys off `manifest.id`
+		// (persist, load, getEntity), so a mismatch would install a second addon under the new id and
+		// leave the old one running. Renaming an addon's id is out of scope for a hot swap — it changes
+		// the persisted state, on-disk folder, and settings key.
+		const targetId = typeof entity === 'string' ? entity : entity.id;
+
+		if (targetId !== manifest.id) {
+			const error = new Error(
+				`Push targeted ${targetId} but the manifest declares ${manifest.id}.`,
+			);
+			this.logger.error(`Failed to reload addon ${targetId}:`, error);
+
+			return { ok: false, error };
+		}
+
+		// Absent addon: install path over the socket bytes — load it fresh and persist it. load()
+		// consults the persisted state and starts it only if enabled.
+		if (!resolved) {
+			try {
+				this.validateManifest(manifest);
+				await this.persist(bundle, manifest);
+				this.load(bundle, manifest);
+
+				const loaded = this.getEntity(manifest.id);
+				const loadError = this.errors.get(manifest.id);
+
+				if (!loaded) throw loadError ?? new Error('Addon failed to load.');
+				if (loadError) {
+					this.emit('reload-error', loaded, loadError);
+					return { ok: false, error: loadError };
+				}
+
+				this.emit('reloaded', loaded);
+				return { ok: true };
+			} catch (error: any) {
+				this.logger.error(`Failed to reload addon ${manifest.id}:`, error);
+				this.errors.set(manifest.id, error);
+
+				return { ok: false, error };
+			}
+		}
+
+		try {
+			this.validateManifest(manifest);
+
+			// Restart only what was running, mirroring enable/disable: a save must not start an addon the
+			// user has explicitly disabled.
+			const wasStarted = resolved.started;
+
+			// A throwing stop() must not abort the swap; stop() catches and records internally, so its
+			// failure surfaces as a recorded error rather than a throw.
+			if (wasStarted) this.stop(resolved);
+
+			// A throwing stop() leaves `started`/`instance` untouched (stop() bails before clearing them),
+			// which would wedge start()'s `already started` guard. Force a stopped state so the new bundle
+			// always starts, and clear any recorded stop error so start()'s own failure is detected cleanly.
+			resolved.started = false;
+			resolved.instance = null;
+
+			resolved.bundle = bundle;
+			resolved.data = manifest;
+			resolved.failed = false;
+			this.errors.delete(resolved.id);
+
+			await this.persist(bundle, manifest);
+
+			if (wasStarted) this.start(resolved);
+
+			const startError = this.errors.get(resolved.id);
+			if (startError || resolved.failed) {
+				const error = startError ?? new Error('Addon failed to start after reload.');
+				this.emit('reload-error', resolved, error);
+				return { ok: false, error };
+			}
+
+			this.emit('reloaded', resolved);
+			return { ok: true };
+		} catch (error: any) {
+			this.logger.error(`Failed to reload addon ${resolved.id}:`, error);
+			this.errors.set(resolved.id, error);
+			this.emit('reload-error', resolved, error);
+			return { ok: false, error };
+		}
+	}
+
+	/**
 	 * @description Installs an addon from a manifest URL: fetches and validates the manifest, downloads
 	 * the bundle, loads it, and emits `installed`. Twin of {@link delete}.
 	 * @param url The manifest URL to install from.
@@ -119,14 +228,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 				return res.text();
 			});
 
-			await fs.write(
-				`Unbound/${ManagerType[this.type]}/${manifest.id}/manifest.json`,
-				JSON.stringify(manifest),
-			);
-			await fs.write(
-				`Unbound/${ManagerType[this.type]}/${manifest.id}/${manifest.main}`,
-				bundle,
-			);
+			await this.persist(bundle, manifest);
 
 			this.load(bundle, manifest);
 			const entity = this.getEntity(manifest.id);
@@ -271,6 +373,19 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		}
 
 		this.emit('toggled', resolved);
+	}
+
+	/**
+	 * @description Writes an addon's manifest and bundle to its on-disk folder, the same layout the
+	 * loader reads at startup, so a fresh install or hot reload survives the next app launch.
+	 * @param bundle The addon's bundle source.
+	 * @param manifest The addon's validated manifest.
+	 */
+	protected async persist(bundle: string, manifest: AddonManifest): Promise<void> {
+		const dir = `Unbound/${ManagerType[this.type]}/${manifest.id}`;
+
+		await fs.write(`${dir}/manifest.json`, JSON.stringify(manifest));
+		await fs.write(`${dir}/${manifest.main}`, bundle);
 	}
 
 	/**

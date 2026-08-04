@@ -49,6 +49,8 @@ const unpatches: (() => void)[] = [];
  * @param onReady Runs once the registry is ready; resolve it before Discord and deferred calls flush.
  */
 export default function deferUntilReady(onReady: () => Promise<void>): void {
+	ensureModules();
+
 	// `__r` already exists: the hook point is gone (legacy Vendetta-style loader). Initialize now.
 	if (typeof window.__r !== 'undefined') {
 		void runReady(onReady).then((initialized) => {

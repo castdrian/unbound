@@ -52,3 +52,40 @@ test('releases readiness callbacks after Discord startup resumes', async () => {
 		state.callbacks.splice(0);
 	}
 });
+
+test('materializes Metro modules before initializing when require already exists', async () => {
+	type RuntimeWithModules = RuntimeWithLoaderHooks & {
+		__c?: () => Map<unknown, unknown>;
+		modules?: Map<unknown, unknown>;
+	};
+
+	const runtime = globalThis as RuntimeWithModules;
+	const previousCollector = runtime.__c;
+	const previousModules = runtime.modules;
+	const previousRequire = runtime.__r;
+	const events: string[] = [];
+
+	delete runtime.modules;
+	runtime.__c = () => {
+		events.push('collect');
+		return new Map();
+	};
+	runtime.__r = () => undefined;
+
+	try {
+		deferUntilReady(async () => {
+			events.push(runtime.modules ? 'initialize' : 'missing');
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(events).toEqual(['collect', 'initialize']);
+	} finally {
+		if (previousCollector) runtime.__c = previousCollector;
+		else delete runtime.__c;
+		if (previousModules) runtime.modules = previousModules;
+		else delete runtime.modules;
+		if (previousRequire) runtime.__r = previousRequire;
+		else delete runtime.__r;
+	}
+});

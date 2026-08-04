@@ -51,7 +51,9 @@ const unpatches: (() => void)[] = [];
 export default function deferUntilReady(onReady: () => Promise<void>): void {
 	// `__r` already exists: the hook point is gone (legacy Vendetta-style loader). Initialize now.
 	if (typeof window.__r !== 'undefined') {
-		void runReady(onReady);
+		void runReady(onReady).then((initialized) => {
+			if (initialized) markReady();
+		});
 		return;
 	}
 
@@ -101,22 +103,25 @@ function onRunApplication(original: MetroRequire, onReady: () => Promise<void>) 
 	ensureModules();
 	holdNativeCalls();
 
-	void runReady(onReady).then(() => {
+	void runReady(onReady).then((initialized) => {
 		for (const unpatch of unpatches.splice(0)) unpatch();
 
 		original(0);
 		resumeDeferred();
+		if (initialized) markReady();
 	});
 }
 
 /** Runs the readiness callback, surfacing any failure the same way the entry point used to. */
-async function runReady(onReady: () => Promise<void>) {
+async function runReady(onReady: () => Promise<void>): Promise<boolean> {
 	try {
 		await onReady();
+		return true;
 	} catch (error: any) {
 		const message = 'stack' in error ? error.stack : String(error);
 		logger.error('Failed to initialize Unbound:', error);
 		alert(`Unbound failed to initialize: ${message}`);
+		return false;
 	}
 }
 

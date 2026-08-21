@@ -60,6 +60,8 @@ jobs:
 
           cp -r "$dist"/. .
 
+          echo 'builds.unbound.rip' > CNAME
+
           git add -A
           git commit -m "build: publish bundles for ${GITHUB_SHA}"
 

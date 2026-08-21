@@ -2,7 +2,7 @@ import { rolldown, watch, type RolldownOptions, type Plugin } from 'rolldown';
 import hermes from '@unbound-app/rollup-plugin-hermes';
 import { existsSync, readdirSync } from 'node:fs';
 import { cp, mkdir, rm } from 'node:fs/promises';
-import { minify, swc } from 'rollup-plugin-swc3';
+import { swc } from 'rollup-plugin-swc3';
 import replace from '@rollup/plugin-replace';
 import Logger from '@unbound-app/logger';
 import { join } from 'node:path';
@@ -46,6 +46,7 @@ const config: RolldownOptions = {
 			footer: '//# sourceURL=unbound',
 			file: 'dist/unbound.js',
 			format: 'iife',
+			minify: !IS_DEV_BUILD,
 			inlineDynamicImports: true,
 		},
 	],
@@ -67,7 +68,6 @@ const config: RolldownOptions = {
 			$$DEBUGGER_ADDRESS$$: DEBUGGER_ADDRESS,
 		}),
 		swc({ tsconfig: false, swcrc: true, exclude: /node_modules\/(?!\.bun\/possess|possess)/ }),
-		minify({ compress: true, mangle: true }),
 		hermes(),
 		generateManifest(GIT_REVISION),
 		...(IS_DEV_BUILD ? [locales()] : []),

@@ -1,10 +1,11 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import Logger from '@unbound-app/logger';
 import type { Plugin } from 'rolldown';
 import { resolve } from 'path';
 
 const logger = Logger.create('Build', 'Manifest');
 const root = resolve(__dirname, '..', '..', '..');
+const dist = resolve(root, 'dist');
 
 // Hermes bytecode (HBC) file header: an 8-byte magic followed by a uint32
 // version, both little-endian.
@@ -32,22 +33,39 @@ function getBytecodeVersion(bundlePath: string): number | null {
 	}
 }
 
+function getBytecodeVersions(): number[] {
+	if (!existsSync(dist)) return [];
+
+	const versions: number[] = [];
+
+	for (const file of readdirSync(dist)) {
+		if (!file.startsWith('unbound.') || !file.endsWith('.bundle')) continue;
+
+		const version = getBytecodeVersion(resolve(dist, file));
+		if (version !== null) versions.push(version);
+	}
+
+	return [...new Set(versions)].sort((a, b) => b - a);
+}
+
 export default function generateManifest(revision: string): Plugin {
 	return {
 		name: 'generate-manifest',
 		writeBundle() {
-			const bundlePath = resolve(root, 'dist/unbound.bundle');
-			const manifestPath = resolve(root, 'dist/manifest.json');
-			const bytecodeVersion = getBytecodeVersion(bundlePath);
+			const manifestPath = resolve(dist, 'manifest.json');
+			const bytecodeVersions = getBytecodeVersions();
 
 			const manifest = {
 				revision,
 				buildTime: new Date().toISOString(),
-				bytecodeVersion,
+				bytecodeVersions,
 			};
 
 			writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-			logger.success('Generated manifest.json with bytecode version', bytecodeVersion);
+			logger.success(
+				'Generated manifest.json with bytecode versions',
+				bytecodeVersions.join(', '),
+			);
 		},
 	};
 }

@@ -37,7 +37,7 @@
     },
     "packages/api": {
       "name": "@unbound-app/api",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "devDependencies": {
         "@unbound-app/client": "workspace:*",
         "@unbound-app/sdk-generator": "workspace:*",
@@ -74,7 +74,7 @@
     },
     "packages/client": {
       "name": "@unbound-app/client",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "dependencies": {
         "@unbound-app/debugger-protocol": "workspace:*",
         "@unbound-app/logger": "workspace:*",
@@ -96,7 +96,7 @@
     },
     "packages/client/scripts/build": {
       "name": "@unbound-app/client-build",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "devDependencies": {
         "@babel/core": "^7.28.6",
         "@babel/plugin-transform-block-scoping": "^7.28.6",

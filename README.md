@@ -2,7 +2,7 @@
 
 <img src="./assets/logo.png" width="120" alt="Unbound logo" />
 
-<h2>Unbound</h2>
+<h1>Unbound</h1>
 
 <b>A client modification for Discord on mobile.</b>
 
@@ -20,8 +20,6 @@ Install plugins, themes, fonts, and icon packs on the official Discord app, on b
 </div>
 
 <!-- TODO: add a hero screenshot or demo GIF of Unbound running here (drop assets into ./assets and reference them). -->
-
----
 
 ## Contents
 

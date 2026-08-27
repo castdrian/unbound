@@ -2,9 +2,9 @@
 
 <img src="./assets/logo.png" width="120" alt="Unbound logo" />
 
-# Unbound
+<h1>Unbound</h1>
 
-**A client modification for Discord on mobile.**
+### A client modification for Discord on mobile.
 
 Install plugins, themes, fonts, and icon packs on the official Discord app, on both iOS and Android.
 

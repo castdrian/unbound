@@ -91,29 +91,36 @@ Installing `@unbound-app/api` gives you typed access to the client API (`unbound
 
 ## Architecture
 
-A platform-specific native loader patches Discord to get JavaScript execution, then injects the client bundle. On boot the client traps Discord's Metro registry (`__r`/`__d`) and wraps every module factory, which gives it a searchable view of Discord's internal modules. Add-ons look modules up through that Metro layer (`findByProps`, `findByName`, `findStore`) and patch them, both plain functions and React components, using [possess](https://www.npmjs.com/package/possess).
+A platform-specific native loader patches Discord to get JavaScript execution, then injects the client bundle. On boot the client traps Discord's Metro registry (`__r`/`__d`) and wraps every module factory, which gives it a searchable view of Discord's internal modules. Unbound can then look modules up through that Metro layer (`findByProps`, `findByName`, `findStore`) and patch them, both plain functions and React components, using [possess](https://www.npmjs.com/package/possess).
 
-The native side is bidirectional. The client calls into the loader for native capabilities (reload, filesystem, `evaluateBytecode`), while inbound native calls that arrive before the client is ready are queued during init and replayed once it finishes.
+The native side is bidirectional. The client calls into the loader for native capabilities (reload, filesystem, `evaluateBytecode`)
 
 ```mermaid
 flowchart LR
-    Loader["Native loader"] -->|injects bundle| Metro["Metro layer<br/>module lookup + patching"]
-    Metro <-->|find / patch| Discord["Discord internals<br/>modules + React UI"]
-    Addons["Add-ons"] -->|use| Metro
-    Metro <-->|native bridge| Loader
+    Loader["Platform Native Loader<br/><i>reload · filesystem · evaluateBytecode</i>"] <-->|native bridge| Core
+
+    subgraph Core["Core"]
+        direction TB
+        Managers["Addon Managers<br/><i>plugins · themes · fonts · icon packs</i>"] --> APIs["APIs<br/><i>storage · toasts · assets</i>"]
+        Managers --> Patcher["Patcher<br/><i>possess</i>"]
+        APIs --> Metro
+        Patcher --> Metro["Metro Layer<br/><i>findByProps · findByName · findStore</i>"]
+    end
+
+    Metro <-->|find / patch| Discord["Discord Internals<br/><i>modules · React UI</i>"]
 ```
 
 The client is the runtime that ships into Discord. Everything else is a small package that supports it.
 
-| Package                                  | What it is                                                                                    |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------- |
-| [`packages/client`](packages/client)     | The Unbound runtime, the bundle that ships into Discord.                                       |
-| [`packages/cli`](packages/cli)           | The `ubd` CLI for scaffolding and managing add-on projects.                                    |
+| Package                                  | What it is                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [`packages/client`](packages/client)     | The Unbound runtime, the bundle that ships into Discord.                                         |
+| [`packages/cli`](packages/cli)           | The `ubd` CLI for scaffolding and managing add-on projects.                                      |
 | [`packages/debugger`](packages/debugger) | A REPL/CLI that connects to a running client to eval code, stream logs, and push add-on bundles. |
-| [`packages/api`](packages/api)           | Public type declarations that add-on developers build against.                                 |
-| [`packages/logger`](packages/logger)     | A small, dependency-free scoped logger with ANSI colors.                                       |
-| [`packages/utils`](packages/utils)       | Per-file utilities, each imported individually for tree-shaking.                               |
-| [`packages/types`](packages/types)       | Shared TypeScript types used across the project.                                               |
+| [`packages/api`](packages/api)           | Public type declarations that add-on developers build against.                                   |
+| [`packages/logger`](packages/logger)     | A small, dependency-free scoped logger with ANSI colors.                                         |
+| [`packages/utils`](packages/utils)       | Per-file utilities, each imported individually for tree-shaking.                                 |
+| [`packages/types`](packages/types)       | Shared TypeScript types used across the project.                                                 |
 
 The client runs on a single `initialize` / `shutdown` lifecycle. Each manager brings its add-ons up on startup and tears them down on shutdown, and settings are persisted before the global is cleared.
 

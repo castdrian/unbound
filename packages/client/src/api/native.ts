@@ -241,20 +241,19 @@ function compareVersions(left: string, right: string): number {
 }
 
 function unavailableNativePlugin(): NativePluginBridge {
-	const unavailable = new Proxy(
-		{},
-		{
-			get() {
-				return () => {
-					throw new NativePluginUnavailableError(
-						'The native plugin bridge is unavailable.',
-					);
-				};
-			},
-		},
-	) as NativePluginBridge;
+	const unavailableMethod = () => {
+		throw new NativePluginUnavailableError('The native plugin bridge is unavailable.');
+	};
+	const unavailableObjC = new Proxy({}, { get: () => unavailableMethod }) as NativeObjCBridge;
+	const unavailableFFI = new Proxy({}, { get: () => unavailableMethod }) as NativeFFIBridge;
 
-	return unavailable;
+	return {
+		apiVersion: '0.0.0',
+		abiVersion: '0.0.0',
+		capabilities: [],
+		objc: unavailableObjC,
+		ffi: unavailableFFI,
+	};
 }
 
 function createScopedNativePlugin(capabilities: readonly NativePluginCapability[]): {

@@ -90,3 +90,5 @@ export type PatchParent = AnyFunction | AnyObject;
 export type PropOf<M> = {
 	[K in keyof M]: M[K] extends AnyFunction | AnyConstructor ? Extract<K, string> : never;
 }[keyof M];
+
+export {};

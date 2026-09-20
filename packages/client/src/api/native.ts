@@ -12,6 +12,30 @@ import type {
 } from '@unbound-app/types';
 import { NativeModules, TurboModuleRegistry } from 'react-native';
 
+export type {
+	NativeAssociationKey,
+	NativeCallOptions,
+	NativeClassHandle,
+	NativeFFIBridge,
+	NativeFFISignature,
+	NativeFFIType,
+	NativeFFITypeName,
+	NativeHandle,
+	NativeHookContext,
+	NativeHookHandlers,
+	NativeHookOptions,
+	NativeHookToken,
+	NativeObjCBridge,
+	NativeObjectHandle,
+	NativePluginBridge,
+	NativePluginCapability,
+	NativePluginError,
+	NativePointer,
+	NativeStruct,
+	NativeThreadPolicy,
+	PluginContext,
+} from '@unbound-app/types/native';
+
 /** The text encodings accepted by the native `DCDFileManager` read/write operations. */
 export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
 

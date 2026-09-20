@@ -124,6 +124,42 @@ export interface NativeFFIBridge {
 	call(pointer: NativePointer, signature: NativeFFISignature, ...args: unknown[]): unknown;
 }
 
+export interface NativePlatformDevice {
+	getModel(): string;
+	getiOSVersionString(): string;
+	isJailbroken(): boolean;
+	isSystemApp(): boolean;
+	isVerifiedBuild(): boolean;
+	getEntitlements(): Record<string, any>;
+	getEntitlementsAsPlist(): string;
+}
+
+export interface NativePlatformApp {
+	getSource(): string;
+}
+
+export interface NativePlatformNotifications {
+	show(
+		title?: string,
+		body?: string,
+		timeDelay?: number,
+		soundEnabled?: boolean,
+		identifier?: string,
+	): string;
+}
+
+export interface NativePlatformPip {
+	playVideo(url: string): string | null;
+}
+
+export interface NativePlatformBridge {
+	evaluateBytecode(bytecode: ArrayBuffer, tag?: string): unknown;
+	readonly device: NativePlatformDevice;
+	readonly app: NativePlatformApp;
+	readonly notifications: NativePlatformNotifications;
+	readonly pip: NativePlatformPip;
+}
+
 export interface NativePluginBridge {
 	readonly apiVersion: string;
 	readonly abiVersion: string;

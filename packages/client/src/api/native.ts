@@ -5,6 +5,7 @@ import type {
 	NativeHookOptions,
 	NativeHookToken,
 	NativeObjCBridge,
+	NativePlatformBridge,
 	NativePluginBridge,
 	NativePluginCapability,
 	PluginContext,
@@ -27,6 +28,7 @@ export type {
 	NativeHookToken,
 	NativeObjCBridge,
 	NativeObjectHandle,
+	NativePlatformBridge,
 	NativePluginBridge,
 	NativePluginCapability,
 	NativePluginError,
@@ -151,20 +153,12 @@ export function getRuntimeProperties(): Record<string, any> {
 	return window.HermesInternal?.getRuntimeProperties() ?? {};
 }
 
-/** The raw `UnboundNative` JSI bridge installed on the global by the platform loader. */
-export const UnboundNative = globalThis.UnboundNative;
-
-if (!UnboundNative) {
-	alert(
-		'UnboundNative is not present in this environment. Please report this issue immediately.',
-	);
-}
-
 type NativeMethod = (...args: any[]) => any;
 
-const nativePlugin = globalThis.UnboundNativePlugin ?? UnboundNative?.nativePlugin;
+const nativePlugin = globalThis.UnboundNative;
 
 export const NativePlugin: NativePluginBridge | undefined = nativePlugin;
+export const NativePlatform: NativePlatformBridge | undefined = globalThis.UnboundPlatform;
 
 const capabilityRequirements: Record<string, NativePluginCapability> = {
 	getClass: 'native.objc.classes',

@@ -15,6 +15,7 @@ export type {
 	NativeHookToken,
 	NativeObjCBridge,
 	NativeObjectHandle,
+	NativePlatformBridge,
 	NativePluginBridge,
 	NativePluginCapability,
 	NativePluginError,
@@ -23,10 +24,13 @@ export type {
 	NativeThreadPolicy,
 	PluginContext,
 } from './_internal';
-import type { NativePluginBridge, NativePluginCapability, PluginContext } from './_internal';
+import type {
+	NativePlatformBridge,
+	NativePluginBridge,
+	NativePluginCapability,
+	PluginContext,
+} from './_internal';
 import type { Fn, PromiseFn } from './utils';
-/** The raw `UnboundNative` JSI bridge installed on the global by the platform loader. */
-declare const UnboundNative$1: UnboundNativeModule | undefined;
 export declare class NativePluginCapabilityError extends Error {
 	readonly code = 'NATIVE_PLUGIN_CAPABILITY_DENIED';
 	readonly capability: NativePluginCapability;
@@ -41,6 +45,7 @@ export declare const BundleInfo: BundleInfoType;
 export declare const BundleManager: DCDBundleManagerType;
 /** The resolved native device module, exposing hardware and OS details. */
 export declare const DeviceInfo: DeviceInfoType;
+export declare const NativePlatform: NativePlatformBridge | undefined;
 export declare const NativePlugin: NativePluginBridge | undefined;
 export declare function createPluginContext(
 	id: string,
@@ -135,6 +140,4 @@ export interface DeviceInfoType {
 
 /** The text encodings accepted by the native `DCDFileManager` read/write operations. */
 export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
-export { UnboundNative$1 as UnboundNative };
-
 export {};

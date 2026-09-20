@@ -1,3 +1,4 @@
+import type { NativePluginBridge } from './typings/native';
 import type { Fn, ColorString } from './typings/utils';
 import type { AddonManifest } from './typings/addons';
 
@@ -12,7 +13,8 @@ declare global {
 		| 'chat.avatar'
 		| 'chat.messageBubbles'
 		| 'toolbox.menu'
-		| 'native.evaluateBytecode';
+		| 'native.evaluateBytecode'
+		| 'native.pluginApi';
 
 	/**
 	 * The lifecycle status of a native feature on the running build. `unknown` and `unavailable`
@@ -123,7 +125,10 @@ declare global {
 		pip: UnboundNativePiP;
 		chat: UnboundNativeChat;
 		toolbox: UnboundNativeToolbox;
+		nativePlugin: NativePluginBridge;
 	};
+
+	type UnboundNativePluginModule = NativePluginBridge;
 
 	/**
 	 * The Metro `require` function: runs (and returns the exports of) a module by id.
@@ -167,6 +172,7 @@ declare global {
 
 	/** The raw `UnboundNative` JSI bridge, installed on the global by the platform loader. */
 	var UnboundNative: UnboundNativeModule | undefined;
+	var UnboundNativePlugin: UnboundNativePluginModule | undefined;
 
 	/**
 	 * Hermes engine internals, exposing runtime metadata (bytecode version, GC, build).

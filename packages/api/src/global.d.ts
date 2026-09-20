@@ -27,8 +27,29 @@ export type {
 	InputSize,
 	InputStatus,
 	InternalToastOptions,
+	NativeAssociationKey,
+	NativeCallOptions,
+	NativeClassHandle,
+	NativeFFIBridge,
+	NativeFFISignature,
+	NativeFFIType,
+	NativeFFITypeName,
+	NativeHandle,
+	NativeHookContext,
+	NativeHookHandlers,
+	NativeHookOptions,
+	NativeHookToken,
+	NativeObjCBridge,
+	NativeObjectHandle,
+	NativePluginBridge,
+	NativePluginCapability,
+	NativePluginError,
+	NativePointer,
+	NativeStruct,
+	NativeThreadPolicy,
 	Navigation,
 	Plugin,
+	PluginContext,
 	PluginEntity,
 	ResolvedStyles,
 	RowButtonProps,
@@ -68,6 +89,7 @@ export type {
 	TransitionState,
 	UnboundAsset,
 } from './_internal';
+import type { NativePluginBridge } from './_internal';
 import type { ColorString } from './utils';
 declare global {
 	/** A feature name published by the native module's capability table. */
@@ -80,7 +102,8 @@ declare global {
 		| 'chat.avatar'
 		| 'chat.messageBubbles'
 		| 'toolbox.menu'
-		| 'native.evaluateBytecode';
+		| 'native.evaluateBytecode'
+		| 'native.pluginApi';
 	/**
 	 * The lifecycle status of a native feature on the running build. `unknown` and `unavailable`
 	 * both mean "do not call"; only `supported` and `deprecated` are safe.
@@ -180,7 +203,9 @@ declare global {
 		pip: UnboundNativePiP;
 		chat: UnboundNativeChat;
 		toolbox: UnboundNativeToolbox;
+		nativePlugin: NativePluginBridge;
 	};
+	type UnboundNativePluginModule = NativePluginBridge;
 	/**
 	 * Build-time token, replaced with a boolean literal by the build's `transform.define`. Folds at
 	 * the module-graph level so `if ($$DEV$$)` branches (and any imports inside them) are dead-code
@@ -189,6 +214,7 @@ declare global {
 	var $$DEV$$: boolean;
 	/** The raw `UnboundNative` JSI bridge, installed on the global by the platform loader. */
 	var UnboundNative: UnboundNativeModule | undefined;
+	var UnboundNativePlugin: UnboundNativePluginModule | undefined;
 	var React: typeof import('react');
 	var ReactNative: typeof import('react-native');
 

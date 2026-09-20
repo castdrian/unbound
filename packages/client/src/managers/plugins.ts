@@ -1,5 +1,6 @@
-import type { Plugin, PluginEntity } from '@unbound-app/types';
+import type { Plugin, PluginContext, PluginEntity } from '@unbound-app/types';
 
+import { createPluginContext } from '~/api/native';
 import { ManagerType } from '~/managers/base';
 import { Addons } from '~/managers/addons';
 
@@ -41,6 +42,14 @@ export class Plugins extends Addons<PluginEntity> {
 
 	protected get entityType() {
 		return 'plugin' as const;
+	}
+
+	protected createContext(entity: PluginEntity): PluginContext {
+		return createPluginContext(
+			entity.id,
+			entity.data.capabilities ?? [],
+			entity.data.minNativePluginApi,
+		);
 	}
 }
 

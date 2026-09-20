@@ -1,5 +1,16 @@
+import type {
+	Fn,
+	NativeFFIBridge,
+	NativeHookHandlers,
+	NativeHookOptions,
+	NativeHookToken,
+	NativeObjCBridge,
+	NativePluginBridge,
+	NativePluginCapability,
+	PluginContext,
+	PromiseFn,
+} from '@unbound-app/types';
 import { NativeModules, TurboModuleRegistry } from 'react-native';
-import type { Fn, PromiseFn } from '@unbound-app/types';
 
 /** The text encodings accepted by the native `DCDFileManager` read/write operations. */
 export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
@@ -123,4 +134,275 @@ if (!UnboundNative) {
 	alert(
 		'UnboundNative is not present in this environment. Please report this issue immediately.',
 	);
+}
+
+type NativeMethod = (...args: any[]) => any;
+
+const nativePlugin = globalThis.UnboundNativePlugin ?? UnboundNative?.nativePlugin;
+
+export const NativePlugin: NativePluginBridge | undefined = nativePlugin;
+
+const capabilityRequirements: Record<string, NativePluginCapability> = {
+	getClass: 'native.objc.classes',
+	alloc: 'native.objc.classes',
+	className: 'native.objc.classes',
+	respondsTo: 'native.objc.classes',
+	call: 'native.objc.invoke',
+	callSuper: 'native.objc.invoke',
+	invoke: 'native.objc.invoke',
+	invokeSuper: 'native.objc.invoke',
+	getIvar: 'native.objc.ivars',
+	setIvar: 'native.objc.ivars',
+	createAssociationKey: 'native.objc.associations',
+	getAssociatedObject: 'native.objc.associations',
+	setAssociatedObject: 'native.objc.associations',
+	struct: 'native.objc.classes',
+	array: 'native.objc.classes',
+	data: 'native.objc.classes',
+	hook: 'native.objc.hooks',
+};
+
+export class NativePluginUnavailableError extends Error {
+	readonly code = 'NATIVE_PLUGIN_UNAVAILABLE';
+}
+
+export class NativePluginCapabilityError extends Error {
+	readonly code = 'NATIVE_PLUGIN_CAPABILITY_DENIED';
+	readonly capability: NativePluginCapability;
+
+	constructor(capability: NativePluginCapability) {
+		super(`Native plugin capability is not declared: ${capability}`);
+		this.capability = capability;
+	}
+}
+
+function requireNativePlugin(): NativePluginBridge {
+	if (!NativePlugin)
+		throw new NativePluginUnavailableError('The native plugin bridge is unavailable.');
+	return NativePlugin;
+}
+
+function hasCapability(
+	capabilities: readonly NativePluginCapability[],
+	capability: NativePluginCapability,
+): boolean {
+	return capabilities.includes(capability);
+}
+
+function requireCapability(
+	capabilities: readonly NativePluginCapability[],
+	capability: NativePluginCapability,
+): void {
+	if (!hasCapability(capabilities, capability)) {
+		throw new NativePluginCapabilityError(capability);
+	}
+}
+
+function scopedMethod(
+	method: NativeMethod,
+	capabilities: readonly NativePluginCapability[],
+	capability: NativePluginCapability,
+): NativeMethod {
+	return (...args: any[]) => {
+		requireCapability(capabilities, capability);
+		return method(...args);
+	};
+}
+
+function compareVersions(left: string, right: string): number {
+	const leftParts = left.split('.').map(Number);
+	const rightParts = right.split('.').map(Number);
+	const length = Math.max(leftParts.length, rightParts.length);
+
+	for (let index = 0; index < length; index++) {
+		const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+		if (difference !== 0) return difference;
+	}
+
+	return 0;
+}
+
+function unavailableNativePlugin(): NativePluginBridge {
+	const unavailable = new Proxy(
+		{},
+		{
+			get() {
+				return () => {
+					throw new NativePluginUnavailableError(
+						'The native plugin bridge is unavailable.',
+					);
+				};
+			},
+		},
+	) as NativePluginBridge;
+
+	return unavailable;
+}
+
+function createScopedNativePlugin(capabilities: readonly NativePluginCapability[]): {
+	bridge: NativePluginBridge;
+	dispose: () => void;
+} {
+	const bridge = NativePlugin ?? unavailableNativePlugin();
+	const tokens = new Set<NativeHookToken>();
+
+	const objc: NativeObjCBridge = {
+		getClass: scopedMethod(
+			bridge.objc.getClass.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.getClass,
+		) as NativeObjCBridge['getClass'],
+		alloc: scopedMethod(
+			bridge.objc.alloc.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.alloc,
+		) as NativeObjCBridge['alloc'],
+		className: scopedMethod(
+			bridge.objc.className.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.className,
+		) as NativeObjCBridge['className'],
+		respondsTo: scopedMethod(
+			bridge.objc.respondsTo.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.respondsTo,
+		) as NativeObjCBridge['respondsTo'],
+		call: scopedMethod(
+			bridge.objc.call.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.call,
+		) as NativeObjCBridge['call'],
+		callSuper: scopedMethod(
+			bridge.objc.callSuper.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.callSuper,
+		) as NativeObjCBridge['callSuper'],
+		invoke: scopedMethod(
+			bridge.objc.invoke.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.invoke,
+		) as NativeObjCBridge['invoke'],
+		invokeSuper: scopedMethod(
+			bridge.objc.invokeSuper.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.invokeSuper,
+		) as NativeObjCBridge['invokeSuper'],
+		getIvar: scopedMethod(
+			bridge.objc.getIvar.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.getIvar,
+		) as NativeObjCBridge['getIvar'],
+		setIvar: scopedMethod(
+			bridge.objc.setIvar.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.setIvar,
+		) as NativeObjCBridge['setIvar'],
+		createAssociationKey: scopedMethod(
+			bridge.objc.createAssociationKey.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.createAssociationKey,
+		) as NativeObjCBridge['createAssociationKey'],
+		getAssociatedObject: scopedMethod(
+			bridge.objc.getAssociatedObject.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.getAssociatedObject,
+		) as NativeObjCBridge['getAssociatedObject'],
+		setAssociatedObject: scopedMethod(
+			bridge.objc.setAssociatedObject.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.setAssociatedObject,
+		) as NativeObjCBridge['setAssociatedObject'],
+		struct: scopedMethod(
+			bridge.objc.struct.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.struct,
+		) as NativeObjCBridge['struct'],
+		array: scopedMethod(
+			bridge.objc.array.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.array,
+		) as NativeObjCBridge['array'],
+		data: scopedMethod(
+			bridge.objc.data.bind(bridge.objc),
+			capabilities,
+			capabilityRequirements.data,
+		) as NativeObjCBridge['data'],
+		hook: ((
+			className: string,
+			selector: string,
+			handlers: NativeHookHandlers,
+			options?: NativeHookOptions,
+		) => {
+			requireCapability(capabilities, capabilityRequirements.hook);
+			const token = bridge.objc.hook(className, selector, handlers, options);
+			tokens.add(token);
+			return {
+				get active() {
+					return token.active;
+				},
+				remove() {
+					token.remove();
+					tokens.delete(token);
+				},
+			};
+		}) as NativeObjCBridge['hook'],
+	};
+
+	const ffi: NativeFFIBridge = {
+		symbol: scopedMethod(
+			bridge.ffi.symbol.bind(bridge.ffi),
+			capabilities,
+			'native.ffi.symbols',
+		) as NativeFFIBridge['symbol'],
+		call: scopedMethod(
+			bridge.ffi.call.bind(bridge.ffi),
+			capabilities,
+			'native.ffi.call',
+		) as NativeFFIBridge['call'],
+	};
+
+	return {
+		bridge: {
+			apiVersion: bridge.apiVersion,
+			abiVersion: bridge.abiVersion,
+			capabilities: bridge.capabilities,
+			objc,
+			ffi,
+		},
+		dispose: () => {
+			for (const token of tokens) token.remove();
+			tokens.clear();
+		},
+	};
+}
+
+export function validateNativePluginRequirements(
+	capabilities: readonly NativePluginCapability[] = [],
+	minimumApi?: string,
+): void {
+	const unknown = capabilities.find(
+		(capability) => !(NativePlugin?.capabilities ?? []).includes(capability),
+	);
+	if (unknown) throw new NativePluginCapabilityError(unknown);
+	if (minimumApi && NativePlugin && compareVersions(NativePlugin.apiVersion, minimumApi) < 0) {
+		throw new Error(
+			`Native plugin API ${minimumApi} is required, but ${NativePlugin.apiVersion} is installed.`,
+		);
+	}
+	if ((capabilities.length > 0 || minimumApi) && !NativePlugin) requireNativePlugin();
+}
+
+export function createPluginContext(
+	id: string,
+	capabilities: readonly NativePluginCapability[] = [],
+	minimumApi?: string,
+): PluginContext {
+	validateNativePluginRequirements(capabilities, minimumApi);
+	const scoped = createScopedNativePlugin(capabilities);
+	return {
+		id,
+		capabilities,
+		native: scoped.bridge,
+		dispose: scoped.dispose,
+	};
 }

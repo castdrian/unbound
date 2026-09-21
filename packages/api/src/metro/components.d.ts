@@ -21,4 +21,3 @@ export declare const Media: any;
 export declare const Portal: any;
 export declare const SafeArea: any;
 export declare const Switch: ComponentType<SwitchProps>;
-export {};

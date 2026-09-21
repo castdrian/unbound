@@ -781,5 +781,3 @@ interface Plugin$1 {
 }
 
 export { Plugin$1 as Plugin };
-
-export {};

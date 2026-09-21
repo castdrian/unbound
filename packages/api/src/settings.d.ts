@@ -26,5 +26,3 @@ export declare function removeSettings(...keys: string[]): void;
  */
 export declare function sections(): Record<string, SettingsEntry>;
 export { _default as default };
-
-export {};

@@ -16,5 +16,3 @@ declare const _default: {
  */
 export declare function showToast(options: ToastOptions): ToastHandle;
 export { _default as default };
-
-export {};

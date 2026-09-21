@@ -1,3 +1,5 @@
+import type { AddonManifest } from './addons';
+
 export type NativePluginCapability =
 	| 'native.objc.classes'
 	| 'native.objc.invoke'
@@ -159,6 +161,7 @@ export interface NativePluginError {
 }
 
 export interface PluginContext {
+	readonly manifest: AddonManifest;
 	readonly id: string;
 	readonly capabilities: readonly NativePluginCapability[];
 	readonly native: NativePluginBridge;

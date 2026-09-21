@@ -308,6 +308,7 @@ export interface Navigation<T = any> {
 	[key: string]: any;
 }
 export interface PluginContext {
+	readonly manifest: AddonManifest;
 	readonly id: string;
 	readonly capabilities: readonly NativePluginCapability[];
 	readonly native: NativePluginBridge;

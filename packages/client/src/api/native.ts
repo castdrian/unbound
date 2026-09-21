@@ -11,6 +11,7 @@ import type {
 	PluginContext,
 	PromiseFn,
 } from '@unbound-app/types';
+import type { AddonManifest } from '@unbound-app/types/addons';
 import { NativeModules, TurboModuleRegistry } from 'react-native';
 
 export type {
@@ -409,15 +410,13 @@ export function validateNativePluginRequirements(
 	if ((capabilities.length > 0 || minimumApi) && !NativePlugin) requireNativePlugin();
 }
 
-export function createPluginContext(
-	id: string,
-	capabilities: readonly NativePluginCapability[] = [],
-	minimumApi?: string,
-): PluginContext {
-	validateNativePluginRequirements(capabilities, minimumApi);
+export function createPluginContext(manifest: AddonManifest): PluginContext {
+	const capabilities = manifest.capabilities ?? [];
+	validateNativePluginRequirements(capabilities, manifest.minNativePluginApi);
 	const scoped = createScopedNativePlugin(capabilities);
 	return {
-		id,
+		manifest,
+		id: manifest.id,
 		capabilities,
 		native: scoped.bridge,
 		dispose: scoped.dispose,

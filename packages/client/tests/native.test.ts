@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
+import type { AddonManifest } from '@unbound-app/types';
 
 mock.module('react-native', () => ({
 	NativeModules: {},
@@ -51,6 +52,20 @@ const bridge = {
 	},
 };
 
+const manifest: AddonManifest = {
+	authors: [{ id: '1', name: 'test' }],
+	description: 'test',
+	folder: '',
+	icon: '',
+	id: 'test',
+	main: 'index.js',
+	name: 'test',
+	path: '',
+	updates: '',
+	url: '',
+	version: '1.0.0',
+};
+
 (globalThis as any).UnboundNative = bridge;
 
 const { NativePluginCapabilityError, createPluginContext, validateNativePluginRequirements } =
@@ -62,15 +77,16 @@ afterEach(() => {
 
 describe('native plugin capability scopes', () => {
 	test('denies operations that are outside the declared scope', () => {
-		const context = createPluginContext('test', ['native.objc.classes']);
+		const context = createPluginContext({ ...manifest, capabilities: ['native.objc.classes'] });
 
+		expect(context.manifest.id).toBe('test');
 		expect(() => context.native.objc.invoke({}, 'description', [])).toThrow(
 			NativePluginCapabilityError,
 		);
 	});
 
 	test('disposes hooks owned by a plugin context', () => {
-		const context = createPluginContext('test', ['native.objc.hooks']);
+		const context = createPluginContext({ ...manifest, capabilities: ['native.objc.hooks'] });
 		const token = context.native.objc.hook('NSObject', 'description', {
 			after: () => undefined,
 		});

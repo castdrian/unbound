@@ -92,6 +92,7 @@ class FakeAddons extends Addons<Addon> {
 		const state = { disposed: false };
 		this.contexts.push(state);
 		return {
+			manifest: makeManifest('test'),
 			id: 'test',
 			capabilities: [],
 			native: {} as any,

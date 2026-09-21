@@ -45,11 +45,7 @@ export class Plugins extends Addons<PluginEntity> {
 	}
 
 	protected createContext(entity: PluginEntity): PluginContext {
-		return createPluginContext(
-			entity.id,
-			entity.data.capabilities ?? [],
-			entity.data.minNativePluginApi,
-		);
+		return createPluginContext(entity.data);
 	}
 }
 

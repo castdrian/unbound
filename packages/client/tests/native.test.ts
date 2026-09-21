@@ -7,6 +7,7 @@ mock.module('react-native', () => ({
 }));
 
 const removed: string[] = [];
+const cleared: unknown[] = [];
 const capabilities = [
 	'native.objc.classes',
 	'native.objc.invoke',
@@ -42,7 +43,7 @@ const bridge = {
 			};
 		},
 		respondsTo: () => false,
-		setAssociatedObject: () => undefined,
+		setAssociatedObject: (...args: unknown[]) => cleared.push(args),
 		setIvar: () => undefined,
 		struct: () => ({ struct: true }),
 	},
@@ -68,11 +69,16 @@ const manifest: AddonManifest = {
 
 (globalThis as any).UnboundNative = bridge;
 
-const { NativePluginCapabilityError, createPluginContext, validateNativePluginRequirements } =
-	await import('~/api/native');
+const {
+	NativePluginCapabilityError,
+	NativePluginDisposedError,
+	createPluginContext,
+	validateNativePluginRequirements,
+} = await import('~/api/native');
 
 afterEach(() => {
 	removed.length = 0;
+	cleared.length = 0;
 });
 
 describe('native plugin capability scopes', () => {
@@ -94,6 +100,26 @@ describe('native plugin capability scopes', () => {
 		expect(token.active).toBe(true);
 		context.dispose();
 		expect(removed).toEqual(['hook']);
+	});
+
+	test('clears associations and denies calls after disposal', () => {
+		const context = createPluginContext({
+			...manifest,
+			capabilities: ['native.objc.associations'],
+		});
+		const handle = {};
+		const key = context.native.objc.createAssociationKey();
+
+		context.native.objc.setAssociatedObject(handle, key, { value: true });
+		cleared.length = 0;
+		context.dispose();
+
+		expect(cleared).toHaveLength(1);
+		expect(cleared[0]).toEqual([handle, key, null, 'assign']);
+		expect(() => context.native.objc.getAssociatedObject(handle, key)).toThrow(
+			NativePluginDisposedError,
+		);
+		context.dispose();
 	});
 });
 

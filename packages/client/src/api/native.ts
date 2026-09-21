@@ -1,10 +1,12 @@
 import type {
 	Fn,
+	NativeAssociationKey,
 	NativeFFIBridge,
 	NativeHookHandlers,
 	NativeHookOptions,
 	NativeHookToken,
 	NativeObjCBridge,
+	NativeObjectHandle,
 	NativePlatformBridge,
 	NativePluginBridge,
 	NativePluginCapability,
@@ -156,6 +158,11 @@ export function getRuntimeProperties(): Record<string, any> {
 
 type NativeMethod = (...args: any[]) => any;
 
+type AssociationBinding = {
+	handle: NativeObjectHandle;
+	key: NativeAssociationKey;
+};
+
 const nativePlugin = globalThis.UnboundNative;
 
 export const NativePlugin: NativePluginBridge | undefined = nativePlugin;
@@ -195,6 +202,14 @@ export class NativePluginCapabilityError extends Error {
 	}
 }
 
+export class NativePluginDisposedError extends Error {
+	readonly code = 'NATIVE_PLUGIN_SCOPE_DISPOSED';
+
+	constructor() {
+		super('The native plugin scope has been disposed.');
+	}
+}
+
 function requireNativePlugin(): NativePluginBridge {
 	if (!NativePlugin)
 		throw new NativePluginUnavailableError('The native plugin bridge is unavailable.');
@@ -221,8 +236,10 @@ function scopedMethod(
 	method: NativeMethod,
 	capabilities: readonly NativePluginCapability[],
 	capability: NativePluginCapability,
+	isActive: () => boolean = () => true,
 ): NativeMethod {
 	return (...args: any[]) => {
+		if (!isActive()) throw new NativePluginDisposedError();
 		requireCapability(capabilities, capability);
 		return method(...args);
 	};
@@ -263,86 +280,84 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 } {
 	const bridge = NativePlugin ?? unavailableNativePlugin();
 	const tokens = new Set<NativeHookToken>();
+	const associations: AssociationBinding[] = [];
+	let disposed = false;
+	const scopeMethod = (method: NativeMethod, capability: NativePluginCapability): NativeMethod =>
+		scopedMethod(method, capabilities, capability, () => !disposed);
 
 	const objc: NativeObjCBridge = {
-		getClass: scopedMethod(
+		getClass: scopeMethod(
 			bridge.objc.getClass.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.getClass,
 		) as NativeObjCBridge['getClass'],
-		alloc: scopedMethod(
+		alloc: scopeMethod(
 			bridge.objc.alloc.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.alloc,
 		) as NativeObjCBridge['alloc'],
-		className: scopedMethod(
+		className: scopeMethod(
 			bridge.objc.className.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.className,
 		) as NativeObjCBridge['className'],
-		respondsTo: scopedMethod(
+		respondsTo: scopeMethod(
 			bridge.objc.respondsTo.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.respondsTo,
 		) as NativeObjCBridge['respondsTo'],
-		call: scopedMethod(
+		call: scopeMethod(
 			bridge.objc.call.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.call,
 		) as NativeObjCBridge['call'],
-		callSuper: scopedMethod(
+		callSuper: scopeMethod(
 			bridge.objc.callSuper.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.callSuper,
 		) as NativeObjCBridge['callSuper'],
-		invoke: scopedMethod(
+		invoke: scopeMethod(
 			bridge.objc.invoke.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.invoke,
 		) as NativeObjCBridge['invoke'],
-		invokeSuper: scopedMethod(
+		invokeSuper: scopeMethod(
 			bridge.objc.invokeSuper.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.invokeSuper,
 		) as NativeObjCBridge['invokeSuper'],
-		getIvar: scopedMethod(
+		getIvar: scopeMethod(
 			bridge.objc.getIvar.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.getIvar,
 		) as NativeObjCBridge['getIvar'],
-		setIvar: scopedMethod(
+		setIvar: scopeMethod(
 			bridge.objc.setIvar.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.setIvar,
 		) as NativeObjCBridge['setIvar'],
-		createAssociationKey: scopedMethod(
+		createAssociationKey: scopeMethod(
 			bridge.objc.createAssociationKey.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.createAssociationKey,
 		) as NativeObjCBridge['createAssociationKey'],
-		getAssociatedObject: scopedMethod(
+		getAssociatedObject: scopeMethod(
 			bridge.objc.getAssociatedObject.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.getAssociatedObject,
 		) as NativeObjCBridge['getAssociatedObject'],
-		setAssociatedObject: scopedMethod(
-			bridge.objc.setAssociatedObject.bind(bridge.objc),
-			capabilities,
-			capabilityRequirements.setAssociatedObject,
-		) as NativeObjCBridge['setAssociatedObject'],
-		struct: scopedMethod(
+		setAssociatedObject: ((handle, key, value, policy) => {
+			scopeMethod(
+				bridge.objc.setAssociatedObject.bind(bridge.objc),
+				capabilityRequirements.setAssociatedObject,
+			)(handle, key, value, policy);
+			const index = associations.findIndex(
+				(binding) => binding.handle === handle && binding.key === key,
+			);
+			if (value === null || value === undefined) {
+				if (index !== -1) associations.splice(index, 1);
+				return;
+			}
+			if (index === -1) associations.push({ handle, key });
+		}) as NativeObjCBridge['setAssociatedObject'],
+		struct: scopeMethod(
 			bridge.objc.struct.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.struct,
 		) as NativeObjCBridge['struct'],
-		array: scopedMethod(
+		array: scopeMethod(
 			bridge.objc.array.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.array,
 		) as NativeObjCBridge['array'],
-		data: scopedMethod(
+		data: scopeMethod(
 			bridge.objc.data.bind(bridge.objc),
-			capabilities,
 			capabilityRequirements.data,
 		) as NativeObjCBridge['data'],
 		hook: ((
@@ -351,6 +366,7 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			handlers: NativeHookHandlers,
 			options?: NativeHookOptions,
 		) => {
+			if (disposed) throw new NativePluginDisposedError();
 			requireCapability(capabilities, capabilityRequirements.hook);
 			const token = bridge.objc.hook(className, selector, handlers, options);
 			tokens.add(token);
@@ -367,14 +383,12 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 	};
 
 	const ffi: NativeFFIBridge = {
-		symbol: scopedMethod(
+		symbol: scopeMethod(
 			bridge.ffi.symbol.bind(bridge.ffi),
-			capabilities,
 			'native.ffi.symbols',
 		) as NativeFFIBridge['symbol'],
-		call: scopedMethod(
+		call: scopeMethod(
 			bridge.ffi.call.bind(bridge.ffi),
-			capabilities,
 			'native.ffi.call',
 		) as NativeFFIBridge['call'],
 	};
@@ -388,8 +402,14 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			ffi,
 		},
 		dispose: () => {
+			if (disposed) return;
+			disposed = true;
 			for (const token of tokens) token.remove();
 			tokens.clear();
+			for (const binding of associations) {
+				bridge.objc.setAssociatedObject(binding.handle, binding.key, null, 'assign');
+			}
+			associations.length = 0;
 		},
 	};
 }

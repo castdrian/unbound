@@ -163,9 +163,11 @@ type AssociationBinding = {
 	key: NativeAssociationKey;
 };
 
-const nativePlugin = globalThis.UnboundNative;
+function getNativePlugin(): NativePluginBridge | undefined {
+	return globalThis.UnboundNative;
+}
 
-export const NativePlugin: NativePluginBridge | undefined = nativePlugin;
+export const NativePlugin: NativePluginBridge | undefined = getNativePlugin();
 export const NativePlatform: NativePlatformBridge | undefined = globalThis.UnboundPlatform;
 
 const capabilityRequirements: Record<string, NativePluginCapability> = {
@@ -211,9 +213,10 @@ export class NativePluginDisposedError extends Error {
 }
 
 function requireNativePlugin(): NativePluginBridge {
-	if (!NativePlugin)
+	const nativePlugin = getNativePlugin();
+	if (!nativePlugin)
 		throw new NativePluginUnavailableError('The native plugin bridge is unavailable.');
-	return NativePlugin;
+	return nativePlugin;
 }
 
 function hasCapability(
@@ -278,7 +281,7 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 	bridge: NativePluginBridge;
 	dispose: () => void;
 } {
-	const bridge = NativePlugin ?? unavailableNativePlugin();
+	const bridge = getNativePlugin() ?? unavailableNativePlugin();
 	const tokens = new Set<NativeHookToken>();
 	const associations: AssociationBinding[] = [];
 	let disposed = false;
@@ -418,16 +421,17 @@ export function validateNativePluginRequirements(
 	capabilities: readonly NativePluginCapability[] = [],
 	minimumApi?: string,
 ): void {
+	const nativePlugin = getNativePlugin();
 	const unknown = capabilities.find(
-		(capability) => !(NativePlugin?.capabilities ?? []).includes(capability),
+		(capability) => !(nativePlugin?.capabilities ?? []).includes(capability),
 	);
 	if (unknown) throw new NativePluginCapabilityError(unknown);
-	if (minimumApi && NativePlugin && compareVersions(NativePlugin.apiVersion, minimumApi) < 0) {
+	if (minimumApi && nativePlugin && compareVersions(nativePlugin.apiVersion, minimumApi) < 0) {
 		throw new Error(
-			`Native plugin API ${minimumApi} is required, but ${NativePlugin.apiVersion} is installed.`,
+			`Native plugin API ${minimumApi} is required, but ${nativePlugin.apiVersion} is installed.`,
 		);
 	}
-	if ((capabilities.length > 0 || minimumApi) && !NativePlugin) requireNativePlugin();
+	if ((capabilities.length > 0 || minimumApi) && !nativePlugin) requireNativePlugin();
 }
 
 export function createPluginContext(manifest: AddonManifest): PluginContext {

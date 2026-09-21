@@ -27,8 +27,9 @@ mock.module('~/api/storage', () => {
 	};
 });
 
-mock.module('~/api/native', () => ({
-	validateNativePluginRequirements: () => undefined,
+mock.module('react-native', () => ({
+	NativeModules: {},
+	TurboModuleRegistry: { get: () => undefined },
 }));
 
 import type { Addon, AddonManifest, PluginContext } from '@unbound-app/types';

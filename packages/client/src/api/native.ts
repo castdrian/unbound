@@ -13,8 +13,8 @@ import type {
 	PluginContext,
 	PromiseFn,
 } from '@unbound-app/types';
-import type { AddonManifest } from '@unbound-app/types/addons';
 import { NativeModules, TurboModuleRegistry } from 'react-native';
+import type { AddonManifest } from '@unbound-app/types/addons';
 
 export type {
 	NativeAssociationKey,

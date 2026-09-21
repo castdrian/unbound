@@ -38,6 +38,10 @@ export declare class NativePluginCapabilityError extends Error {
 	readonly capability: NativePluginCapability;
 	constructor(capability: NativePluginCapability);
 }
+export declare class NativePluginDisposedError extends Error {
+	readonly code = 'NATIVE_PLUGIN_SCOPE_DISPOSED';
+	constructor();
+}
 export declare class NativePluginUnavailableError extends Error {
 	readonly code = 'NATIVE_PLUGIN_UNAVAILABLE';
 }

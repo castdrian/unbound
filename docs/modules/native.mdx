@@ -45,7 +45,7 @@ await native.reload();
 
 ### Platform helpers
 
-`NativePlatform` is optional because it is only present inside a running Unbound loader environment. It exposes device information, app provenance, local notifications, picture-in-picture playback, and Hermes bytecode evaluation.
+`NativePlatform` is optional because it is only present inside a running Unbound loader environment. It exposes device information, app provenance, and Hermes bytecode evaluation.
 
 ```ts
 import { native } from '@unbound-app/api';
@@ -63,16 +63,17 @@ const source = native.NativePlatform?.app.getSource();
 ```ts
 import { native } from '@unbound-app/api';
 
-const bridge = native.createPluginContext(
-	'my-plugin',
-	['native.objc.classes', 'native.objc.invoke'],
-);
+export default {
+	start(context) {
+		const bridge = context?.native;
+		if (!bridge) return;
 
-const messageClass = bridge.native.objc.getClass('DCDMessage');
-const message = bridge.native.objc.alloc(messageClass!);
-const text = bridge.native.objc.call(message, 'content');
-
-bridge.dispose();
+		const messageClass = bridge.objc.getClass('DCDMessage');
+		if (!messageClass) return;
+		const message = bridge.objc.alloc(messageClass);
+		bridge.objc.call(message, 'content');
+	},
+};
 ```
 
 The bridge exposes these version and capability fields:
@@ -102,10 +103,9 @@ const token = native.objc.hook(cellName, 'prepareForReuse', {
 	},
 });
 
-pluginContext.dispose();
 ```
 
-Hook arguments are borrowed until the callback returns. Retain values explicitly when they need to outlive the callback. Disposing a plugin context removes its hooks, associations, and bridge resources.
+Hook arguments are borrowed until the callback returns. Retain values explicitly when they need to outlive the callback. `original()` is synchronous only when the callback runs on the hook thread; cross-thread calls fail closed to avoid deadlocks. Disposing a plugin context removes its hooks, associations, and bridge resources, and all later calls through that context are rejected.
 
 `call` runs on the current runtime thread. `invoke` accepts an explicit thread policy such as `current` or `main`; unsupported synchronous crossings fail with a structured error.
 

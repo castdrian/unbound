@@ -138,26 +138,10 @@ export interface NativePlatformApp {
 	getSource(): string;
 }
 
-export interface NativePlatformNotifications {
-	show(
-		title?: string,
-		body?: string,
-		timeDelay?: number,
-		soundEnabled?: boolean,
-		identifier?: string,
-	): string;
-}
-
-export interface NativePlatformPip {
-	playVideo(url: string): string | null;
-}
-
 export interface NativePlatformBridge {
 	evaluateBytecode(bytecode: ArrayBuffer, tag?: string): unknown;
 	readonly device: NativePlatformDevice;
 	readonly app: NativePlatformApp;
-	readonly notifications: NativePlatformNotifications;
-	readonly pip: NativePlatformPip;
 }
 
 export interface NativePluginBridge {

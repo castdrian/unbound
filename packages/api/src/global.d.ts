@@ -44,8 +44,6 @@ export type {
 	NativePlatformApp,
 	NativePlatformBridge,
 	NativePlatformDevice,
-	NativePlatformNotifications,
-	NativePlatformPip,
 	NativePluginBridge,
 	NativePluginCapability,
 	NativePluginError,

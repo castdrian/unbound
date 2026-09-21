@@ -27,6 +27,10 @@ mock.module('~/api/storage', () => {
 	};
 });
 
+mock.module('~/api/native', () => ({
+	validateNativePluginRequirements: () => undefined,
+}));
+
 import type { Addon, AddonManifest, PluginContext } from '@unbound-app/types';
 
 // Loaded dynamically after the mocks above: static imports hoist above `mock.module`, which would let

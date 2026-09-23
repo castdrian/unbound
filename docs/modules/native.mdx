@@ -10,8 +10,8 @@ Some capabilities live in React Native modules rather than JavaScript. The `nati
 
 The loader also installs two JSI globals:
 
-- `UnboundNative` is the versioned generic native plugin bridge.
-- `UnboundPlatform` contains platform-wide helpers that are not plugin-specific.
+- `NativePlugin` is the versioned generic native plugin bridge.
+- `NativePlatform` contains platform-wide helpers that are not plugin-specific.
 
 Feature-specific native implementations do not belong in either global. Plugins use the generic bridge to implement their own behavior in JavaScript.
 
@@ -54,7 +54,7 @@ const source = native.NativePlatform?.app.getSource();
 
 ### Generic plugin bridge
 
-`NativePlugin` is the public JavaScript view of the native ABI. The loader publishes it as `globalThis.UnboundNative`; the client scopes it to each plugin according to the manifest capabilities.
+`NativePlugin` is the public JavaScript view of the native ABI. The loader publishes it as `globalThis.NativePlugin`; the client scopes it to each plugin according to the manifest capabilities.
 
 ```ts
 import { native } from '@unbound-app/api';
@@ -129,7 +129,7 @@ The v1 bridge does not expose arbitrary memory access, `dlopen`, variadic calls,
 The `fabric` namespace mounts a registered React Native component into an existing UIKit view. This is the bridge used when a plugin needs Discord's real native message component rather than a second JavaScript-only approximation.
 
 ```ts
-const surface = native.fabric.mount(container, 'UnboundMessageLinkSurface', {
+const surface = native.fabric.mount(container, 'MessageLinkSurface', {
 	surfaceId,
 	targetMessageId,
 });

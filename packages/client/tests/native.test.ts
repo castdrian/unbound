@@ -77,7 +77,7 @@ const manifest: AddonManifest = {
 	version: '1.0.0',
 };
 
-(globalThis as any).UnboundNative = bridge;
+(globalThis as any).NativePlugin = bridge;
 
 const {
 	NativePluginCapabilityError,

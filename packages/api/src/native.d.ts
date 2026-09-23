@@ -37,6 +37,8 @@ import type {
 	PluginContext,
 } from './_internal';
 import type { Fn, PromiseFn } from './utils';
+declare const NativePlatform$1: NativePlatformBridge | undefined;
+declare const NativePlugin$1: NativePluginBridge | undefined;
 export declare class NativePluginCapabilityError extends Error {
 	readonly code = 'NATIVE_PLUGIN_CAPABILITY_DENIED';
 	readonly capability: NativePluginCapability;
@@ -55,8 +57,6 @@ export declare const BundleInfo: BundleInfoType;
 export declare const BundleManager: DCDBundleManagerType;
 /** The resolved native device module, exposing hardware and OS details. */
 export declare const DeviceInfo: DeviceInfoType;
-export declare const NativePlatform: NativePlatformBridge | undefined;
-export declare const NativePlugin: NativePluginBridge | undefined;
 export declare function createPluginContext(manifest: AddonManifest): PluginContext;
 /**
  * @description Resolves the first available native module matching any of the given names, checking both `NativeModules` and the `TurboModuleRegistry`.
@@ -147,3 +147,4 @@ export interface DeviceInfoType {
 
 /** The text encodings accepted by the native `DCDFileManager` read/write operations. */
 export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
+export { NativePlatform$1 as NativePlatform, NativePlugin$1 as NativePlugin };

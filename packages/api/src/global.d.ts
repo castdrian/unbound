@@ -104,8 +104,8 @@ declare global {
 	 * eliminated from production bundles entirely. Use it (not a runtime check) to gate dev-only code.
 	 */
 	var $$DEV$$: boolean;
-	var UnboundNative: NativePluginBridge | undefined;
-	var UnboundPlatform: NativePlatformBridge | undefined;
+	var NativePlugin: NativePluginBridge | undefined;
+	var NativePlatform: NativePlatformBridge | undefined;
 	var React: typeof import('react');
 	var ReactNative: typeof import('react-native');
 

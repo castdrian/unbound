@@ -6,7 +6,7 @@ The native layer is an ABI. Plugins consume it through the versioned JavaScript 
 
 ## Runtime boundary
 
-The loader publishes a generic bridge as `globalThis.UnboundNative`. It contains only the ABI version, JavaScript API version, capability list, Objective-C operations, and raw FFI operations. Platform-wide helpers such as device information and notifications live under `globalThis.UnboundPlatform`.
+The loader publishes a generic bridge as `globalThis.NativePlugin`. It contains only the ABI version, JavaScript API version, capability list, Objective-C operations, and raw FFI operations. Platform-wide helpers such as device information and notifications live under `globalThis.NativePlatform`.
 
 Feature-specific native classes, caches, network clients, renderers, and hooks are not part of the loader surface. A plugin owns that behavior and uses the generic bridge to reach the app's existing Objective-C objects.
 

@@ -43,8 +43,8 @@ declare global {
 	 */
 	var $$DEV$$: boolean;
 
-	var UnboundNative: NativePluginBridge | undefined;
-	var UnboundPlatform: NativePlatformBridge | undefined;
+	var NativePlugin: NativePluginBridge | undefined;
+	var NativePlatform: NativePlatformBridge | undefined;
 
 	/**
 	 * Hermes engine internals, exposing runtime metadata (bytecode version, GC, build).

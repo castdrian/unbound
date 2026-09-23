@@ -170,11 +170,11 @@ type AssociationBinding = {
 };
 
 function getNativePlugin(): NativePluginBridge | undefined {
-	return globalThis.UnboundNative;
+	return globalThis.NativePlugin;
 }
 
 export const NativePlugin: NativePluginBridge | undefined = getNativePlugin();
-export const NativePlatform: NativePlatformBridge | undefined = globalThis.UnboundPlatform;
+export const NativePlatform: NativePlatformBridge | undefined = globalThis.NativePlatform;
 
 const capabilityRequirements: Record<string, NativePluginCapability> = {
 	getClass: 'native.objc.classes',

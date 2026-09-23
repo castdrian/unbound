@@ -8,6 +8,7 @@ mock.module('react-native', () => ({
 
 const removed: string[] = [];
 const cleared: unknown[] = [];
+const unmounted: unknown[] = [];
 const capabilities = [
 	'native.objc.classes',
 	'native.objc.invoke',
@@ -16,6 +17,7 @@ const capabilities = [
 	'native.objc.hooks',
 	'native.ffi.symbols',
 	'native.ffi.call',
+	'native.fabric.mount',
 ] as const;
 
 const bridge = {
@@ -51,6 +53,14 @@ const bridge = {
 		call: () => undefined,
 		symbol: () => null,
 	},
+	fabric: {
+		mount: () => ({ surface: true }),
+		update: () => undefined,
+		setSize: () => undefined,
+		setFrame: () => undefined,
+		measure: () => ({ x: 0, y: 0, width: 0, height: 0 }),
+		unmount: (surface: unknown) => unmounted.push(surface),
+	},
 };
 
 const manifest: AddonManifest = {
@@ -79,6 +89,7 @@ const {
 afterEach(() => {
 	removed.length = 0;
 	cleared.length = 0;
+	unmounted.length = 0;
 });
 
 describe('native plugin capability scopes', () => {
@@ -120,6 +131,15 @@ describe('native plugin capability scopes', () => {
 			NativePluginDisposedError,
 		);
 		context.dispose();
+	});
+
+	test('disposes Fabric surfaces owned by a plugin context', () => {
+		const context = createPluginContext({ ...manifest, capabilities: ['native.fabric.mount'] });
+		const surface = context.native.fabric.mount({}, 'TestSurface');
+
+		context.dispose();
+
+		expect(unmounted).toEqual([surface]);
 	});
 });
 

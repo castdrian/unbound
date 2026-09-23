@@ -1,6 +1,8 @@
 import type {
 	Fn,
 	NativeAssociationKey,
+	NativeFabricBridge,
+	NativeFabricSurface,
 	NativeFFIBridge,
 	NativeHookHandlers,
 	NativeHookOptions,
@@ -20,6 +22,10 @@ export type {
 	NativeAssociationKey,
 	NativeCallOptions,
 	NativeClassHandle,
+	NativeFabricBridge,
+	NativeFabricFrame,
+	NativeFabricSize,
+	NativeFabricSurface,
 	NativeFFIBridge,
 	NativeFFISignature,
 	NativeFFIType,
@@ -188,6 +194,12 @@ const capabilityRequirements: Record<string, NativePluginCapability> = {
 	array: 'native.objc.classes',
 	data: 'native.objc.classes',
 	hook: 'native.objc.hooks',
+	fabricMount: 'native.fabric.mount',
+	fabricUpdate: 'native.fabric.mount',
+	fabricSetSize: 'native.fabric.mount',
+	fabricSetFrame: 'native.fabric.mount',
+	fabricMeasure: 'native.fabric.mount',
+	fabricUnmount: 'native.fabric.mount',
 };
 
 export class NativePluginUnavailableError extends Error {
@@ -267,6 +279,7 @@ function unavailableNativePlugin(): NativePluginBridge {
 	};
 	const unavailableObjC = new Proxy({}, { get: () => unavailableMethod }) as NativeObjCBridge;
 	const unavailableFFI = new Proxy({}, { get: () => unavailableMethod }) as NativeFFIBridge;
+	const unavailableFabric = new Proxy({}, { get: () => unavailableMethod }) as NativeFabricBridge;
 
 	return {
 		apiVersion: '0.0.0',
@@ -274,6 +287,7 @@ function unavailableNativePlugin(): NativePluginBridge {
 		capabilities: [],
 		objc: unavailableObjC,
 		ffi: unavailableFFI,
+		fabric: unavailableFabric,
 	};
 }
 
@@ -282,7 +296,9 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 	dispose: () => void;
 } {
 	const bridge = getNativePlugin() ?? unavailableNativePlugin();
+	const fabricBridge = bridge.fabric ?? unavailableNativePlugin().fabric;
 	const tokens = new Set<NativeHookToken>();
+	const surfaces = new Set<NativeFabricSurface>();
 	const associations: AssociationBinding[] = [];
 	let disposed = false;
 	const scopeMethod = (method: NativeMethod, capability: NativePluginCapability): NativeMethod =>
@@ -396,6 +412,38 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 		) as NativeFFIBridge['call'],
 	};
 
+	const fabric: NativeFabricBridge = {
+		mount: ((container, moduleName, properties) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.fabricMount);
+			const surface = fabricBridge.mount(container, moduleName, properties);
+			surfaces.add(surface);
+			return surface;
+		}) as NativeFabricBridge['mount'],
+		update: scopeMethod(
+			fabricBridge.update.bind(fabricBridge),
+			capabilityRequirements.fabricUpdate,
+		) as NativeFabricBridge['update'],
+		setSize: scopeMethod(
+			fabricBridge.setSize.bind(fabricBridge),
+			capabilityRequirements.fabricSetSize,
+		) as NativeFabricBridge['setSize'],
+		setFrame: scopeMethod(
+			fabricBridge.setFrame.bind(fabricBridge),
+			capabilityRequirements.fabricSetFrame,
+		) as NativeFabricBridge['setFrame'],
+		measure: scopeMethod(
+			fabricBridge.measure.bind(fabricBridge),
+			capabilityRequirements.fabricMeasure,
+		) as NativeFabricBridge['measure'],
+		unmount: ((surface) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.fabricUnmount);
+			fabricBridge.unmount(surface);
+			surfaces.delete(surface);
+		}) as NativeFabricBridge['unmount'],
+	};
+
 	return {
 		bridge: {
 			apiVersion: bridge.apiVersion,
@@ -403,12 +451,15 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			capabilities: bridge.capabilities,
 			objc,
 			ffi,
+			fabric,
 		},
 		dispose: () => {
 			if (disposed) return;
 			disposed = true;
 			for (const token of tokens) token.remove();
 			tokens.clear();
+			for (const surface of surfaces) fabricBridge.unmount(surface);
+			surfaces.clear();
 			for (const binding of associations) {
 				bridge.objc.setAssociatedObject(binding.handle, binding.key, null, 'assign');
 			}

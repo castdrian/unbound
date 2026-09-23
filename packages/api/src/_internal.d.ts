@@ -202,6 +202,32 @@ export interface NativeFFISignature {
 	returnType: NativeFFIType;
 	args: NativeFFIType[];
 }
+export interface NativeFabricBridge {
+	mount(
+		container: NativeObjectHandle,
+		moduleName: string,
+		properties?: Record<string, unknown>,
+	): NativeFabricSurface;
+	update(surface: NativeFabricSurface, properties: Record<string, unknown>): void;
+	setSize(
+		surface: NativeFabricSurface,
+		minimumSize: NativeFabricSize,
+		maximumSize: NativeFabricSize,
+	): void;
+	setFrame(surface: NativeFabricSurface, frame: NativeFabricFrame): void;
+	measure(view: NativeObjectHandle): NativeFabricFrame;
+	unmount(surface: NativeFabricSurface): void;
+}
+export interface NativeFabricFrame {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+export interface NativeFabricSize {
+	width: number;
+	height: number;
+}
 export interface NativeHookContext {
 	self: NativeObjectHandle;
 	selector: string;
@@ -288,6 +314,7 @@ export interface NativePluginBridge {
 	readonly capabilities: readonly NativePluginCapability[];
 	readonly objc: NativeObjCBridge;
 	readonly ffi: NativeFFIBridge;
+	readonly fabric: NativeFabricBridge;
 }
 export interface NativePluginError {
 	code: string;
@@ -678,6 +705,7 @@ export type NativeFFITypeName =
 	| 'object'
 	| 'class'
 	| 'selector';
+export type NativeFabricSurface = NativeHandle;
 export type NativeHandle = object;
 export type NativeObjectHandle = NativeHandle;
 export type NativePluginCapability =
@@ -687,7 +715,8 @@ export type NativePluginCapability =
 	| 'native.objc.associations'
 	| 'native.objc.hooks'
 	| 'native.ffi.symbols'
-	| 'native.ffi.call';
+	| 'native.ffi.call'
+	| 'native.fabric.mount';
 export type NativePointer = NativeHandle;
 export type NativeThreadPolicy = 'current' | 'main';
 /** An {@link Addon} whose instance is a {@link Plugin}. */

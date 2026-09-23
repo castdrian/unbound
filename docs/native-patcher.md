@@ -15,16 +15,13 @@ Feature-specific native classes, caches, network clients, renderers, and hooks a
 The addon manager validates the manifest before starting a plugin and creates a scoped context:
 
 ```ts
-const context = native.createPluginContext(
-	'mention-avatars',
-	[
-		'native.objc.classes',
-		'native.objc.invoke',
-		'native.objc.ivars',
-		'native.objc.associations',
-		'native.objc.hooks',
-	],
-);
+const context = native.createPluginContext('mention-avatars', [
+	'native.objc.classes',
+	'native.objc.invoke',
+	'native.objc.ivars',
+	'native.objc.associations',
+	'native.objc.hooks',
+]);
 ```
 
 The scope gates each operation, owns hook tokens and association keys, and disposes all resources when the plugin stops, unloads, reloads, or fails during startup.
@@ -44,6 +41,12 @@ Hooks are registered by `(Class, SEL)`. One loader-owned dispatcher preserves th
 `ffi.symbol` resolves symbols from already-loaded images. `ffi.call` accepts explicit non-variadic signatures containing supported scalar types, pointers, Objective-C object/class/selector pointers, and registered structs.
 
 The v1 contract excludes arbitrary memory access, pointer dereference, arbitrary `dlopen`, variadic calls, unknown structs, vectors, unions, bitfields, and plugin-supplied native closures.
+
+## Fabric surfaces
+
+The `fabric` namespace lets a plugin register a React Native component and mount its real Fabric view inside an existing UIKit container. `mount` starts the surface with initial properties, `update` sends new properties, `setSize` supplies surface constraints, `setFrame` positions the view, `measure` returns the container frame, and `unmount` stops and removes it. All UIKit work is marshalled to the main thread and surface handles are scoped to the plugin.
+
+The `native.fabric.mount` capability is required for every Fabric operation. A plugin should mount into the host view that owns the message layout, not create a window-level overlay.
 
 ## Mention avatars migration
 

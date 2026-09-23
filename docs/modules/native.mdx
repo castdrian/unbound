@@ -22,11 +22,7 @@ A native module's name varies across Discord versions. `getNativeModule` checks 
 ```ts
 import { native } from '@unbound-app/api';
 
-const FileManager = native.getNativeModule(
-	'NativeFileModule',
-	'DCDFileManager',
-	'RTNFileManager',
-);
+const FileManager = native.getNativeModule('NativeFileModule', 'DCDFileManager', 'RTNFileManager');
 ```
 
 ### Built-in handles
@@ -102,7 +98,6 @@ const token = native.objc.hook(cellName, 'prepareForReuse', {
 		if (viewModel) native.objc.call(viewModel, 'description');
 	},
 });
-
 ```
 
 Hook arguments are borrowed until the callback returns. Retain values explicitly when they need to outlive the callback. `original()` is synchronous only when the callback runs on the hook thread; cross-thread calls fail closed to avoid deadlocks. Disposing a plugin context removes its hooks, associations, and bridge resources, and all later calls through that context are rejected.
@@ -116,14 +111,41 @@ The `ffi` namespace resolves symbols from already-loaded images and invokes non-
 ```ts
 const symbol = native.ffi.symbol('SomeLoadedSymbol');
 if (symbol) {
-	const value = native.ffi.call(symbol, {
-		returnType: 'i32',
-		args: ['pointer'],
-	}, pointer);
+	const value = native.ffi.call(
+		symbol,
+		{
+			returnType: 'i32',
+			args: ['pointer'],
+		},
+		pointer,
+	);
 }
 ```
 
 The v1 bridge does not expose arbitrary memory access, `dlopen`, variadic calls, unknown structs, vectors, unions, bitfields, or plugin-supplied native closures.
+
+### Fabric surfaces
+
+The `fabric` namespace mounts a registered React Native component into an existing UIKit view. This is the bridge used when a plugin needs Discord's real native message component rather than a second JavaScript-only approximation.
+
+```ts
+const surface = native.fabric.mount(container, 'UnboundMessageLinkSurface', {
+	surfaceId,
+	targetMessageId,
+});
+
+const bounds = native.fabric.measure(container);
+native.fabric.setSize(
+	surface,
+	{ width: bounds.width, height: 1 },
+	{ width: bounds.width, height: 480 },
+);
+native.fabric.setFrame(surface, { x: 0, y: 120, width: bounds.width, height: 168 });
+native.fabric.update(surface, { targetMessageId });
+native.fabric.unmount(surface);
+```
+
+Fabric surfaces are created and destroyed on the UIKit main thread, while the JavaScript API remains synchronous and fail-closed on timeout. Surface handles are owned by the plugin scope and are unmounted automatically when the scope is disposed.
 
 ### Capabilities and lifecycle
 
@@ -136,6 +158,7 @@ Declare only the capabilities a plugin needs in its manifest:
 - `native.objc.hooks`
 - `native.ffi.symbols`
 - `native.ffi.call`
+- `native.fabric.mount`
 
 The addon manager validates capability names and the optional minimum API version before calling `start(context)`. `context.native` is scoped to the plugin. `context.dispose()` is called during stop, unload, reload, and failed startup cleanup.
 

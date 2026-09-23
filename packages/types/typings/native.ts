@@ -7,7 +7,8 @@ export type NativePluginCapability =
 	| 'native.objc.associations'
 	| 'native.objc.hooks'
 	| 'native.ffi.symbols'
-	| 'native.ffi.call';
+	| 'native.ffi.call'
+	| 'native.fabric.mount';
 
 export type NativeHandle = object;
 
@@ -126,6 +127,37 @@ export interface NativeFFIBridge {
 	call(pointer: NativePointer, signature: NativeFFISignature, ...args: unknown[]): unknown;
 }
 
+export interface NativeFabricSize {
+	width: number;
+	height: number;
+}
+
+export interface NativeFabricFrame {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+export type NativeFabricSurface = NativeHandle;
+
+export interface NativeFabricBridge {
+	mount(
+		container: NativeObjectHandle,
+		moduleName: string,
+		properties?: Record<string, unknown>,
+	): NativeFabricSurface;
+	update(surface: NativeFabricSurface, properties: Record<string, unknown>): void;
+	setSize(
+		surface: NativeFabricSurface,
+		minimumSize: NativeFabricSize,
+		maximumSize: NativeFabricSize,
+	): void;
+	setFrame(surface: NativeFabricSurface, frame: NativeFabricFrame): void;
+	measure(view: NativeObjectHandle): NativeFabricFrame;
+	unmount(surface: NativeFabricSurface): void;
+}
+
 export interface NativePlatformDevice {
 	getModel(): string;
 	getiOSVersionString(): string;
@@ -152,6 +184,7 @@ export interface NativePluginBridge {
 	readonly capabilities: readonly NativePluginCapability[];
 	readonly objc: NativeObjCBridge;
 	readonly ffi: NativeFFIBridge;
+	readonly fabric: NativeFabricBridge;
 }
 
 export interface NativePluginError {

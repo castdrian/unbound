@@ -158,8 +158,8 @@ describe('native plugin negotiation', () => {
 	});
 
 	test('rejects a plugin that requires a newer bridge API', () => {
-		expect(() => validateNativePluginRequirements([], '1.1.0')).toThrow(
-			'Native plugin API 1.1.0 is required',
+		expect(() => validateNativePluginRequirements([], '2.0.0')).toThrow(
+			'Native plugin API 2.0.0 is required',
 		);
 	});
 });

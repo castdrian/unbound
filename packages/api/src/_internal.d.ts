@@ -233,6 +233,7 @@ export interface NativeHookContext {
 	selector: string;
 	args: unknown[];
 	original: (...args: unknown[]) => unknown;
+	replaceObjectArgument(index: number, value: NativeObjectHandle | null): void;
 }
 export interface NativeHookHandlers {
 	before?: (context: NativeHookContext) => void | Promise<void>;
@@ -240,10 +241,15 @@ export interface NativeHookHandlers {
 	replace?: (context: NativeHookContext) => unknown;
 }
 export interface NativeHookOptions extends NativeCallOptions {
+	cacheOnly?: boolean;
+	instance?: NativeObjectHandle;
 	once?: boolean;
 }
 export interface NativeHookToken {
 	readonly active: boolean;
+	setReturnValue(self: NativeObjectHandle, args: unknown[], value: unknown): void;
+	removeReturnValue(self: NativeObjectHandle, args: unknown[]): void;
+	clearReturnValues(): void;
 	remove(): void;
 }
 export interface NativeObjCBridge {

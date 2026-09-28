@@ -393,6 +393,18 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 				get active() {
 					return token.active;
 				},
+				setReturnValue(self, args, value) {
+					if (disposed) throw new NativePluginDisposedError();
+					token.setReturnValue(self, args, value);
+				},
+				removeReturnValue(self, args) {
+					if (disposed) throw new NativePluginDisposedError();
+					token.removeReturnValue(self, args);
+				},
+				clearReturnValues() {
+					if (disposed) throw new NativePluginDisposedError();
+					token.clearReturnValues();
+				},
 				remove() {
 					token.remove();
 					tokens.delete(token);

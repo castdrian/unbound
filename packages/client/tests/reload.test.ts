@@ -110,6 +110,14 @@ class FakeAddons extends Addons<Addon> {
 	}
 }
 
+class PersistingAddons extends FakeAddons {
+	protected override async persist(bundle: string): Promise<void> {
+		this.log.push(`persist:start:${bundle}`);
+		await Promise.resolve();
+		this.log.push(`persist:finish:${bundle}`);
+	}
+}
+
 let manager: FakeAddons;
 
 beforeEach(() => {
@@ -119,6 +127,29 @@ beforeEach(() => {
 });
 
 describe('Addons.reload', () => {
+	test('persists a running addon update before stopping the active instance', async () => {
+		const localManager = new PersistingAddons();
+		const manifest = makeManifest('a');
+		localManager.seed({
+			id: 'a',
+			data: manifest,
+			bundle: 'old',
+			instance: makeInstance('old', localManager.log),
+			started: true,
+			failed: false,
+		});
+
+		const result = await localManager.reload('a', 'new', manifest);
+
+		expect(result.ok).toBe(true);
+		expect(localManager.log).toEqual([
+			'persist:start:new',
+			'persist:finish:new',
+			'stop:old',
+			'start:new',
+		]);
+	});
+
 	test('a loaded addon is stopped then started and emits reloaded', async () => {
 		const manifest = makeManifest('a');
 		manager.seed({
@@ -154,7 +185,7 @@ describe('Addons.reload', () => {
 		expect(result.ok).toBe(true);
 		expect(manager.getEntity('b')).toBeDefined();
 		expect(reloaded?.id).toBe('b');
-		expect(writes).toEqual(['Unbound/PLUGINS/b/manifest.json', 'Unbound/PLUGINS/b/index.js']);
+		expect(writes).toEqual(['Unbound/Plugins/b/manifest.json', 'Unbound/Plugins/b/index.js']);
 	});
 
 	test('a disabled addon is swapped but not started', async () => {

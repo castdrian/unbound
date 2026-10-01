@@ -165,7 +165,7 @@ export interface NativeFabricBridge {
 }
 
 export interface NativePlatformDevice {
-	getModel(): string;
+	getDeviceModel(): string;
 	getiOSVersionString(): string;
 	isJailbroken(): boolean;
 	isSystemApp(): boolean;
@@ -175,7 +175,7 @@ export interface NativePlatformDevice {
 }
 
 export interface NativePlatformApp {
-	getSource(): string;
+	getAppSource(): string;
 }
 
 export interface NativePlatformBridge {

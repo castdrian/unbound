@@ -46,8 +46,8 @@ await native.reload();
 ```ts
 import { native } from '@unbound-app/api';
 
-const model = native.NativePlatform?.device.getModel();
-const source = native.NativePlatform?.app.getSource();
+const model = native.NativePlatform?.device.getDeviceModel();
+const source = native.NativePlatform?.app.getAppSource();
 ```
 
 `NativePlatform.evaluateBytecode` accepts a Hermes `ArrayBuffer` and evaluates it in the current runtime. It throws when the argument is not valid Hermes bytecode or when evaluation fails.

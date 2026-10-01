@@ -298,7 +298,7 @@ export interface NativeObjCBridge {
 	): NativeHookToken;
 }
 export interface NativePlatformApp {
-	getSource(): string;
+	getAppSource(): string;
 }
 export interface NativePlatformBridge {
 	evaluateBytecode(bytecode: ArrayBuffer, tag?: string): unknown;
@@ -306,7 +306,7 @@ export interface NativePlatformBridge {
 	readonly app: NativePlatformApp;
 }
 export interface NativePlatformDevice {
-	getModel(): string;
+	getDeviceModel(): string;
 	getiOSVersionString(): string;
 	isJailbroken(): boolean;
 	isSystemApp(): boolean;

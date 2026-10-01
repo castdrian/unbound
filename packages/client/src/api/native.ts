@@ -41,6 +41,7 @@ export type {
 	NativePluginBridge,
 	NativePluginCapability,
 	NativePluginError,
+	NativePluginErrorCode,
 	NativePointer,
 	NativeStruct,
 	NativeThreadPolicy,
@@ -213,6 +214,18 @@ export class NativePluginCapabilityError extends Error {
 	constructor(capability: NativePluginCapability) {
 		super(`Native plugin capability is not declared: ${capability}`);
 		this.capability = capability;
+	}
+}
+
+export class NativePluginVersionError extends Error {
+	readonly code = 'NATIVE_PLUGIN_API_VERSION_UNSUPPORTED';
+	readonly installedApi: string;
+	readonly requiredApi: string;
+
+	constructor(requiredApi: string, installedApi: string) {
+		super(`Native plugin API ${requiredApi} is required, but ${installedApi} is installed.`);
+		this.installedApi = installedApi;
+		this.requiredApi = requiredApi;
 	}
 }
 
@@ -485,16 +498,15 @@ export function validateNativePluginRequirements(
 	minimumApi?: string,
 ): void {
 	const nativePlugin = getNativePlugin();
+	if ((capabilities.length > 0 || minimumApi) && !nativePlugin) requireNativePlugin();
+	if (!nativePlugin) return;
+
 	const unknown = capabilities.find(
-		(capability) => !(nativePlugin?.capabilities ?? []).includes(capability),
+		(capability) => !nativePlugin.capabilities.includes(capability),
 	);
 	if (unknown) throw new NativePluginCapabilityError(unknown);
-	if (minimumApi && nativePlugin && compareVersions(nativePlugin.apiVersion, minimumApi) < 0) {
-		throw new Error(
-			`Native plugin API ${minimumApi} is required, but ${nativePlugin.apiVersion} is installed.`,
-		);
-	}
-	if ((capabilities.length > 0 || minimumApi) && !nativePlugin) requireNativePlugin();
+	if (minimumApi && compareVersions(nativePlugin.apiVersion, minimumApi) < 0)
+		throw new NativePluginVersionError(minimumApi, nativePlugin.apiVersion);
 }
 
 export function createPluginContext(manifest: AddonManifest): PluginContext {

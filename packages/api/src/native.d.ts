@@ -24,6 +24,7 @@ export type {
 	NativePluginBridge,
 	NativePluginCapability,
 	NativePluginError,
+	NativePluginErrorCode,
 	NativePointer,
 	NativeStruct,
 	NativeThreadPolicy,
@@ -50,6 +51,12 @@ export declare class NativePluginDisposedError extends Error {
 }
 export declare class NativePluginUnavailableError extends Error {
 	readonly code = 'NATIVE_PLUGIN_UNAVAILABLE';
+}
+export declare class NativePluginVersionError extends Error {
+	readonly code = 'NATIVE_PLUGIN_API_VERSION_UNSUPPORTED';
+	readonly installedApi: string;
+	readonly requiredApi: string;
+	constructor(requiredApi: string, installedApi: string);
 }
 /** The resolved native client info module, exposing build and release metadata. */
 export declare const BundleInfo: BundleInfoType;

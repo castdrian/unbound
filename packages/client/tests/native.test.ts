@@ -82,6 +82,8 @@ const manifest: AddonManifest = {
 const {
 	NativePluginCapabilityError,
 	NativePluginDisposedError,
+	NativePluginUnavailableError,
+	NativePluginVersionError,
 	createPluginContext,
 	validateNativePluginRequirements,
 } = await import('~/api/native');
@@ -157,9 +159,33 @@ describe('native plugin negotiation', () => {
 		).toThrow(NativePluginCapabilityError);
 	});
 
+	test('reports a missing bridge before checking plugin capabilities', () => {
+		const previous = (globalThis as any).NativePlugin;
+		(globalThis as any).NativePlugin = undefined;
+
+		try {
+			expect(() => validateNativePluginRequirements(['native.objc.classes'])).toThrow(
+				NativePluginUnavailableError,
+			);
+		} finally {
+			(globalThis as any).NativePlugin = previous;
+		}
+		expect(new NativePluginUnavailableError('missing').code).toBe('NATIVE_PLUGIN_UNAVAILABLE');
+	});
+
 	test('rejects a plugin that requires a newer bridge API', () => {
-		expect(() => validateNativePluginRequirements([], '2.0.0')).toThrow(
-			'Native plugin API 2.0.0 is required',
-		);
+		let failure: unknown;
+		try {
+			validateNativePluginRequirements([], '2.0.0');
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(failure).toBeInstanceOf(NativePluginVersionError);
+		expect(failure).toMatchObject({
+			code: 'NATIVE_PLUGIN_API_VERSION_UNSUPPORTED',
+			installedApi: '1.0.0',
+			requiredApi: '2.0.0',
+		});
 	});
 });

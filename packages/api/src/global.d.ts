@@ -51,6 +51,7 @@ export type {
 	NativePluginBridge,
 	NativePluginCapability,
 	NativePluginError,
+	NativePluginErrorCode,
 	NativePointer,
 	NativeStruct,
 	NativeThreadPolicy,

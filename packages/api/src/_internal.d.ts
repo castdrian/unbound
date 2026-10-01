@@ -323,7 +323,7 @@ export interface NativePluginBridge {
 	readonly fabric: NativeFabricBridge;
 }
 export interface NativePluginError {
-	code: string;
+	code: NativePluginErrorCode;
 	message: string;
 	capability?: NativePluginCapability;
 }
@@ -723,6 +723,12 @@ export type NativePluginCapability =
 	| 'native.ffi.symbols'
 	| 'native.ffi.call'
 	| 'native.fabric.mount';
+export type NativePluginErrorCode =
+	| 'NATIVE_BRIDGE_ERROR'
+	| 'NATIVE_PLUGIN_API_VERSION_UNSUPPORTED'
+	| 'NATIVE_PLUGIN_CAPABILITY_DENIED'
+	| 'NATIVE_PLUGIN_SCOPE_DISPOSED'
+	| 'NATIVE_PLUGIN_UNAVAILABLE';
 export type NativePointer = NativeHandle;
 export type NativeThreadPolicy = 'current' | 'main';
 /** An {@link Addon} whose instance is a {@link Plugin}. */

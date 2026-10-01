@@ -104,6 +104,8 @@ Hook arguments are borrowed until the callback returns. Retain values explicitly
 
 `call` runs on the current runtime thread. `invoke` accepts an explicit thread policy such as `current` or `main`; unsupported synchronous crossings fail with a structured error.
 
+Objective-C `NSData` results are returned as `Uint8Array` values. Native bridge failures are JavaScript errors with a stable `code` property; native runtime failures use `NATIVE_BRIDGE_ERROR`. Client-side negotiation errors distinguish unavailable bridges, missing capabilities, disposed scopes, and unsupported minimum API versions through their respective error codes.
+
 ### Raw FFI operations
 
 The `ffi` namespace resolves symbols from already-loaded images and invokes non-variadic signatures made from supported scalar, pointer, Objective-C, and registered struct types.

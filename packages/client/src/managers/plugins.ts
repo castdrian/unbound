@@ -1,6 +1,6 @@
 import type { Plugin, PluginContext, PluginEntity } from '@unbound-app/types';
 
-import { createPluginContext } from '~/api/native';
+import { createPluginContext } from '~/api/native-runtime';
 import { ManagerType } from '~/managers/base';
 import { Addons } from '~/managers/addons';
 

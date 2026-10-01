@@ -97,7 +97,7 @@ export type {
 	TransitionState,
 	UnboundAsset,
 } from './_internal';
-import type { NativePlatformBridge, NativePluginBridge } from './_internal';
+import type { NativePlatformBridge } from './_internal';
 declare global {
 	/**
 	 * Build-time token, replaced with a boolean literal by the build's `transform.define`. Folds at
@@ -105,7 +105,6 @@ declare global {
 	 * eliminated from production bundles entirely. Use it (not a runtime check) to gate dev-only code.
 	 */
 	var $$DEV$$: boolean;
-	var NativePlugin: NativePluginBridge | undefined;
 	var NativePlatform: NativePlatformBridge | undefined;
 	var React: typeof import('react');
 	var ReactNative: typeof import('react-native');

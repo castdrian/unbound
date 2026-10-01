@@ -1,4 +1,4 @@
-import type { NativePlatformBridge, NativePluginBridge } from './typings/native';
+import type { NativePlatformBridge } from './typings/native';
 import type { AddonManifest } from './typings/addons';
 import type { Fn } from './typings/utils';
 
@@ -43,7 +43,6 @@ declare global {
 	 */
 	var $$DEV$$: boolean;
 
-	var NativePlugin: NativePluginBridge | undefined;
 	var NativePlatform: NativePlatformBridge | undefined;
 
 	/**

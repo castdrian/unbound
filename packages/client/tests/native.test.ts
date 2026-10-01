@@ -79,14 +79,10 @@ const manifest: AddonManifest = {
 
 (globalThis as any).NativePlugin = bridge;
 
-const {
-	NativePluginCapabilityError,
-	NativePluginDisposedError,
-	NativePluginUnavailableError,
-	NativePluginVersionError,
-	createPluginContext,
-	validateNativePluginRequirements,
-} = await import('~/api/native');
+const { NativePluginCapabilityError, NativePluginDisposedError, NativePluginVersionError } =
+	await import('~/api/native');
+const { createPluginContext, validateNativePluginRequirements } =
+	await import('~/api/native-runtime');
 
 afterEach(() => {
 	removed.length = 0;
@@ -95,6 +91,15 @@ afterEach(() => {
 });
 
 describe('native plugin capability scopes', () => {
+	test('hides the raw bridge after capturing it for scoped access', async () => {
+		const nativeApi = await import('~/api/native');
+
+		expect((globalThis as any).NativePlugin).toBeUndefined();
+		expect(nativeApi).not.toHaveProperty('NativePlugin');
+		expect(nativeApi).not.toHaveProperty('createPluginContext');
+		expect(nativeApi).not.toHaveProperty('validateNativePluginRequirements');
+	});
+
 	test('denies operations that are outside the declared scope', () => {
 		const context = createPluginContext({ ...manifest, capabilities: ['native.objc.classes'] });
 
@@ -157,20 +162,6 @@ describe('native plugin negotiation', () => {
 				'native.unknown' as never,
 			]),
 		).toThrow(NativePluginCapabilityError);
-	});
-
-	test('reports a missing bridge before checking plugin capabilities', () => {
-		const previous = (globalThis as any).NativePlugin;
-		(globalThis as any).NativePlugin = undefined;
-
-		try {
-			expect(() => validateNativePluginRequirements(['native.objc.classes'])).toThrow(
-				NativePluginUnavailableError,
-			);
-		} finally {
-			(globalThis as any).NativePlugin = previous;
-		}
-		expect(new NativePluginUnavailableError('missing').code).toBe('NATIVE_PLUGIN_UNAVAILABLE');
 	});
 
 	test('rejects a plugin that requires a newer bridge API', () => {

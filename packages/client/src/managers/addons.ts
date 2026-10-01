@@ -1,7 +1,7 @@
 import type { Addon, AddonManifest, PluginContext } from '@unbound-app/types';
 import noop from '@unbound-app/utils/noop';
 
-import { validateNativePluginRequirements } from '~/api/native';
+import { validateNativePluginRequirements } from '~/api/native-runtime';
 import { Manager, ManagerType } from '~/managers/base';
 import storage from '~/api/storage';
 import fs from '~/api/fs';

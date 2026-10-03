@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feat/native-plugin-api
   pull_request:
 
 permissions:

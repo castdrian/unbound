@@ -193,7 +193,9 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			resolved.instance = null;
 
 			resolved.bundle = bundle;
-			resolved.workerBundle = workerBundle ?? resolved.workerBundle;
+			resolved.workerBundle = manifest.worker
+				? (workerBundle ?? resolved.workerBundle)
+				: undefined;
 			resolved.data = manifest;
 			resolved.failed = false;
 			this.errors.delete(resolved.id);

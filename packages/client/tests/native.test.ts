@@ -24,6 +24,7 @@ const capabilities = [
 const workerRuns: string[] = [];
 const workerRemoved: string[] = [];
 let workerFailure = false;
+let workerPending: Promise<unknown> | undefined;
 
 const bridge = {
 	abiVersion: '1.0.0',
@@ -76,6 +77,7 @@ const bridge = {
 		run: async (plugin: string, task: string, input: unknown) => {
 			workerRuns.push(`${plugin}:${task}`);
 			if (workerFailure) throw new Error('Worker failed');
+			if (workerPending) return workerPending;
 			return input;
 		},
 		remove: (plugin: string) => workerRemoved.push(plugin),
@@ -110,6 +112,7 @@ afterEach(() => {
 	workerRuns.length = 0;
 	workerRemoved.length = 0;
 	workerFailure = false;
+	workerPending = undefined;
 });
 
 describe('native plugin capability scopes', () => {
@@ -205,6 +208,58 @@ describe('native plugin capability scopes', () => {
 				(output): output is number => typeof output === 'number',
 			),
 		).toBe(42);
+		context.dispose();
+	});
+
+	test('discards a worker result after its plugin scope stops', async () => {
+		let complete!: (value: unknown) => void;
+		workerPending = new Promise((resolve) => {
+			complete = resolve;
+		});
+		const context = createPluginContext(
+			{
+				...manifest,
+				id: 'cancelled',
+				worker: 'worker.js',
+				capabilities: ['native.worker.run'],
+			},
+			'({ echo(input) { return input; } })',
+		);
+		const result = context.native.worker.run(
+			'echo',
+			21,
+			(input) => input * 2,
+			(output): output is number => typeof output === 'number',
+		);
+		await Promise.resolve();
+		context.dispose();
+		complete(21);
+
+		await expect(result).rejects.toBeInstanceOf(NativePluginDisposedError);
+	});
+
+	test('disables only a failing plugin worker after repeated failures', async () => {
+		workerFailure = true;
+		const context = createPluginContext(
+			{
+				...manifest,
+				id: 'unstable',
+				worker: 'worker.js',
+				capabilities: ['native.worker.run'],
+			},
+			'({ echo(input) { return input; } })',
+		);
+		for (let index = 0; index < 4; index++) {
+			const result = await context.native.worker.run(
+				'echo',
+				21,
+				(input) => input * 2,
+				(output): output is number => typeof output === 'number',
+			);
+			expect(result).toBe(42);
+		}
+		expect(context.native.worker.available).toBe(false);
+		expect(workerRuns.filter((entry) => entry.endsWith(':echo'))).toHaveLength(3);
 		context.dispose();
 	});
 

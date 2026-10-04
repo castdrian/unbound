@@ -207,6 +207,24 @@ describe('Addons.reload', () => {
 		expect(manager.getEntity('e')?.bundle).toBe('new');
 	});
 
+	test('removes the cached worker when a replacement manifest omits it', async () => {
+		const manifest = makeManifest('worker');
+		manager.seed({
+			id: 'worker',
+			data: { ...manifest, worker: 'worker.js' },
+			bundle: 'old',
+			workerBundle: '({ old() {} })',
+			instance: null,
+			started: false,
+			failed: false,
+		});
+
+		const result = await manager.reload('worker', 'new', manifest);
+
+		expect(result.ok).toBe(true);
+		expect(manager.getEntity('worker')?.workerBundle).toBeUndefined();
+	});
+
 	test('a throwing stop() still completes the swap, leaving a healthy addon', async () => {
 		const manifest = makeManifest('c');
 		manager.seed({

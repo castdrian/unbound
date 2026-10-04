@@ -99,6 +99,7 @@ declare global {
 		UNBOUND_PLUGINS: {
 			manifest: AddonManifest;
 			bundle: string;
+			workerSource?: string;
 		}[];
 
 		/** @internal */

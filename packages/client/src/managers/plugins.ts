@@ -19,8 +19,8 @@ export class Plugins extends Addons<PluginEntity> {
 	 * @description Loads every plugin exposed on `window.UNBOUND_PLUGINS`, then marks the manager initialised.
 	 */
 	initialize() {
-		for (const { bundle, manifest } of window.UNBOUND_PLUGINS ?? []) {
-			this.load(bundle, manifest);
+		for (const { bundle, manifest, workerSource } of window.UNBOUND_PLUGINS ?? []) {
+			this.load(bundle, manifest, workerSource);
 		}
 
 		this.initialized = true;
@@ -45,7 +45,7 @@ export class Plugins extends Addons<PluginEntity> {
 	}
 
 	protected createContext(entity: PluginEntity): PluginContext {
-		return createPluginContext(entity.data);
+		return createPluginContext(entity.data, entity.workerBundle);
 	}
 }
 

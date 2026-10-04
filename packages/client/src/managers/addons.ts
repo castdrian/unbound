@@ -60,7 +60,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 * @param bundle The addon's bundle source.
 	 * @param manifest The addon's validated manifest.
 	 */
-	load(bundle: string, manifest: AddonManifest) {
+	load(bundle: string, manifest: AddonManifest, workerBundle?: string) {
 		try {
 			this.validateManifest(manifest);
 
@@ -68,6 +68,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 				id: manifest.id,
 				data: manifest,
 				bundle,
+				workerBundle,
 				instance: null,
 				started: false,
 				failed: false,
@@ -127,6 +128,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		entity: AddonResolveable,
 		bundle: string,
 		manifest: AddonManifest,
+		workerBundle?: string,
 	): Promise<ReloadResult> {
 		const resolved = this.resolve(entity);
 
@@ -150,8 +152,8 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		if (!resolved) {
 			try {
 				this.validateManifest(manifest);
-				await this.persist(bundle, manifest);
-				this.load(bundle, manifest);
+				await this.persist(bundle, manifest, workerBundle);
+				this.load(bundle, manifest, workerBundle);
 
 				const loaded = this.getEntity(manifest.id);
 				const loadError = this.errors.get(manifest.id);
@@ -178,7 +180,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			// Restart only what was running, mirroring enable/disable: a save must not start an addon the
 			// user has explicitly disabled.
 			const wasStarted = resolved.started;
-			await this.persist(bundle, manifest);
+			await this.persist(bundle, manifest, workerBundle);
 
 			// A throwing stop() must not abort the swap; stop() catches and records internally, so its
 			// failure surfaces as a recorded error rather than a throw.
@@ -191,6 +193,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			resolved.instance = null;
 
 			resolved.bundle = bundle;
+			resolved.workerBundle = workerBundle ?? resolved.workerBundle;
 			resolved.data = manifest;
 			resolved.failed = false;
 			this.errors.delete(resolved.id);
@@ -239,10 +242,18 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 				if (!res.ok) throw new Error(`Failed to fetch bundle (${res.status}).`);
 				return res.text();
 			});
+			const workerBundle = manifest.worker
+				? await fetch(new URL(manifest.worker, `${origin}/`).toString(), {
+						cache: 'no-cache',
+					}).then((res) => {
+						if (!res.ok) throw new Error(`Failed to fetch worker (${res.status}).`);
+						return res.text();
+					})
+				: undefined;
 
-			await this.persist(bundle, manifest);
+			await this.persist(bundle, manifest, workerBundle);
 
-			this.load(bundle, manifest);
+			this.load(bundle, manifest, workerBundle);
 			const entity = this.getEntity(manifest.id);
 			if (entity) this.emit('installed', entity);
 
@@ -400,11 +411,17 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 * @param bundle The addon's bundle source.
 	 * @param manifest The addon's validated manifest.
 	 */
-	protected async persist(bundle: string, manifest: AddonManifest): Promise<void> {
+	protected async persist(
+		bundle: string,
+		manifest: AddonManifest,
+		workerBundle?: string,
+	): Promise<void> {
 		const dir = `Unbound/${managerDirectories[this.type]}/${manifest.id}`;
 
 		await fs.write(`${dir}/manifest.json`, JSON.stringify(manifest));
 		await fs.write(`${dir}/${manifest.main}`, bundle);
+		if (manifest.worker && workerBundle)
+			await fs.write(`${dir}/${manifest.worker}`, workerBundle);
 	}
 
 	/**
@@ -464,6 +481,18 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 
 		if (manifest.capabilities || manifest.minNativePluginApi) {
 			validateNativePluginRequirements(manifest.capabilities, manifest.minNativePluginApi);
+		}
+		if (manifest.worker) {
+			const segments = manifest.worker.split('/');
+			if (
+				segments.some((segment) => !segment || segment === '.' || segment === '..') ||
+				!/^[a-zA-Z0-9_./-]+$/.test(manifest.worker)
+			) {
+				throw new Error('Manifest worker path is invalid');
+			}
+			if (!manifest.capabilities?.includes('native.worker.run')) {
+				throw new Error('Manifest worker requires native.worker.run');
+			}
 		}
 	}
 }

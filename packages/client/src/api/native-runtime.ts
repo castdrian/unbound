@@ -12,11 +12,13 @@ import type {
 	NativePlatformBridge,
 	NativePluginBridge,
 	NativePluginCapability,
+	NativeWorkerBridge,
 	PluginContext,
 	PromiseFn,
 } from '@unbound-app/types';
 import { NativeModules, TurboModuleRegistry } from 'react-native';
 import type { AddonManifest } from '@unbound-app/types/addons';
+import { createLogger } from '@unbound-app/logger';
 
 export type {
 	NativeAssociationKey,
@@ -45,6 +47,7 @@ export type {
 	NativePointer,
 	NativeStruct,
 	NativeThreadPolicy,
+	NativeWorkerBridge,
 	PluginContext,
 } from '@unbound-app/types/native';
 
@@ -164,7 +167,16 @@ export function getRuntimeProperties(): Record<string, any> {
 }
 
 type NativeMethod = (...args: any[]) => any;
-type NativePluginRuntimeGlobal = typeof globalThis & { NativePlugin?: NativePluginBridge };
+interface NativeWorkerTransport {
+	readonly available: boolean;
+	ping(): Promise<{ version: number; process: string }>;
+	install(plugin: string, source: string): Promise<boolean>;
+	run(plugin: string, task: string, input: unknown): Promise<unknown>;
+	remove(plugin: string): void;
+}
+
+type NativePluginRuntimeBridge = NativePluginBridge & { worker?: NativeWorkerTransport };
+type NativePluginRuntimeGlobal = typeof globalThis & { NativePlugin?: NativePluginRuntimeBridge };
 
 type AssociationBinding = {
 	handle: NativeObjectHandle;
@@ -173,6 +185,9 @@ type AssociationBinding = {
 
 const nativePluginGlobal = globalThis as NativePluginRuntimeGlobal;
 const nativePluginBridge = nativePluginGlobal.NativePlugin;
+const failedWorkerPlugins = new Set<string>();
+const workerLogger = createLogger('Native', 'Worker');
+let workerScopeSequence = 0;
 
 delete nativePluginGlobal.NativePlugin;
 
@@ -306,19 +321,64 @@ function unavailableNativePlugin(): NativePluginBridge {
 		objc: unavailableObjC,
 		ffi: unavailableFFI,
 		fabric: unavailableFabric,
+		worker: {
+			available: false,
+			run: async (_task, input, fallback) => fallback(input),
+		},
 	};
 }
 
-function createScopedNativePlugin(capabilities: readonly NativePluginCapability[]): {
+function createScopedNativePlugin(
+	manifest: AddonManifest,
+	workerSource?: string,
+): {
 	bridge: NativePluginBridge;
 	dispose: () => void;
 } {
+	const capabilities = manifest.capabilities ?? [];
 	const bridge = getNativePlugin() ?? unavailableNativePlugin();
+	const transport = (bridge as NativePluginRuntimeBridge).worker;
 	const fabricBridge = bridge.fabric ?? unavailableNativePlugin().fabric;
 	const tokens = new Set<NativeHookToken>();
 	const surfaces = new Set<NativeFabricSurface>();
 	const associations: AssociationBinding[] = [];
 	let disposed = false;
+	let generation = 0;
+	let workerFailures = 0;
+	let workerInstalled = false;
+	const workerScope = manifest.worker ? `${manifest.id}:${++workerScopeSequence}` : '';
+	const workerEnabled = Boolean(
+		manifest.worker &&
+		transport?.available &&
+		capabilities.includes('native.worker.run') &&
+		!failedWorkerPlugins.has(manifest.id),
+	);
+	const workerReady = workerEnabled
+		? (async () => {
+				try {
+					const source =
+						workerSource ??
+						(await import('~/api/fs')).read(
+							manifest.path
+								? `${manifest.path}/${manifest.worker}`
+								: `Unbound/Plugins/${manifest.id}/${manifest.worker}`,
+							'utf8',
+							!manifest.path,
+						);
+					const resolved = await source;
+					if (disposed || resolved.length > 262_144) return false;
+					const handshake = await transport!.ping();
+					if (handshake.version !== 1 || disposed) return false;
+					const installed = await transport!.install(workerScope, resolved);
+					if (disposed && installed) transport!.remove(workerScope);
+					workerInstalled = installed && !disposed;
+					return workerInstalled;
+				} catch (error) {
+					workerLogger.warn(`Worker unavailable for ${manifest.id}:`, error);
+					return false;
+				}
+			})()
+		: Promise.resolve(false);
 	const scopeMethod = (method: NativeMethod, capability: NativePluginCapability): NativeMethod =>
 		scopedMethod(method, capabilities, capability, () => !disposed);
 
@@ -474,6 +534,35 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 		}) as NativeFabricBridge['unmount'],
 	};
 
+	const worker: NativeWorkerBridge = {
+		get available() {
+			return workerEnabled && !failedWorkerPlugins.has(manifest.id);
+		},
+		async run(task, input, fallback, validate) {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, 'native.worker.run');
+			const requestGeneration = generation;
+			const ready = await workerReady;
+			if (disposed || requestGeneration !== generation) throw new NativePluginDisposedError();
+			if (!ready || failedWorkerPlugins.has(manifest.id)) return fallback(input);
+			try {
+				const result = await transport!.run(workerScope, task, input);
+				if (!validate(result)) throw new Error('Worker result is invalid');
+				if (disposed || requestGeneration !== generation)
+					throw new NativePluginDisposedError();
+				workerFailures = 0;
+				return result as Awaited<ReturnType<typeof fallback>>;
+			} catch (error) {
+				if (disposed || requestGeneration !== generation)
+					throw new NativePluginDisposedError();
+				workerFailures++;
+				workerLogger.warn(`Worker task failed for ${manifest.id}:`, error);
+				if (workerFailures >= 3) failedWorkerPlugins.add(manifest.id);
+				return fallback(input);
+			}
+		},
+	};
+
 	return {
 		bridge: {
 			apiVersion: bridge.apiVersion,
@@ -482,10 +571,13 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			objc,
 			ffi,
 			fabric,
+			worker,
 		},
 		dispose: () => {
 			if (disposed) return;
 			disposed = true;
+			generation++;
+			if (workerInstalled) transport?.remove(workerScope);
 			for (const token of tokens) token.remove();
 			tokens.clear();
 			for (const surface of surfaces) fabricBridge.unmount(surface);
@@ -514,10 +606,10 @@ export function validateNativePluginRequirements(
 		throw new NativePluginVersionError(minimumApi, nativePlugin.apiVersion);
 }
 
-export function createPluginContext(manifest: AddonManifest): PluginContext {
+export function createPluginContext(manifest: AddonManifest, workerSource?: string): PluginContext {
 	const capabilities = manifest.capabilities ?? [];
 	validateNativePluginRequirements(capabilities, manifest.minNativePluginApi);
-	const scoped = createScopedNativePlugin(capabilities);
+	const scoped = createScopedNativePlugin(manifest, workerSource);
 	return {
 		manifest,
 		id: manifest.id,

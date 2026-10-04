@@ -31,6 +31,7 @@ export interface Addon {
 	failed: boolean;
 	data: AddonManifest;
 	bundle: string;
+	workerBundle?: string;
 }
 /** The manifest describing an addon's metadata, entry point, and source. */
 export interface AddonManifest {
@@ -53,6 +54,7 @@ export interface AddonManifest {
 	url: string;
 	capabilities?: NativePluginCapability[];
 	minNativePluginApi?: string;
+	worker?: string;
 }
 /** The native module used to register and resolve {@link DiscordAsset}s by id. */
 export interface AssetsModule {
@@ -321,6 +323,7 @@ export interface NativePluginBridge {
 	readonly objc: NativeObjCBridge;
 	readonly ffi: NativeFFIBridge;
 	readonly fabric: NativeFabricBridge;
+	readonly worker: NativeWorkerBridge;
 }
 export interface NativePluginError {
 	code: NativePluginErrorCode;
@@ -330,6 +333,15 @@ export interface NativePluginError {
 export interface NativeStruct<T extends object = Record<string, unknown>> extends NativeHandle {
 	readonly name: string;
 	readonly value?: T;
+}
+export interface NativeWorkerBridge {
+	readonly available: boolean;
+	run<TInput, TOutput>(
+		task: string,
+		input: TInput,
+		fallback: (input: TInput) => TOutput | Promise<TOutput>,
+		validate: (output: unknown) => output is TOutput,
+	): Promise<TOutput>;
 }
 export interface Navigation<T = any> {
 	push: (route: string, params?: T) => void;
@@ -722,7 +734,8 @@ export type NativePluginCapability =
 	| 'native.objc.hooks'
 	| 'native.ffi.symbols'
 	| 'native.ffi.call'
-	| 'native.fabric.mount';
+	| 'native.fabric.mount'
+	| 'native.worker.run';
 export type NativePluginErrorCode =
 	| 'NATIVE_BRIDGE_ERROR'
 	| 'NATIVE_PLUGIN_API_VERSION_UNSUPPORTED'

@@ -55,6 +55,7 @@ export type {
 	NativePointer,
 	NativeStruct,
 	NativeThreadPolicy,
+	NativeWorkerBridge,
 	Navigation,
 	Plugin,
 	PluginContext,

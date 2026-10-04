@@ -8,7 +8,18 @@ export type NativePluginCapability =
 	| 'native.objc.hooks'
 	| 'native.ffi.symbols'
 	| 'native.ffi.call'
-	| 'native.fabric.mount';
+	| 'native.fabric.mount'
+	| 'native.worker.run';
+
+export interface NativeWorkerBridge {
+	readonly available: boolean;
+	run<TInput, TOutput>(
+		task: string,
+		input: TInput,
+		fallback: (input: TInput) => TOutput | Promise<TOutput>,
+		validate: (output: unknown) => output is TOutput,
+	): Promise<TOutput>;
+}
 
 export type NativeHandle = object;
 
@@ -191,6 +202,7 @@ export interface NativePluginBridge {
 	readonly objc: NativeObjCBridge;
 	readonly ffi: NativeFFIBridge;
 	readonly fabric: NativeFabricBridge;
+	readonly worker: NativeWorkerBridge;
 }
 
 export type NativePluginErrorCode =

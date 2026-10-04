@@ -18,7 +18,12 @@ const capabilities = [
 	'native.ffi.symbols',
 	'native.ffi.call',
 	'native.fabric.mount',
+	'native.worker.run',
 ] as const;
+
+const workerRuns: string[] = [];
+const workerRemoved: string[] = [];
+let workerFailure = false;
 
 const bridge = {
 	abiVersion: '1.0.0',
@@ -61,6 +66,20 @@ const bridge = {
 		measure: () => ({ x: 0, y: 0, width: 0, height: 0 }),
 		unmount: (surface: unknown) => unmounted.push(surface),
 	},
+	worker: {
+		available: true,
+		ping: async () => ({ version: 1, process: 'NativeWorker' }),
+		install: async (plugin: string) => {
+			workerRuns.push(`install:${plugin}`);
+			return true;
+		},
+		run: async (plugin: string, task: string, input: unknown) => {
+			workerRuns.push(`${plugin}:${task}`);
+			if (workerFailure) throw new Error('Worker failed');
+			return input;
+		},
+		remove: (plugin: string) => workerRemoved.push(plugin),
+	},
 };
 
 const manifest: AddonManifest = {
@@ -88,6 +107,9 @@ afterEach(() => {
 	removed.length = 0;
 	cleared.length = 0;
 	unmounted.length = 0;
+	workerRuns.length = 0;
+	workerRemoved.length = 0;
+	workerFailure = false;
 });
 
 describe('native plugin capability scopes', () => {
@@ -147,6 +169,57 @@ describe('native plugin capability scopes', () => {
 		context.dispose();
 
 		expect(unmounted).toEqual([surface]);
+	});
+
+	test('runs a declared worker task and removes its scope', async () => {
+		const context = createPluginContext(
+			{ ...manifest, worker: 'worker.js', capabilities: ['native.worker.run'] },
+			'({ echo(input) { return input; } })',
+		);
+		const result = await context.native.worker.run(
+			'echo',
+			{ value: 42 },
+			() => ({ value: 0 }),
+			(output): output is { value: number } =>
+				typeof output === 'object' && output !== null && 'value' in output,
+		);
+
+		expect(result).toEqual({ value: 42 });
+		expect(workerRuns).toEqual(['install:test:1', 'test:1:echo']);
+		context.dispose();
+		expect(workerRemoved).toEqual(['test:1']);
+	});
+
+	test('falls back when the worker fails', async () => {
+		workerFailure = true;
+		const context = createPluginContext(
+			{ ...manifest, worker: 'worker.js', capabilities: ['native.worker.run'] },
+			'({ echo(input) { return input; } })',
+		);
+
+		expect(
+			await context.native.worker.run(
+				'echo',
+				21,
+				(input) => input * 2,
+				(output): output is number => typeof output === 'number',
+			),
+		).toBe(42);
+		context.dispose();
+	});
+
+	test('denies an undeclared worker capability', async () => {
+		const context = createPluginContext({ ...manifest });
+
+		await expect(
+			context.native.worker.run(
+				'echo',
+				1,
+				(input) => input,
+				(output): output is number => typeof output === 'number',
+			),
+		).rejects.toBeInstanceOf(NativePluginCapabilityError);
+		context.dispose();
 	});
 });
 

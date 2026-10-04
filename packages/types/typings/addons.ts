@@ -25,6 +25,7 @@ export interface AddonManifest {
 	url: string;
 	capabilities?: NativePluginCapability[];
 	minNativePluginApi?: string;
+	worker?: string;
 }
 
 /** A loaded addon entity: its runtime state, instance, source bundle, and {@link AddonManifest}. */
@@ -36,6 +37,7 @@ export interface Addon {
 	failed: boolean;
 	data: AddonManifest;
 	bundle: string;
+	workerBundle?: string;
 }
 
 /** An addon referenced either by its id string or the {@link Addon} entity itself. */

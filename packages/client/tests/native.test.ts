@@ -322,6 +322,44 @@ describe('native plugin capability scopes', () => {
 });
 
 describe('native plugin negotiation', () => {
+	test('keeps the pure fallback available on a loader without worker support', async () => {
+		bridge.worker.available = false;
+		Object.defineProperty(bridge, 'capabilities', {
+			value: capabilities.filter((capability) => capability !== 'native.worker.run'),
+			configurable: true,
+		});
+		try {
+			expect(() =>
+				validateNativePluginRequirements(['native.worker.run'], '1.0.0'),
+			).not.toThrow();
+			const context = createPluginContext(
+				{
+					...manifest,
+					id: 'legacy-loader',
+					worker: 'worker.js',
+					capabilities: ['native.worker.run'],
+				},
+				'({ echo(input) { return input; } })',
+			);
+			expect(context.native.worker.available).toBe(false);
+			expect(
+				await context.native.worker.run(
+					'echo',
+					21,
+					(input) => input * 2,
+					(output): output is number => typeof output === 'number',
+				),
+			).toBe(42);
+			context.dispose();
+		} finally {
+			bridge.worker.available = true;
+			Object.defineProperty(bridge, 'capabilities', {
+				value: capabilities,
+				configurable: true,
+			});
+		}
+	});
+
 	test('rejects capabilities that the bridge does not advertise', () => {
 		expect(() =>
 			validateNativePluginRequirements(['native.objc.hooks', 'native.ffi.call'], '1.0.0'),

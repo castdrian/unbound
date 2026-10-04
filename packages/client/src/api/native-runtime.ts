@@ -604,7 +604,8 @@ export function validateNativePluginRequirements(
 	if (!nativePlugin) return;
 
 	const unknown = capabilities.find(
-		(capability) => !nativePlugin.capabilities.includes(capability),
+		(capability) =>
+			capability !== 'native.worker.run' && !nativePlugin.capabilities.includes(capability),
 	);
 	if (unknown) throw new NativePluginCapabilityError(unknown);
 	if (minimumApi && compareVersions(nativePlugin.apiVersion, minimumApi) < 0)

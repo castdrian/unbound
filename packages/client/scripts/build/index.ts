@@ -23,6 +23,7 @@ const logger = Logger.create('Build');
 const pluginLoggers: Map<PropertyKey, Logger> = new Map();
 const localeSource = join(__dirname, '..', '..', '..', '..', 'i18n');
 const localeTarget = join(__dirname, '..', '..', 'dist', 'i18n');
+const hermescPath = process.env.HERMESC_PATH;
 
 const config: RolldownOptions = {
 	input: 'src/entry.ts',
@@ -68,7 +69,7 @@ const config: RolldownOptions = {
 		}),
 		swc({ tsconfig: false, swcrc: true, exclude: /node_modules\/(?!\.bun\/possess|possess)/ }),
 		minify({ compress: true, mangle: true }),
-		hermes(),
+		hermes(hermescPath ? { hermesc: hermescPath } : undefined),
 		generateManifest(GIT_REVISION),
 		...(IS_DEV_BUILD ? [locales()] : []),
 	],

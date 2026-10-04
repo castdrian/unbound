@@ -25,6 +25,7 @@ const workerRuns: string[] = [];
 const workerRemoved: string[] = [];
 let workerFailure = false;
 let workerPending: Promise<unknown> | undefined;
+let workerPingPending: Promise<unknown> | undefined;
 
 const bridge = {
 	abiVersion: '1.0.0',
@@ -69,7 +70,7 @@ const bridge = {
 	},
 	worker: {
 		available: true,
-		ping: async () => ({ version: 1, process: 'NativeWorker' }),
+		ping: async () => workerPingPending ?? { version: 1, process: 'NativeWorker' },
 		install: async (plugin: string) => {
 			workerRuns.push(`install:${plugin}`);
 			return true;
@@ -113,7 +114,16 @@ afterEach(() => {
 	workerRemoved.length = 0;
 	workerFailure = false;
 	workerPending = undefined;
+	workerPingPending = undefined;
 });
+
+async function waitForWorker(context: ReturnType<typeof createPluginContext>): Promise<void> {
+	for (let attempt = 0; attempt < 10; attempt++) {
+		if (context.native.worker.available) return;
+		await Promise.resolve();
+	}
+	throw new Error('Worker did not become available');
+}
 
 describe('native plugin capability scopes', () => {
 	test('hides the raw bridge after capturing it for scoped access', async () => {
@@ -179,6 +189,7 @@ describe('native plugin capability scopes', () => {
 			{ ...manifest, worker: 'worker.js', capabilities: ['native.worker.run'] },
 			'({ echo(input) { return input; } })',
 		);
+		await waitForWorker(context);
 		const result = await context.native.worker.run(
 			'echo',
 			{ value: 42 },
@@ -193,12 +204,42 @@ describe('native plugin capability scopes', () => {
 		expect(workerRemoved).toEqual(['test:1']);
 	});
 
+	test('does not delay the fallback while the worker handshake is pending', async () => {
+		let complete!: (value: unknown) => void;
+		workerPingPending = new Promise((resolve) => {
+			complete = resolve;
+		});
+		const context = createPluginContext(
+			{
+				...manifest,
+				id: 'warming',
+				worker: 'worker.js',
+				capabilities: ['native.worker.run'],
+			},
+			'({ echo(input) { return input; } })',
+		);
+		const result = await context.native.worker.run(
+			'echo',
+			21,
+			(input) => input * 2,
+			(output): output is number => typeof output === 'number',
+		);
+
+		expect(result).toBe(42);
+		expect(context.native.worker.available).toBe(false);
+		expect(workerRuns).toEqual([]);
+		complete({ version: 1, process: 'NativeWorker' });
+		await waitForWorker(context);
+		context.dispose();
+	});
+
 	test('falls back when the worker fails', async () => {
 		workerFailure = true;
 		const context = createPluginContext(
 			{ ...manifest, worker: 'worker.js', capabilities: ['native.worker.run'] },
 			'({ echo(input) { return input; } })',
 		);
+		await waitForWorker(context);
 
 		expect(
 			await context.native.worker.run(
@@ -225,6 +266,7 @@ describe('native plugin capability scopes', () => {
 			},
 			'({ echo(input) { return input; } })',
 		);
+		await waitForWorker(context);
 		const result = context.native.worker.run(
 			'echo',
 			21,
@@ -249,6 +291,7 @@ describe('native plugin capability scopes', () => {
 			},
 			'({ echo(input) { return input; } })',
 		);
+		await waitForWorker(context);
 		for (let index = 0; index < 4; index++) {
 			const result = await context.native.worker.run(
 				'echo',

@@ -353,32 +353,31 @@ function createScopedNativePlugin(
 		capabilities.includes('native.worker.run') &&
 		!failedWorkerPlugins.has(manifest.id),
 	);
-	const workerReady = workerEnabled
-		? (async () => {
-				try {
-					const source =
-						workerSource ??
-						(await import('~/api/fs')).read(
-							manifest.path
-								? `${manifest.path}/${manifest.worker}`
-								: `Unbound/Plugins/${manifest.id}/${manifest.worker}`,
-							'utf8',
-							!manifest.path,
-						);
-					const resolved = await source;
-					if (disposed || resolved.length > 262_144) return false;
-					const handshake = await transport!.ping();
-					if (handshake.version !== 1 || disposed) return false;
-					const installed = await transport!.install(workerScope, resolved);
-					if (disposed && installed) transport!.remove(workerScope);
-					workerInstalled = installed && !disposed;
-					return workerInstalled;
-				} catch (error) {
-					workerLogger.warn(`Worker unavailable for ${manifest.id}:`, error);
-					return false;
-				}
-			})()
-		: Promise.resolve(false);
+	if (workerEnabled)
+		void (async () => {
+			try {
+				const source =
+					workerSource ??
+					(await import('~/api/fs')).read(
+						manifest.path
+							? `${manifest.path}/${manifest.worker}`
+							: `Unbound/Plugins/${manifest.id}/${manifest.worker}`,
+						'utf8',
+						!manifest.path,
+					);
+				const resolved = await source;
+				if (disposed || resolved.length > 524_288) return false;
+				const handshake = await transport!.ping();
+				if (handshake.version !== 1 || disposed) return false;
+				const installed = await transport!.install(workerScope, resolved);
+				if (disposed && installed) transport!.remove(workerScope);
+				workerInstalled = installed && !disposed;
+				return workerInstalled;
+			} catch (error) {
+				workerLogger.warn(`Worker unavailable for ${manifest.id}:`, error);
+				return false;
+			}
+		})();
 	const scopeMethod = (method: NativeMethod, capability: NativePluginCapability): NativeMethod =>
 		scopedMethod(method, capabilities, capability, () => !disposed);
 
@@ -536,15 +535,18 @@ function createScopedNativePlugin(
 
 	const worker: NativeWorkerBridge = {
 		get available() {
-			return workerEnabled && !failedWorkerPlugins.has(manifest.id);
+			return workerInstalled && !failedWorkerPlugins.has(manifest.id);
 		},
 		async run(task, input, fallback, validate) {
 			if (disposed) throw new NativePluginDisposedError();
 			requireCapability(capabilities, 'native.worker.run');
 			const requestGeneration = generation;
-			const ready = await workerReady;
-			if (disposed || requestGeneration !== generation) throw new NativePluginDisposedError();
-			if (!ready || failedWorkerPlugins.has(manifest.id)) return fallback(input);
+			if (!workerInstalled || failedWorkerPlugins.has(manifest.id)) {
+				const result = await fallback(input);
+				if (disposed || requestGeneration !== generation)
+					throw new NativePluginDisposedError();
+				return result;
+			}
 			try {
 				const result = await transport!.run(workerScope, task, input);
 				if (!validate(result)) throw new Error('Worker result is invalid');
@@ -558,7 +560,10 @@ function createScopedNativePlugin(
 				workerFailures++;
 				workerLogger.warn(`Worker task failed for ${manifest.id}:`, error);
 				if (workerFailures >= 3) failedWorkerPlugins.add(manifest.id);
-				return fallback(input);
+				const result = await fallback(input);
+				if (disposed || requestGeneration !== generation)
+					throw new NativePluginDisposedError();
+				return result;
 			}
 		},
 	};

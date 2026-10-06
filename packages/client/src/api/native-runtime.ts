@@ -21,6 +21,8 @@ import type { AddonManifest } from '@unbound-app/types/addons';
 
 export type {
 	NativeAssociationKey,
+	NativeBatchReference,
+	NativeBatchStep,
 	NativeCancelablePromise,
 	NativeCallOptions,
 	NativeClassHandle,
@@ -193,6 +195,7 @@ const capabilityRequirements: Record<string, NativePluginCapability> = {
 	callSuper: 'native.objc.invoke',
 	invoke: 'native.objc.invoke',
 	invokeAsync: 'native.objc.invokeAsync',
+	batch: 'native.objc.batch',
 	invokeSuper: 'native.objc.invoke',
 	invokeSuperAsync: 'native.objc.invokeAsync',
 	getIvar: 'native.objc.ivars',
@@ -380,6 +383,13 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 				throw new NativePluginUnavailableError('Async native invocation is unavailable.');
 			return trackInvocation(invoke.call(bridge.objc, handle, selector, args));
 		}) as NativeObjCBridge['invokeAsync'],
+		batch: ((steps) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.batch);
+			const batch = bridge.objc.batch;
+			if (!batch) throw new NativePluginUnavailableError('Native batch is unavailable.');
+			return trackInvocation(batch.call(bridge.objc, steps));
+		}) as NativeObjCBridge['batch'],
 		invokeSuper: scopeMethod(
 			bridge.objc.invokeSuper.bind(bridge.objc),
 			capabilityRequirements.invokeSuper,

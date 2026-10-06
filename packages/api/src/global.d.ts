@@ -28,6 +28,8 @@ export type {
 	InputStatus,
 	InternalToastOptions,
 	NativeAssociationKey,
+	NativeBatchReference,
+	NativeBatchStep,
 	NativeCallOptions,
 	NativeCancelablePromise,
 	NativeClassHandle,

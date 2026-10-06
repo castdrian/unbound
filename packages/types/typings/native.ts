@@ -5,6 +5,7 @@ export type NativePluginCapability =
 	| 'native.objc.invoke'
 	| 'native.objc.invokeAsync'
 	| 'native.objc.batch'
+	| 'native.objc.snapshot'
 	| 'native.objc.ivars'
 	| 'native.objc.associations'
 	| 'native.objc.hooks'
@@ -41,6 +42,21 @@ export interface NativeBatchStep {
 	target: NativeObjectHandle | NativeBatchReference;
 	selector: string;
 	args: unknown[];
+}
+
+export interface NativeViewSnapshotOptions {
+	maxDepth?: number;
+	maxNodes?: number;
+}
+
+export interface NativeViewSnapshotNode {
+	view: NativeObjectHandle;
+	parent: number;
+	depth: number;
+	className: string;
+	frame: NativeFabricFrame;
+	text: string | null;
+	visible: boolean;
 }
 
 export type NativeFFITypeName =
@@ -121,6 +137,10 @@ export interface NativeObjCBridge {
 		args: unknown[],
 	): NativeCancelablePromise<unknown>;
 	batch(steps: readonly NativeBatchStep[]): NativeCancelablePromise<unknown[]>;
+	snapshot(
+		root: NativeObjectHandle,
+		options?: NativeViewSnapshotOptions,
+	): NativeCancelablePromise<NativeViewSnapshotNode[]>;
 	invokeSuper(
 		handle: NativeObjectHandle,
 		currentClass: NativeClassHandle | string,

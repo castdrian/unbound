@@ -196,6 +196,7 @@ const capabilityRequirements: Record<string, NativePluginCapability> = {
 	invoke: 'native.objc.invoke',
 	invokeAsync: 'native.objc.invokeAsync',
 	batch: 'native.objc.batch',
+	snapshot: 'native.objc.snapshot',
 	invokeSuper: 'native.objc.invoke',
 	invokeSuperAsync: 'native.objc.invokeAsync',
 	getIvar: 'native.objc.ivars',
@@ -402,6 +403,14 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			if (!batch) throw new NativePluginUnavailableError('Native batch is unavailable.');
 			return trackInvocation(batch.call(bridge.objc, steps));
 		}) as NativeObjCBridge['batch'],
+		snapshot: ((root, options) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.snapshot);
+			const snapshot = bridge.objc.snapshot;
+			if (!snapshot)
+				throw new NativePluginUnavailableError('Native UI snapshot is unavailable.');
+			return trackInvocation(snapshot.call(bridge.objc, root, options));
+		}) as NativeObjCBridge['snapshot'],
 		invokeSuper: scopeMethod(
 			bridge.objc.invokeSuper.bind(bridge.objc),
 			capabilityRequirements.invokeSuper,

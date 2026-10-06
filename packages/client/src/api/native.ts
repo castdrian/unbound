@@ -28,6 +28,8 @@ export type {
 	NativePointer,
 	NativeStruct,
 	NativeThreadPolicy,
+	NativeViewSnapshotNode,
+	NativeViewSnapshotOptions,
 	PluginContext,
 } from '@unbound-app/types/native';
 export {

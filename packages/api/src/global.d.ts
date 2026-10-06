@@ -58,6 +58,8 @@ export type {
 	NativePointer,
 	NativeStruct,
 	NativeThreadPolicy,
+	NativeViewSnapshotNode,
+	NativeViewSnapshotOptions,
 	Navigation,
 	Plugin,
 	PluginContext,

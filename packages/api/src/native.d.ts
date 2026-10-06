@@ -30,6 +30,8 @@ export type {
 	NativePointer,
 	NativeStruct,
 	NativeThreadPolicy,
+	NativeViewSnapshotNode,
+	NativeViewSnapshotOptions,
 	PluginContext,
 } from './_internal';
 import type { NativePlatformBridge, NativePluginCapability } from './_internal';

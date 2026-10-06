@@ -304,6 +304,10 @@ export interface NativeObjCBridge {
 		args: unknown[],
 	): NativeCancelablePromise<unknown>;
 	batch(steps: readonly NativeBatchStep[]): NativeCancelablePromise<unknown[]>;
+	snapshot(
+		root: NativeObjectHandle,
+		options?: NativeViewSnapshotOptions,
+	): NativeCancelablePromise<NativeViewSnapshotNode[]>;
 	invokeSuper(
 		handle: NativeObjectHandle,
 		currentClass: NativeClassHandle | string,
@@ -370,6 +374,19 @@ export interface NativePluginError {
 export interface NativeStruct<T extends object = Record<string, unknown>> extends NativeHandle {
 	readonly name: string;
 	readonly value?: T;
+}
+export interface NativeViewSnapshotNode {
+	view: NativeObjectHandle;
+	parent: number;
+	depth: number;
+	className: string;
+	frame: NativeFabricFrame;
+	text: string | null;
+	visible: boolean;
+}
+export interface NativeViewSnapshotOptions {
+	maxDepth?: number;
+	maxNodes?: number;
 }
 export interface Navigation<T = any> {
 	push: (route: string, params?: T) => void;
@@ -762,6 +779,7 @@ export type NativePluginCapability =
 	| 'native.objc.invoke'
 	| 'native.objc.invokeAsync'
 	| 'native.objc.batch'
+	| 'native.objc.snapshot'
 	| 'native.objc.ivars'
 	| 'native.objc.associations'
 	| 'native.objc.hooks'

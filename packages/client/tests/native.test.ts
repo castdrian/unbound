@@ -9,9 +9,11 @@ mock.module('react-native', () => ({
 const removed: string[] = [];
 const cleared: unknown[] = [];
 const unmounted: unknown[] = [];
+const cancelled: string[] = [];
 const capabilities = [
 	'native.objc.classes',
 	'native.objc.invoke',
+	'native.objc.invoke.async',
 	'native.objc.ivars',
 	'native.objc.associations',
 	'native.objc.hooks',
@@ -36,6 +38,10 @@ const bridge = {
 		getClass: () => ({ class: true }),
 		getIvar: () => null,
 		invoke: () => undefined,
+		invokeAsync: () =>
+			Object.assign(new Promise<unknown>(() => undefined), {
+				cancel: () => cancelled.push('invocation'),
+			}),
 		invokeSuper: () => undefined,
 		hook: (...args: string[]) => {
 			void args;
@@ -88,6 +94,7 @@ afterEach(() => {
 	removed.length = 0;
 	cleared.length = 0;
 	unmounted.length = 0;
+	cancelled.length = 0;
 });
 
 describe('native plugin capability scopes', () => {
@@ -147,6 +154,25 @@ describe('native plugin capability scopes', () => {
 		context.dispose();
 
 		expect(unmounted).toEqual([surface]);
+	});
+
+	test('gates and cancels asynchronous native invocations', () => {
+		const denied = createPluginContext({ ...manifest, capabilities: ['native.objc.invoke'] });
+		expect(() => denied.native.objc.invokeAsync({}, 'description', [])).toThrow(
+			NativePluginCapabilityError,
+		);
+
+		const context = createPluginContext({
+			...manifest,
+			capabilities: ['native.objc.invoke.async'],
+		});
+		context.native.objc.invokeAsync({}, 'description', []);
+		context.dispose();
+
+		expect(cancelled).toEqual(['invocation']);
+		expect(() => context.native.objc.invokeAsync({}, 'description', [])).toThrow(
+			NativePluginDisposedError,
+		);
 	});
 });
 

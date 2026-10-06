@@ -1,6 +1,7 @@
 import type {
 	Fn,
 	NativeAssociationKey,
+	NativeCancelablePromise,
 	NativeFabricBridge,
 	NativeFabricSurface,
 	NativeFFIBridge,
@@ -20,6 +21,7 @@ import type { AddonManifest } from '@unbound-app/types/addons';
 
 export type {
 	NativeAssociationKey,
+	NativeCancelablePromise,
 	NativeCallOptions,
 	NativeClassHandle,
 	NativeFabricBridge,
@@ -190,6 +192,7 @@ const capabilityRequirements: Record<string, NativePluginCapability> = {
 	call: 'native.objc.invoke',
 	callSuper: 'native.objc.invoke',
 	invoke: 'native.objc.invoke',
+	invokeAsync: 'native.objc.invoke.async',
 	invokeSuper: 'native.objc.invoke',
 	getIvar: 'native.objc.ivars',
 	setIvar: 'native.objc.ivars',
@@ -317,6 +320,7 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 	const fabricBridge = bridge.fabric ?? unavailableNativePlugin().fabric;
 	const tokens = new Set<NativeHookToken>();
 	const surfaces = new Set<NativeFabricSurface>();
+	const pendingInvocations = new Set<NativeCancelablePromise<unknown>>();
 	const associations: AssociationBinding[] = [];
 	let disposed = false;
 	const scopeMethod = (method: NativeMethod, capability: NativePluginCapability): NativeMethod =>
@@ -351,6 +355,20 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			bridge.objc.invoke.bind(bridge.objc),
 			capabilityRequirements.invoke,
 		) as NativeObjCBridge['invoke'],
+		invokeAsync: ((handle, selector, args) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.invokeAsync);
+			const invoke = bridge.objc.invokeAsync;
+			if (!invoke)
+				throw new NativePluginUnavailableError('Async native invocation is unavailable.');
+			const pending = invoke.call(bridge.objc, handle, selector, args);
+			pendingInvocations.add(pending);
+			pending.then(
+				() => pendingInvocations.delete(pending),
+				() => pendingInvocations.delete(pending),
+			);
+			return pending;
+		}) as NativeObjCBridge['invokeAsync'],
 		invokeSuper: scopeMethod(
 			bridge.objc.invokeSuper.bind(bridge.objc),
 			capabilityRequirements.invokeSuper,
@@ -486,6 +504,8 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 		dispose: () => {
 			if (disposed) return;
 			disposed = true;
+			for (const pending of pendingInvocations) pending.cancel();
+			pendingInvocations.clear();
 			for (const token of tokens) token.remove();
 			tokens.clear();
 			for (const surface of surfaces) fabricBridge.unmount(surface);

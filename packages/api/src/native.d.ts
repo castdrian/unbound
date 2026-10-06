@@ -3,6 +3,7 @@
 export type {
 	NativeAssociationKey,
 	NativeCallOptions,
+	NativeCancelablePromise,
 	NativeClassHandle,
 	NativeFFIBridge,
 	NativeFFISignature,

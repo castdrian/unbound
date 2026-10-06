@@ -270,6 +270,11 @@ export interface NativeObjCBridge {
 		args: unknown[],
 		options?: NativeCallOptions,
 	): unknown;
+	invokeAsync(
+		handle: NativeObjectHandle,
+		selector: string,
+		args: unknown[],
+	): NativeCancelablePromise<unknown>;
 	invokeSuper(
 		handle: NativeObjectHandle,
 		currentClass: NativeClassHandle | string,
@@ -687,6 +692,9 @@ export type InputSize = LiteralUnion<'sm' | 'md' | 'lg'>;
 /** Input status. `focused` is an internal state and is not user-settable. */
 export type InputStatus = LiteralUnion<'default' | 'error'>;
 export type NativeAssociationKey = NativeHandle;
+export type NativeCancelablePromise<T> = Promise<T> & {
+	cancel(): void;
+};
 export type NativeClassHandle = NativeHandle;
 export type NativeFFIType =
 	| NativeFFITypeName
@@ -717,6 +725,7 @@ export type NativeObjectHandle = NativeHandle;
 export type NativePluginCapability =
 	| 'native.objc.classes'
 	| 'native.objc.invoke'
+	| 'native.objc.invoke.async'
 	| 'native.objc.ivars'
 	| 'native.objc.associations'
 	| 'native.objc.hooks'

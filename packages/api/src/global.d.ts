@@ -29,6 +29,7 @@ export type {
 	InternalToastOptions,
 	NativeAssociationKey,
 	NativeCallOptions,
+	NativeCancelablePromise,
 	NativeClassHandle,
 	NativeFFIBridge,
 	NativeFFISignature,

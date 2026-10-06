@@ -2,7 +2,6 @@ import type { SettingsEntry } from '@unbound-app/types';
 import { createLogger } from '@unbound-app/logger';
 import { useState, useEffect } from 'react';
 import type { ComponentType } from 'react';
-import { createPatcher } from 'possess';
 
 import MarketplacePage from '~/ui/settings/marketplace';
 import { Screens, CLIENT_NAME } from '~/lib/constants';
@@ -13,6 +12,7 @@ import { Discord } from '~/api/metro/components';
 import CustomScreen from '~/ui/settings/custom';
 import GeneralPage from '~/ui/settings/general';
 import PluginsPage from '~/ui/settings/plugins';
+import { createPatcher } from '~/api/patcher';
 import SettingsStore from '~/stores/settings';
 import AssetsPage from '~/ui/settings/assets';
 import DesignPage from '~/ui/settings/design';

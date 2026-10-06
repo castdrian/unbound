@@ -345,6 +345,18 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 		);
 		return pending;
 	};
+	const disposeSurface = (surface: NativeFabricSurface): void => {
+		try {
+			const unmountAsync = fabricBridge.unmountAsync;
+			if (unmountAsync) {
+				void unmountAsync.call(fabricBridge, surface).catch(() => undefined);
+				return;
+			}
+			fabricBridge.unmount(surface);
+		} catch {
+			return;
+		}
+	};
 
 	const objc: NativeObjCBridge = {
 		getClass: scopeMethod(
@@ -510,7 +522,7 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			);
 			pending.then(
 				(surface) => {
-					if (disposed) fabricBridge.unmount(surface);
+					if (disposed) disposeSurface(surface);
 					else surfaces.add(surface);
 				},
 				() => undefined,
@@ -604,7 +616,7 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			pendingInvocations.clear();
 			for (const token of tokens) token.remove();
 			tokens.clear();
-			for (const surface of surfaces) fabricBridge.unmount(surface);
+			for (const surface of surfaces) disposeSurface(surface);
 			surfaces.clear();
 			for (const binding of associations) {
 				bridge.objc.setAssociatedObject(binding.handle, binding.key, null, 'assign');

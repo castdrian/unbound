@@ -197,6 +197,7 @@ const capabilityRequirements: Record<string, NativePluginCapability> = {
 	invokeAsync: 'native.objc.invokeAsync',
 	batch: 'native.objc.batch',
 	snapshot: 'native.objc.snapshot',
+	findViews: 'native.objc.snapshot',
 	invokeSuper: 'native.objc.invoke',
 	invokeSuperAsync: 'native.objc.invokeAsync',
 	getIvar: 'native.objc.ivars',
@@ -411,6 +412,14 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 				throw new NativePluginUnavailableError('Native UI snapshot is unavailable.');
 			return trackInvocation(snapshot.call(bridge.objc, root, options));
 		}) as NativeObjCBridge['snapshot'],
+		findViews: ((root, className, options) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.findViews);
+			const findViews = bridge.objc.findViews;
+			if (!findViews)
+				throw new NativePluginUnavailableError('Native view search is unavailable.');
+			return trackInvocation(findViews.call(bridge.objc, root, className, options));
+		}) as NativeObjCBridge['findViews'],
 		invokeSuper: scopeMethod(
 			bridge.objc.invokeSuper.bind(bridge.objc),
 			capabilityRequirements.invokeSuper,

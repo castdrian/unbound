@@ -308,6 +308,11 @@ export interface NativeObjCBridge {
 		root: NativeObjectHandle,
 		options?: NativeViewSnapshotOptions,
 	): NativeCancelablePromise<NativeViewSnapshotNode[]>;
+	findViews(
+		root: NativeObjectHandle,
+		className: string,
+		options?: NativeViewSearchOptions,
+	): NativeCancelablePromise<NativeObjectHandle[]>;
 	invokeSuper(
 		handle: NativeObjectHandle,
 		currentClass: NativeClassHandle | string,
@@ -374,6 +379,13 @@ export interface NativePluginError {
 export interface NativeStruct<T extends object = Record<string, unknown>> extends NativeHandle {
 	readonly name: string;
 	readonly value?: T;
+}
+export interface NativeViewSearchOptions {
+	maxDepth?: number;
+	maxVisited?: number;
+	maxResults?: number;
+	attachedOnly?: boolean;
+	stopAtMatch?: boolean;
 }
 export interface NativeViewSnapshotNode {
 	view: NativeObjectHandle;

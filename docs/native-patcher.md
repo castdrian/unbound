@@ -40,6 +40,8 @@ Hooks are registered by `(Class, SEL)`. One loader-owned dispatcher preserves th
 
 `objc.snapshot(root, options)` uses the separate `native.objc.snapshot` capability to inspect a `UIView` subtree in one asynchronous main-thread pass. It returns nodes in breadth-first order with retained view handles, parent indices, class names, frames, label text, and visibility. The default limits are eight levels and 100 nodes; callers may request at most 12 levels and 256 nodes. A snapshot is only a point-in-time view: plugins must discard results after cell reuse, channel changes, or scope disposal, and must not retain whole snapshots in long-lived caches. The returned promise is cancellable. Plugins should filter for relevant nodes and apply any UI changes through asynchronous calls or batches.
 
+`objc.findViews(root, className, options)` shares the snapshot capability and performs a bounded breadth-first class-name search on the main thread. It returns only matching retained view handles rather than materializing every traversed node. By default it visits at most 512 views to depth 24 and returns at most 64 matches; the maximum limits are 2,048 visits, depth 40, and 256 matches. `attachedOnly` restricts matches to views in a window, and `stopAtMatch` skips descendants of matched views. A plugin must still verify its lifecycle and cell identity after awaiting the result.
+
 ## Raw FFI
 
 `ffi.symbol` resolves symbols from already-loaded images. `ffi.call` accepts only executable pointers returned by `ffi.symbol`, with explicit non-variadic signatures containing supported scalar types, pointers, Objective-C object/class/selector pointers, and registered structs.

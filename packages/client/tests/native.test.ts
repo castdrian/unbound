@@ -71,6 +71,10 @@ const bridge = {
 			Object.assign(new Promise<unknown>(() => undefined), {
 				cancel: () => cancelled.push('super'),
 			}),
+		findViews: () =>
+			Object.assign(Promise.resolve([{ found: true }]), {
+				cancel: () => cancelled.push('findViews'),
+			}),
 		invokeSuper: () => undefined,
 		hook: (...args: string[]) => {
 			void args;
@@ -347,6 +351,27 @@ describe('native plugin capability scopes', () => {
 		} finally {
 			bridge.objc.snapshot = originalSnapshot;
 		}
+	});
+
+	test('uses the snapshot capability for bounded native view search', async () => {
+		const denied = createPluginContext({
+			...manifest,
+			capabilities: ['native.objc.batch'],
+		});
+		expect(() => denied.native.objc.findViews({}, 'DCDLabel')).toThrow(
+			NativePluginCapabilityError,
+		);
+		const context = createPluginContext({
+			...manifest,
+			capabilities: ['native.objc.snapshot'],
+		});
+		expect(await context.native.objc.findViews({}, 'DCDLabel', { maxVisited: 100 })).toEqual([
+			{ found: true },
+		]);
+		context.dispose();
+		expect(() => context.native.objc.findViews({}, 'DCDLabel')).toThrow(
+			NativePluginDisposedError,
+		);
 	});
 });
 

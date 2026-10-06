@@ -49,6 +49,14 @@ export interface NativeViewSnapshotOptions {
 	maxNodes?: number;
 }
 
+export interface NativeViewSearchOptions {
+	maxDepth?: number;
+	maxVisited?: number;
+	maxResults?: number;
+	attachedOnly?: boolean;
+	stopAtMatch?: boolean;
+}
+
 export interface NativeViewSnapshotNode {
 	view: NativeObjectHandle;
 	parent: number;
@@ -141,6 +149,11 @@ export interface NativeObjCBridge {
 		root: NativeObjectHandle,
 		options?: NativeViewSnapshotOptions,
 	): NativeCancelablePromise<NativeViewSnapshotNode[]>;
+	findViews(
+		root: NativeObjectHandle,
+		className: string,
+		options?: NativeViewSearchOptions,
+	): NativeCancelablePromise<NativeObjectHandle[]>;
 	invokeSuper(
 		handle: NativeObjectHandle,
 		currentClass: NativeClassHandle | string,

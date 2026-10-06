@@ -30,6 +30,7 @@ export type {
 	NativeThreadPolicy,
 	NativeViewSnapshotNode,
 	NativeViewSnapshotOptions,
+	NativeViewSearchOptions,
 	PluginContext,
 } from '@unbound-app/types/native';
 export {

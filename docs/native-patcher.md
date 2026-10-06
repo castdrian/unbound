@@ -49,7 +49,7 @@ Handles are opaque, retained host objects. Hook arguments are borrowed until the
 
 Hooks are registered per `(Class, SEL)` pair. A single loader-owned dispatcher preserves the original implementation and calls handlers in registration order. It restores the original implementation only if the dispatcher is still installed. Hook tokens are idempotent.
 
-`call` uses the current runtime thread. `invoke` and `invokeSuper` accept an explicit `current` or `main` thread policy. A synchronous `invokeSuper` call cannot cross to the main thread. Existing synchronous `invoke` calls can still block while crossing to the main thread; new UI work should declare `native.objc.invokeAsync` and use `invokeAsync(handle, selector, args)` instead. It returns a cancellable promise, runs the Objective-C method on the main thread, and converts the result back on the JavaScript runtime thread. Stopping the plugin cancels its pending invocations. The bridge API and ABI version strings remain `1.0.0`; availability is negotiated through the new capability.
+`call` uses the current runtime thread. `invoke` and `invokeSuper` accept an explicit `current` or `main` thread policy. A synchronous `invokeSuper` call cannot cross to the main thread. Existing synchronous `invoke` calls can still block while crossing to the main thread; new UI work should declare `native.objc.invokeAsync` and use `invokeAsync(handle, selector, args)` or `invokeSuperAsync(handle, currentClass, selector, args)` instead. Both return cancellable promises, run the Objective-C method on the main thread, and convert the result back on the JavaScript runtime thread. Stopping the plugin cancels its pending invocations. The bridge API and ABI version strings remain `1.0.0`; availability is negotiated through the capability.
 
 ## Raw FFI
 
@@ -83,7 +83,7 @@ The `fabric` namespace lets a plugin register a React Native component and mount
 
 All UIKit work is marshalled to the main thread, and surface handles are scoped to the plugin.
 
-Every Fabric operation requires the `native.fabric.mount` capability. A plugin should mount into the host view that owns the message layout, rather than create a window-level overlay.
+The `native.fabric.mount` capability gates the synchronous operations. The `native.fabric.async` capability gates `mountAsync`, `updateAsync`, `setSizeAsync`, `setFrameAsync`, `measureAsync`, and `unmountAsync`. These return cancellable promises; queued main-thread work is skipped if the plugin stops or the runtime is replaced. A plugin should mount into the host view that owns the message layout, not create a window-level overlay.
 
 ## Mention avatars migration
 

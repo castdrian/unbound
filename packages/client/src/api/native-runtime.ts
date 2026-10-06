@@ -194,6 +194,7 @@ const capabilityRequirements: Record<string, NativePluginCapability> = {
 	invoke: 'native.objc.invoke',
 	invokeAsync: 'native.objc.invokeAsync',
 	invokeSuper: 'native.objc.invoke',
+	invokeSuperAsync: 'native.objc.invokeAsync',
 	getIvar: 'native.objc.ivars',
 	setIvar: 'native.objc.ivars',
 	createAssociationKey: 'native.objc.associations',
@@ -204,11 +205,17 @@ const capabilityRequirements: Record<string, NativePluginCapability> = {
 	data: 'native.objc.classes',
 	hook: 'native.objc.hooks',
 	fabricMount: 'native.fabric.mount',
+	fabricMountAsync: 'native.fabric.async',
 	fabricUpdate: 'native.fabric.mount',
+	fabricUpdateAsync: 'native.fabric.async',
 	fabricSetSize: 'native.fabric.mount',
+	fabricSetSizeAsync: 'native.fabric.async',
 	fabricSetFrame: 'native.fabric.mount',
+	fabricSetFrameAsync: 'native.fabric.async',
 	fabricMeasure: 'native.fabric.mount',
+	fabricMeasureAsync: 'native.fabric.async',
 	fabricUnmount: 'native.fabric.mount',
+	fabricUnmountAsync: 'native.fabric.async',
 };
 
 export class NativePluginUnavailableError extends Error {
@@ -325,6 +332,16 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 	let disposed = false;
 	const scopeMethod = (method: NativeMethod, capability: NativePluginCapability): NativeMethod =>
 		scopedMethod(method, capabilities, capability, () => !disposed);
+	const trackInvocation = <T>(
+		pending: NativeCancelablePromise<T>,
+	): NativeCancelablePromise<T> => {
+		pendingInvocations.add(pending);
+		pending.then(
+			() => pendingInvocations.delete(pending),
+			() => pendingInvocations.delete(pending),
+		);
+		return pending;
+	};
 
 	const objc: NativeObjCBridge = {
 		getClass: scopeMethod(
@@ -361,18 +378,22 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			const invoke = bridge.objc.invokeAsync;
 			if (!invoke)
 				throw new NativePluginUnavailableError('Async native invocation is unavailable.');
-			const pending = invoke.call(bridge.objc, handle, selector, args);
-			pendingInvocations.add(pending);
-			pending.then(
-				() => pendingInvocations.delete(pending),
-				() => pendingInvocations.delete(pending),
-			);
-			return pending;
+			return trackInvocation(invoke.call(bridge.objc, handle, selector, args));
 		}) as NativeObjCBridge['invokeAsync'],
 		invokeSuper: scopeMethod(
 			bridge.objc.invokeSuper.bind(bridge.objc),
 			capabilityRequirements.invokeSuper,
 		) as NativeObjCBridge['invokeSuper'],
+		invokeSuperAsync: ((handle, currentClass, selector, args) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.invokeSuperAsync);
+			const invoke = bridge.objc.invokeSuperAsync;
+			if (!invoke)
+				throw new NativePluginUnavailableError(
+					'Async native super invocation is unavailable.',
+				);
+			return trackInvocation(invoke.call(bridge.objc, handle, currentClass, selector, args));
+		}) as NativeObjCBridge['invokeSuperAsync'],
 		getIvar: scopeMethod(
 			bridge.objc.getIvar.bind(bridge.objc),
 			capabilityRequirements.getIvar,
@@ -468,35 +489,100 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			surfaces.add(surface);
 			return surface;
 		}) as NativeFabricBridge['mount'],
+		mountAsync: ((container, moduleName, properties) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.fabricMountAsync);
+			const mount = fabricBridge.mountAsync;
+			if (!mount)
+				throw new NativePluginUnavailableError('Async Fabric mounting is unavailable.');
+			const pending = trackInvocation(
+				mount.call(fabricBridge, container, moduleName, properties),
+			);
+			pending.then(
+				(surface) => {
+					if (disposed) fabricBridge.unmount(surface);
+					else surfaces.add(surface);
+				},
+				() => undefined,
+			);
+			return pending;
+		}) as NativeFabricBridge['mountAsync'],
 		update: scopeMethod(
 			fabricBridge.update.bind(fabricBridge),
 			capabilityRequirements.fabricUpdate,
 		) as NativeFabricBridge['update'],
+		updateAsync: ((surface, properties) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.fabricUpdateAsync);
+			const update = fabricBridge.updateAsync;
+			if (!update)
+				throw new NativePluginUnavailableError('Async Fabric updates are unavailable.');
+			return trackInvocation(update.call(fabricBridge, surface, properties));
+		}) as NativeFabricBridge['updateAsync'],
 		setSize: scopeMethod(
 			fabricBridge.setSize.bind(fabricBridge),
 			capabilityRequirements.fabricSetSize,
 		) as NativeFabricBridge['setSize'],
+		setSizeAsync: ((surface, minimumSize, maximumSize) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.fabricSetSizeAsync);
+			const setSize = fabricBridge.setSizeAsync;
+			if (!setSize)
+				throw new NativePluginUnavailableError('Async Fabric sizing is unavailable.');
+			return trackInvocation(setSize.call(fabricBridge, surface, minimumSize, maximumSize));
+		}) as NativeFabricBridge['setSizeAsync'],
 		setFrame: scopeMethod(
 			fabricBridge.setFrame.bind(fabricBridge),
 			capabilityRequirements.fabricSetFrame,
 		) as NativeFabricBridge['setFrame'],
+		setFrameAsync: ((surface, frame) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.fabricSetFrameAsync);
+			const setFrame = fabricBridge.setFrameAsync;
+			if (!setFrame)
+				throw new NativePluginUnavailableError(
+					'Async Fabric frame updates are unavailable.',
+				);
+			return trackInvocation(setFrame.call(fabricBridge, surface, frame));
+		}) as NativeFabricBridge['setFrameAsync'],
 		measure: scopeMethod(
 			fabricBridge.measure.bind(fabricBridge),
 			capabilityRequirements.fabricMeasure,
 		) as NativeFabricBridge['measure'],
+		measureAsync: ((view) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.fabricMeasureAsync);
+			const measure = fabricBridge.measureAsync;
+			if (!measure)
+				throw new NativePluginUnavailableError('Async Fabric measurement is unavailable.');
+			return trackInvocation(measure.call(fabricBridge, view));
+		}) as NativeFabricBridge['measureAsync'],
 		unmount: ((surface) => {
 			if (disposed) throw new NativePluginDisposedError();
 			requireCapability(capabilities, capabilityRequirements.fabricUnmount);
 			fabricBridge.unmount(surface);
 			surfaces.delete(surface);
 		}) as NativeFabricBridge['unmount'],
+		unmountAsync: ((surface) => {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.fabricUnmountAsync);
+			const unmount = fabricBridge.unmountAsync;
+			if (!unmount)
+				throw new NativePluginUnavailableError('Async Fabric unmounting is unavailable.');
+			const pending = trackInvocation(unmount.call(fabricBridge, surface));
+			pending.then(
+				() => surfaces.delete(surface),
+				() => undefined,
+			);
+			return pending;
+		}) as NativeFabricBridge['unmountAsync'],
 	};
 
 	return {
 		bridge: {
 			apiVersion: bridge.apiVersion,
 			abiVersion: bridge.abiVersion,
-			capabilities: bridge.capabilities,
+			capabilities: Object.freeze([...bridge.capabilities]),
 			objc,
 			ffi,
 			fabric,
@@ -535,11 +621,11 @@ export function validateNativePluginRequirements(
 }
 
 export function createPluginContext(manifest: AddonManifest): PluginContext {
-	const capabilities = manifest.capabilities ?? [];
+	const capabilities = Object.freeze([...(manifest.capabilities ?? [])]);
 	validateNativePluginRequirements(capabilities, manifest.minNativePluginApi);
 	const scoped = createScopedNativePlugin(capabilities);
 	return {
-		manifest,
+		manifest: { ...manifest, capabilities: [...capabilities] },
 		id: manifest.id,
 		capabilities,
 		native: scoped.bridge,

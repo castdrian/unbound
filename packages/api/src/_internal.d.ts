@@ -208,15 +208,35 @@ export interface NativeFabricBridge {
 		moduleName: string,
 		properties?: Record<string, unknown>,
 	): NativeFabricSurface;
+	mountAsync(
+		container: NativeObjectHandle,
+		moduleName: string,
+		properties?: Record<string, unknown>,
+	): NativeCancelablePromise<NativeFabricSurface>;
 	update(surface: NativeFabricSurface, properties: Record<string, unknown>): void;
+	updateAsync(
+		surface: NativeFabricSurface,
+		properties: Record<string, unknown>,
+	): NativeCancelablePromise<void>;
 	setSize(
 		surface: NativeFabricSurface,
 		minimumSize: NativeFabricSize,
 		maximumSize: NativeFabricSize,
 	): void;
+	setSizeAsync(
+		surface: NativeFabricSurface,
+		minimumSize: NativeFabricSize,
+		maximumSize: NativeFabricSize,
+	): NativeCancelablePromise<void>;
 	setFrame(surface: NativeFabricSurface, frame: NativeFabricFrame): void;
+	setFrameAsync(
+		surface: NativeFabricSurface,
+		frame: NativeFabricFrame,
+	): NativeCancelablePromise<void>;
 	measure(view: NativeObjectHandle): NativeFabricFrame;
+	measureAsync(view: NativeObjectHandle): NativeCancelablePromise<NativeFabricFrame>;
 	unmount(surface: NativeFabricSurface): void;
+	unmountAsync(surface: NativeFabricSurface): NativeCancelablePromise<void>;
 }
 export interface NativeFabricFrame {
 	x: number;
@@ -282,6 +302,12 @@ export interface NativeObjCBridge {
 		args: unknown[],
 		options?: NativeCallOptions,
 	): unknown;
+	invokeSuperAsync(
+		handle: NativeObjectHandle,
+		currentClass: NativeClassHandle | string,
+		selector: string,
+		args: unknown[],
+	): NativeCancelablePromise<unknown>;
 	getIvar(handle: NativeObjectHandle, name: string): unknown;
 	setIvar(handle: NativeObjectHandle, name: string, value: unknown): void;
 	createAssociationKey(): NativeAssociationKey;
@@ -731,9 +757,11 @@ export type NativePluginCapability =
 	| 'native.objc.hooks'
 	| 'native.ffi.symbols'
 	| 'native.ffi.call'
-	| 'native.fabric.mount';
+	| 'native.fabric.mount'
+	| 'native.fabric.async';
 export type NativePluginErrorCode =
 	| 'NATIVE_BRIDGE_ERROR'
+	| 'NATIVE_WRONG_THREAD'
 	| 'NATIVE_PLUGIN_API_VERSION_UNSUPPORTED'
 	| 'NATIVE_PLUGIN_CAPABILITY_DENIED'
 	| 'NATIVE_PLUGIN_SCOPE_DISPOSED'

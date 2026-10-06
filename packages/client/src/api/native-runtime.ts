@@ -192,7 +192,7 @@ const capabilityRequirements: Record<string, NativePluginCapability> = {
 	call: 'native.objc.invoke',
 	callSuper: 'native.objc.invoke',
 	invoke: 'native.objc.invoke',
-	invokeAsync: 'native.objc.invoke.async',
+	invokeAsync: 'native.objc.invokeAsync',
 	invokeSuper: 'native.objc.invoke',
 	getIvar: 'native.objc.ivars',
 	setIvar: 'native.objc.ivars',

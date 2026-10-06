@@ -13,7 +13,7 @@ const cancelled: string[] = [];
 const capabilities = [
 	'native.objc.classes',
 	'native.objc.invoke',
-	'native.objc.invoke.async',
+	'native.objc.invokeAsync',
 	'native.objc.ivars',
 	'native.objc.associations',
 	'native.objc.hooks',
@@ -164,7 +164,7 @@ describe('native plugin capability scopes', () => {
 
 		const context = createPluginContext({
 			...manifest,
-			capabilities: ['native.objc.invoke.async'],
+			capabilities: ['native.objc.invokeAsync'],
 		});
 		context.native.objc.invokeAsync({}, 'description', []);
 		context.dispose();

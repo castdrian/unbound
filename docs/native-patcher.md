@@ -34,7 +34,7 @@ Handles are opaque retained host objects. Hook arguments are borrowed until the 
 
 Hooks are registered by `(Class, SEL)`. One loader-owned dispatcher preserves the original implementation, calls handlers in registration order, and restores the implementation only if the dispatcher is still installed. Hook tokens are idempotent.
 
-`call` uses the current runtime thread. `invoke` and `invokeSuper` accept an explicit `current` or `main` thread policy. A synchronous `invokeSuper` call cannot cross to the main thread. Existing synchronous `invoke` calls can still block while crossing to the main thread; new UI work should declare `native.objc.invoke.async` and use `invokeAsync(handle, selector, args)` instead. It returns a cancellable promise, runs the Objective-C method on the main thread, and converts the result back on the JavaScript runtime thread. Stopping the plugin cancels its pending invocations. The bridge API and ABI version strings remain `1.0.0`; availability is negotiated through the new capability.
+`call` uses the current runtime thread. `invoke` and `invokeSuper` accept an explicit `current` or `main` thread policy. A synchronous `invokeSuper` call cannot cross to the main thread. Existing synchronous `invoke` calls can still block while crossing to the main thread; new UI work should declare `native.objc.invokeAsync` and use `invokeAsync(handle, selector, args)` instead. It returns a cancellable promise, runs the Objective-C method on the main thread, and converts the result back on the JavaScript runtime thread. Stopping the plugin cancels its pending invocations. The bridge API and ABI version strings remain `1.0.0`; availability is negotiated through the new capability.
 
 ## Raw FFI
 

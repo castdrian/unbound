@@ -725,7 +725,7 @@ export type NativeObjectHandle = NativeHandle;
 export type NativePluginCapability =
 	| 'native.objc.classes'
 	| 'native.objc.invoke'
-	| 'native.objc.invoke.async'
+	| 'native.objc.invokeAsync'
 	| 'native.objc.ivars'
 	| 'native.objc.associations'
 	| 'native.objc.hooks'

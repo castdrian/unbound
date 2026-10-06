@@ -3,6 +3,7 @@ import type { AddonManifest } from './addons';
 export type NativePluginCapability =
 	| 'native.objc.classes'
 	| 'native.objc.invoke'
+	| 'native.objc.invoke.async'
 	| 'native.objc.ivars'
 	| 'native.objc.associations'
 	| 'native.objc.hooks'
@@ -27,6 +28,8 @@ export type NativeThreadPolicy = 'current' | 'main';
 export interface NativeCallOptions {
 	thread?: NativeThreadPolicy;
 }
+
+export type NativeCancelablePromise<T> = Promise<T> & { cancel(): void };
 
 export type NativeFFITypeName =
 	| 'void'
@@ -100,6 +103,11 @@ export interface NativeObjCBridge {
 		args: unknown[],
 		options?: NativeCallOptions,
 	): unknown;
+	invokeAsync(
+		handle: NativeObjectHandle,
+		selector: string,
+		args: unknown[],
+	): NativeCancelablePromise<unknown>;
 	invokeSuper(
 		handle: NativeObjectHandle,
 		currentClass: NativeClassHandle | string,

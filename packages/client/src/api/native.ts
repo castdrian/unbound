@@ -1,5 +1,6 @@
 export type {
 	NativeAssociationKey,
+	NativeCancelablePromise,
 	NativeCallOptions,
 	NativeClassHandle,
 	NativeFabricBridge,

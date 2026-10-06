@@ -9,6 +9,7 @@ mock.module('react-native', () => ({
 const removed: string[] = [];
 const cleared: unknown[] = [];
 const unmounted: unknown[] = [];
+const asynchronouslyUnmounted: unknown[] = [];
 const cancelled: string[] = [];
 const capabilities = [
 	'native.objc.classes',
@@ -90,8 +91,10 @@ const bridge = {
 				cancel: () => cancelled.push('measure'),
 			}),
 		unmount: (surface: unknown) => unmounted.push(surface),
-		unmountAsync: () =>
-			Object.assign(Promise.resolve(), { cancel: () => cancelled.push('unmount') }),
+		unmountAsync: (surface: unknown) => {
+			asynchronouslyUnmounted.push(surface);
+			return Object.assign(Promise.resolve(), { cancel: () => cancelled.push('unmount') });
+		},
 	},
 };
 
@@ -120,6 +123,7 @@ afterEach(() => {
 	removed.length = 0;
 	cleared.length = 0;
 	unmounted.length = 0;
+	asynchronouslyUnmounted.length = 0;
 	cancelled.length = 0;
 });
 
@@ -190,7 +194,8 @@ describe('native plugin capability scopes', () => {
 
 		context.dispose();
 
-		expect(unmounted).toEqual([surface]);
+		expect(asynchronouslyUnmounted).toEqual([surface]);
+		expect(unmounted).toEqual([]);
 	});
 
 	test('tracks asynchronous Fabric surfaces and cancels outstanding work', async () => {
@@ -207,8 +212,37 @@ describe('native plugin capability scopes', () => {
 		context.native.fabric.measureAsync({});
 		context.dispose();
 
-		expect(unmounted).toEqual([surface]);
+		expect(asynchronouslyUnmounted).toEqual([surface]);
+		expect(unmounted).toEqual([]);
 		expect(cancelled).toEqual(['measure']);
+	});
+
+	test('removes a surface if its mount resolves after scope disposal', async () => {
+		const originalMountAsync = bridge.fabric.mountAsync;
+		let resolveMount: ((surface: { asyncSurface: boolean }) => void) | undefined;
+		bridge.fabric.mountAsync = () =>
+			Object.assign(
+				new Promise<{ asyncSurface: boolean }>((resolve) => {
+					resolveMount = resolve;
+				}),
+				{ cancel: () => cancelled.push('late-mount') },
+			);
+		try {
+			const context = createPluginContext({
+				...manifest,
+				capabilities: ['native.fabric.async'],
+			});
+			context.native.fabric.mountAsync({}, 'TestSurface');
+			context.dispose();
+			const surface = { asyncSurface: true };
+			resolveMount?.(surface);
+			await Promise.resolve();
+			await Promise.resolve();
+			expect(cancelled).toContain('late-mount');
+			expect(asynchronouslyUnmounted).toEqual([surface]);
+		} finally {
+			bridge.fabric.mountAsync = originalMountAsync;
+		}
 	});
 
 	test('gates and cancels asynchronous native invocations', () => {

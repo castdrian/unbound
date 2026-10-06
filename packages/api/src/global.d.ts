@@ -58,6 +58,7 @@ export type {
 	NativePointer,
 	NativeStruct,
 	NativeThreadPolicy,
+	NativeViewSearchOptions,
 	NativeViewSnapshotNode,
 	NativeViewSnapshotOptions,
 	Navigation,

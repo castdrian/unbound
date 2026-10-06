@@ -191,6 +191,14 @@ export interface InternalToastOptions extends ToastOptions {
 	closing?: boolean;
 	date?: number;
 }
+export interface NativeBatchReference {
+	readonly $nativeBatchResult: number;
+}
+export interface NativeBatchStep {
+	target: NativeObjectHandle | NativeBatchReference;
+	selector: string;
+	args: unknown[];
+}
 export interface NativeCallOptions {
 	thread?: NativeThreadPolicy;
 }
@@ -295,6 +303,7 @@ export interface NativeObjCBridge {
 		selector: string,
 		args: unknown[],
 	): NativeCancelablePromise<unknown>;
+	batch(steps: readonly NativeBatchStep[]): NativeCancelablePromise<unknown[]>;
 	invokeSuper(
 		handle: NativeObjectHandle,
 		currentClass: NativeClassHandle | string,
@@ -752,6 +761,7 @@ export type NativePluginCapability =
 	| 'native.objc.classes'
 	| 'native.objc.invoke'
 	| 'native.objc.invokeAsync'
+	| 'native.objc.batch'
 	| 'native.objc.ivars'
 	| 'native.objc.associations'
 	| 'native.objc.hooks'

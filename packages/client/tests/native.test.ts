@@ -20,6 +20,7 @@ const capabilities = [
 	'native.ffi.symbols',
 	'native.ffi.call',
 	'native.fabric.mount',
+	'native.fabric.async',
 ] as const;
 
 const bridge = {
@@ -42,6 +43,10 @@ const bridge = {
 			Object.assign(new Promise<unknown>(() => undefined), {
 				cancel: () => cancelled.push('invocation'),
 			}),
+		invokeSuperAsync: () =>
+			Object.assign(new Promise<unknown>(() => undefined), {
+				cancel: () => cancelled.push('super'),
+			}),
 		invokeSuper: () => undefined,
 		hook: (...args: string[]) => {
 			void args;
@@ -61,11 +66,27 @@ const bridge = {
 	},
 	fabric: {
 		mount: () => ({ surface: true }),
+		mountAsync: () =>
+			Object.assign(Promise.resolve({ asyncSurface: true }), {
+				cancel: () => cancelled.push('mount'),
+			}),
 		update: () => undefined,
+		updateAsync: () =>
+			Object.assign(Promise.resolve(), { cancel: () => cancelled.push('update') }),
 		setSize: () => undefined,
+		setSizeAsync: () =>
+			Object.assign(Promise.resolve(), { cancel: () => cancelled.push('size') }),
 		setFrame: () => undefined,
+		setFrameAsync: () =>
+			Object.assign(Promise.resolve(), { cancel: () => cancelled.push('frame') }),
 		measure: () => ({ x: 0, y: 0, width: 0, height: 0 }),
+		measureAsync: () =>
+			Object.assign(new Promise<unknown>(() => undefined), {
+				cancel: () => cancelled.push('measure'),
+			}),
 		unmount: (surface: unknown) => unmounted.push(surface),
+		unmountAsync: () =>
+			Object.assign(Promise.resolve(), { cancel: () => cancelled.push('unmount') }),
 	},
 };
 
@@ -116,6 +137,17 @@ describe('native plugin capability scopes', () => {
 		);
 	});
 
+	test('does not let a plugin expand its declared capabilities at runtime', () => {
+		const declared = ['native.objc.classes'] as (typeof capabilities)[number][];
+		const context = createPluginContext({ ...manifest, capabilities: declared });
+		declared.push('native.objc.invoke');
+		expect(() => (context.capabilities as string[]).push('native.objc.invoke')).toThrow();
+		expect(() => (context.native.capabilities as string[]).push('native.ffi.call')).toThrow();
+		expect(() => context.native.objc.invoke({}, 'description', [])).toThrow(
+			NativePluginCapabilityError,
+		);
+	});
+
 	test('disposes hooks owned by a plugin context', () => {
 		const context = createPluginContext({ ...manifest, capabilities: ['native.objc.hooks'] });
 		const token = context.native.objc.hook('NSObject', 'description', {
@@ -156,6 +188,24 @@ describe('native plugin capability scopes', () => {
 		expect(unmounted).toEqual([surface]);
 	});
 
+	test('tracks asynchronous Fabric surfaces and cancels outstanding work', async () => {
+		const denied = createPluginContext({ ...manifest, capabilities: ['native.fabric.mount'] });
+		expect(() => denied.native.fabric.mountAsync({}, 'TestSurface')).toThrow(
+			NativePluginCapabilityError,
+		);
+
+		const context = createPluginContext({
+			...manifest,
+			capabilities: ['native.fabric.async'],
+		});
+		const surface = await context.native.fabric.mountAsync({}, 'TestSurface');
+		context.native.fabric.measureAsync({});
+		context.dispose();
+
+		expect(unmounted).toEqual([surface]);
+		expect(cancelled).toEqual(['measure']);
+	});
+
 	test('gates and cancels asynchronous native invocations', () => {
 		const denied = createPluginContext({ ...manifest, capabilities: ['native.objc.invoke'] });
 		expect(() => denied.native.objc.invokeAsync({}, 'description', [])).toThrow(
@@ -167,12 +217,16 @@ describe('native plugin capability scopes', () => {
 			capabilities: ['native.objc.invokeAsync'],
 		});
 		context.native.objc.invokeAsync({}, 'description', []);
+		context.native.objc.invokeSuperAsync({}, 'NSObject', 'description', []);
 		context.dispose();
 
-		expect(cancelled).toEqual(['invocation']);
+		expect(cancelled).toEqual(['invocation', 'super']);
 		expect(() => context.native.objc.invokeAsync({}, 'description', [])).toThrow(
 			NativePluginDisposedError,
 		);
+		expect(() =>
+			context.native.objc.invokeSuperAsync({}, 'NSObject', 'description', []),
+		).toThrow(NativePluginDisposedError);
 	});
 });
 

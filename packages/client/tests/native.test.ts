@@ -16,6 +16,7 @@ const capabilities = [
 	'native.objc.invoke',
 	'native.objc.invokeAsync',
 	'native.objc.batch',
+	'native.objc.snapshot',
 	'native.objc.ivars',
 	'native.objc.associations',
 	'native.objc.hooks',
@@ -49,6 +50,23 @@ const bridge = {
 			Object.assign(Promise.resolve(steps.map((step: any) => step.selector)), {
 				cancel: () => cancelled.push('batch'),
 			}),
+		snapshot: () =>
+			Object.assign(
+				Promise.resolve([
+					{
+						view: {},
+						parent: -1,
+						depth: 0,
+						className: 'UIView',
+						frame: { x: 0, y: 0, width: 0, height: 0 },
+						text: null,
+						visible: true,
+					},
+				]),
+				{
+					cancel: () => cancelled.push('snapshot'),
+				},
+			),
 		invokeSuperAsync: () =>
 			Object.assign(new Promise<unknown>(() => undefined), {
 				cancel: () => cancelled.push('super'),
@@ -285,6 +303,50 @@ describe('native plugin capability scopes', () => {
 		expect(await context.native.objc.batch(steps)).toEqual(['first', 'second:']);
 		context.dispose();
 		expect(() => context.native.objc.batch(steps)).toThrow(NativePluginDisposedError);
+	});
+
+	test('gates and tracks bounded native view snapshots', async () => {
+		const denied = createPluginContext({
+			...manifest,
+			capabilities: ['native.objc.batch'],
+		});
+		expect(() => denied.native.objc.snapshot({})).toThrow(NativePluginCapabilityError);
+		const context = createPluginContext({
+			...manifest,
+			capabilities: ['native.objc.snapshot'],
+		});
+		expect(await context.native.objc.snapshot({}, { maxDepth: 4, maxNodes: 40 })).toEqual([
+			{
+				view: {},
+				parent: -1,
+				depth: 0,
+				className: 'UIView',
+				frame: { x: 0, y: 0, width: 0, height: 0 },
+				text: null,
+				visible: true,
+			},
+		]);
+		context.dispose();
+		expect(() => context.native.objc.snapshot({})).toThrow(NativePluginDisposedError);
+	});
+
+	test('cancels a pending native view snapshot on disposal', () => {
+		const originalSnapshot = bridge.objc.snapshot;
+		bridge.objc.snapshot = () =>
+			Object.assign(new Promise<never>(() => undefined), {
+				cancel: () => cancelled.push('snapshot'),
+			});
+		try {
+			const context = createPluginContext({
+				...manifest,
+				capabilities: ['native.objc.snapshot'],
+			});
+			context.native.objc.snapshot({});
+			context.dispose();
+			expect(cancelled).toContain('snapshot');
+		} finally {
+			bridge.objc.snapshot = originalSnapshot;
+		}
 	});
 });
 

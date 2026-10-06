@@ -14,6 +14,7 @@ const capabilities = [
 	'native.objc.classes',
 	'native.objc.invoke',
 	'native.objc.invokeAsync',
+	'native.objc.batch',
 	'native.objc.ivars',
 	'native.objc.associations',
 	'native.objc.hooks',
@@ -42,6 +43,10 @@ const bridge = {
 		invokeAsync: () =>
 			Object.assign(new Promise<unknown>(() => undefined), {
 				cancel: () => cancelled.push('invocation'),
+			}),
+		batch: (steps: unknown[]) =>
+			Object.assign(Promise.resolve(steps.map((step: any) => step.selector)), {
+				cancel: () => cancelled.push('batch'),
 			}),
 		invokeSuperAsync: () =>
 			Object.assign(new Promise<unknown>(() => undefined), {
@@ -227,6 +232,25 @@ describe('native plugin capability scopes', () => {
 		expect(() =>
 			context.native.objc.invokeSuperAsync({}, 'NSObject', 'description', []),
 		).toThrow(NativePluginDisposedError);
+	});
+
+	test('gates and tracks a native main-thread batch', async () => {
+		const denied = createPluginContext({
+			...manifest,
+			capabilities: ['native.objc.invokeAsync'],
+		});
+		expect(() => denied.native.objc.batch([])).toThrow(NativePluginCapabilityError);
+		const context = createPluginContext({
+			...manifest,
+			capabilities: ['native.objc.batch'],
+		});
+		const steps = [
+			{ target: {}, selector: 'first', args: [] },
+			{ target: { $nativeBatchResult: 0 }, selector: 'second:', args: [3] },
+		];
+		expect(await context.native.objc.batch(steps)).toEqual(['first', 'second:']);
+		context.dispose();
+		expect(() => context.native.objc.batch(steps)).toThrow(NativePluginDisposedError);
 	});
 });
 

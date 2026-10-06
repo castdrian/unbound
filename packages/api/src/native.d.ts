@@ -2,6 +2,8 @@
 
 export type {
 	NativeAssociationKey,
+	NativeBatchReference,
+	NativeBatchStep,
 	NativeCallOptions,
 	NativeCancelablePromise,
 	NativeClassHandle,

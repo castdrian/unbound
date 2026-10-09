@@ -502,6 +502,14 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 					if (disposed) throw new NativePluginDisposedError();
 					token.clearReturnValues();
 				},
+				setSizeHeightDelta(self, args, delta) {
+					if (disposed) throw new NativePluginDisposedError();
+					token.setSizeHeightDelta(self, args, delta);
+				},
+				removeSizeHeightDelta(self, args) {
+					if (disposed) throw new NativePluginDisposedError();
+					token.removeSizeHeightDelta(self, args);
+				},
 				remove() {
 					token.remove();
 					tokens.delete(token);

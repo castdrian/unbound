@@ -392,6 +392,64 @@ describe('Addons.reload', () => {
 		expect(manager.log).toEqual([]);
 	});
 
+	test('awaits plugin cleanup before clearing entities during shutdown', async () => {
+		const manifest = makeManifest('shutdown');
+		const events: string[] = [];
+		let finishCleanup: (() => void) | undefined;
+		const cleanup = new Promise<void>((resolve) => {
+			finishCleanup = resolve;
+		});
+		manager.seed({
+			id: 'shutdown',
+			data: manifest,
+			bundle: 'old',
+			instance: {
+				stop: () => {
+					events.push('stop');
+					return cleanup;
+				},
+			},
+			context: makeContext('shutdown', events),
+			started: true,
+			failed: false,
+		});
+
+		const shutdown = manager.shutdown();
+		expect(events).toEqual(['stop']);
+		expect(manager.getEntity('shutdown')).toBeDefined();
+		finishCleanup?.();
+		await shutdown;
+		expect(events).toEqual(['stop', 'dispose']);
+		expect(manager.getEntities()).toEqual([]);
+	});
+
+	test('keeps an addon loaded until asynchronous unload cleanup finishes', async () => {
+		const manifest = makeManifest('unload');
+		const events: string[] = [];
+		let finishCleanup: (() => void) | undefined;
+		const cleanup = new Promise<void>((resolve) => {
+			finishCleanup = resolve;
+		});
+		manager.seed({
+			id: 'unload',
+			data: manifest,
+			bundle: 'old',
+			instance: { stop: () => cleanup },
+			context: makeContext('unload', events),
+			started: true,
+			failed: false,
+		});
+		manager.on('unloaded', () => events.push('unloaded'));
+
+		const unloading = manager.unload('unload');
+		expect(manager.getEntity('unload')).toBeDefined();
+		expect(events).toEqual([]);
+		finishCleanup?.();
+		await unloading;
+		expect(events).toEqual(['dispose', 'unloaded']);
+		expect(manager.getEntity('unload')).toBeUndefined();
+	});
+
 	test('a plugin start failure disposes the context before recording the error', () => {
 		const manifest = makeManifest('h');
 		manager.seed({

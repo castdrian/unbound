@@ -58,8 +58,8 @@ export async function shutdown() {
 	Logger.info('Shutting down Unbound...');
 
 	BuiltIns.shutdown();
-	Plugins.shutdown();
-	Themes.shutdown();
+	await Plugins.shutdown();
+	await Themes.shutdown();
 	Icons.shutdown();
 	Fonts.shutdown();
 

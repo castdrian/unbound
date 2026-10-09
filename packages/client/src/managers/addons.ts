@@ -43,6 +43,19 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	private pendingStarts = new Set<string>();
 	protected stopTimeoutMs = 5000;
 
+	async shutdown(): Promise<void> {
+		this.pendingStarts.clear();
+		const pending = [...this.pendingStops.values()];
+		const stops = this.getEntities().map((entity) => this.stop(entity));
+		try {
+			await Promise.all([...pending, ...stops]);
+		} finally {
+			this.pendingStops.clear();
+			this.pendingStarts.clear();
+			super.shutdown();
+		}
+	}
+
 	/**
 	 * @description Evaluates an addon's bundle source into a running instance. Implemented by each subclass.
 	 * @param bundle The addon's bundle source.
@@ -95,23 +108,31 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 * @description Unloads an addon from the manager, stopping it if running, and emits `unloaded`.
 	 * @param entity The addon to unload, as its id or the entity itself.
 	 */
-	unload(entity: AddonResolveable) {
+	unload(entity: AddonResolveable): void | Promise<void> {
 		const resolved = this.resolve(entity);
 		if (!resolved) return;
 
 		try {
 			this.pendingStarts.delete(resolved.id);
-			if (resolved.started) {
-				this.stop(resolved);
-			}
-
-			this.entities.delete(resolved.id);
-			this.errors.delete(resolved.id);
-
-			this.emit('unloaded', resolved);
+			const stopping = this.stop(resolved);
+			if (stopping) return stopping.then(() => this.finishUnload(resolved));
+			this.finishUnload(resolved);
 		} catch (error: any) {
 			this.logger.error(`Failed to unload addon ${resolved.id}:`, error);
 			this.errors.set(resolved.id, error);
+		}
+	}
+
+	private finishUnload(resolved: T): void {
+		if (this.entities.get(resolved.id) !== resolved) return;
+		try {
+			this.entities.delete(resolved.id);
+			this.errors.delete(resolved.id);
+			this.emit('unloaded', resolved);
+		} catch (error) {
+			const failure = error instanceof Error ? error : new Error(String(error));
+			this.logger.error(`Failed to unload addon ${resolved.id}:`, failure);
+			this.errors.set(resolved.id, failure);
 		}
 	}
 
@@ -265,8 +286,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		if (!resolved) return;
 
 		try {
-			this.unload(resolved);
-			await this.pendingStops.get(resolved.id);
+			await this.unload(resolved);
 			await fs.rm(`Unbound/${ManagerType[this.type]}/${resolved.id}`);
 			this.emit('deleted', resolved);
 		} catch (error: any) {

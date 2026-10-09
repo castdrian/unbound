@@ -11,7 +11,7 @@ const cleared: unknown[] = [];
 const unmounted: unknown[] = [];
 const asynchronouslyUnmounted: unknown[] = [];
 const cancelled: string[] = [];
-const sizeHeightDeltas: unknown[][] = [];
+const sizeHeightFloors: unknown[][] = [];
 const capabilities = [
 	'native.objc.classes',
 	'native.objc.invoke',
@@ -81,8 +81,8 @@ const bridge = {
 			void args;
 			return {
 				active: true,
-				setSizeHeightDelta: (...values: unknown[]) => sizeHeightDeltas.push(values),
-				removeSizeHeightDelta: (...values: unknown[]) => sizeHeightDeltas.push(values),
+				setSizeHeightFloor: (...values: unknown[]) => sizeHeightFloors.push(values),
+				removeSizeHeightFloor: (...values: unknown[]) => sizeHeightFloors.push(values),
 				remove: () => removed.push('hook'),
 			};
 		},
@@ -150,7 +150,7 @@ afterEach(() => {
 	unmounted.length = 0;
 	asynchronouslyUnmounted.length = 0;
 	cancelled.length = 0;
-	sizeHeightDeltas.length = 0;
+	sizeHeightFloors.length = 0;
 });
 
 describe('native plugin capability scopes', () => {
@@ -194,21 +194,21 @@ describe('native plugin capability scopes', () => {
 		expect(removed).toEqual(['hook']);
 	});
 
-	test('scopes cached size deltas to the owning hook', () => {
+	test('scopes cached size floors to the owning hook', () => {
 		const context = createPluginContext({ ...manifest, capabilities: ['native.objc.hooks'] });
 		const token = context.native.objc.hook('UIView', 'sizeThatFits:', {}, { cacheOnly: true });
 		const handle = {};
 		const args = [{ width: 375, height: 0 }];
 
-		token.setSizeHeightDelta(handle, args, 136);
-		token.removeSizeHeightDelta(handle, args);
-		expect(sizeHeightDeltas).toEqual([
+		token.setSizeHeightFloor(handle, args, 136);
+		token.removeSizeHeightFloor(handle, args);
+		expect(sizeHeightFloors).toEqual([
 			[handle, args, 136],
 			[handle, args],
 		]);
 		context.dispose();
 		expect(removed).toEqual(['hook']);
-		expect(() => token.setSizeHeightDelta(handle, args, 136)).toThrow(
+		expect(() => token.setSizeHeightFloor(handle, args, 136)).toThrow(
 			NativePluginDisposedError,
 		);
 	});

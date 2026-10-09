@@ -118,8 +118,8 @@ export interface NativeHookToken {
 	setReturnValue(self: NativeObjectHandle, args: unknown[], value: unknown): void;
 	removeReturnValue(self: NativeObjectHandle, args: unknown[]): void;
 	clearReturnValues(): void;
-	setSizeHeightDelta(self: NativeObjectHandle, args: unknown[], delta: number): void;
-	removeSizeHeightDelta(self: NativeObjectHandle, args: unknown[]): void;
+	setSizeHeightFloor(self: NativeObjectHandle, args: unknown[], floor: number): void;
+	removeSizeHeightFloor(self: NativeObjectHandle, args: unknown[]): void;
 	remove(): void;
 }
 

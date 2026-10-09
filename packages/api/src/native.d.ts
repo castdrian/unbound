@@ -56,32 +56,13 @@ export declare class NativePluginVersionError extends Error {
 	readonly requiredApi: string;
 	constructor(requiredApi: string, installedApi: string);
 }
-/** The resolved native client info module, exposing build and release metadata. */
 export declare const BundleInfo: BundleInfoType;
-/** The resolved native bundle updater module, used to check for updates and reload the bundle. */
 export declare const BundleManager: DCDBundleManagerType;
-/** The resolved native device module, exposing hardware and OS details. */
 export declare const DeviceInfo: DeviceInfoType;
-/**
- * @description Resolves the first available native module matching any of the given names, checking both `NativeModules` and the `TurboModuleRegistry`.
- * @template T The type of the resolved native module.
- * @param names The candidate native module names to look up, in priority order.
- * @returns The first matching native module.
- */
 export declare function getNativeModule<T = any>(...names: string[]): T;
-/**
- * @description Reads Hermes' runtime metadata, such as the bytecode version, GC, and build channel.
- * React Native types the global `HermesInternal` as `null | {}`, so this reads it via
- * `window.HermesInternal` where our own typing wins.
- * @returns The runtime property map, or an empty object when Hermes internals are unavailable.
- */
 export declare function getRuntimeProperties(): Record<string, any>;
-/**
- * @description Persists pending settings to storage, then reloads the native bundle.
- */
 export declare function reload(): Promise<void>;
 
-/** Build and release metadata reported by the native client info module. */
 export interface BundleInfoType {
 	Version: string;
 	ReleaseChannel: string;
@@ -94,7 +75,6 @@ export interface BundleInfoType {
 	Identifier: string;
 	SentryAlphaBetaDsn: string;
 }
-/** The native `BundleUpdaterManager` module surface for OTA updates and reloading the bundle. */
 export interface DCDBundleManagerType {
 	getInitialBundleDownloaded: PromiseFn;
 	getInitialOtaUpdateChecked: PromiseFn;
@@ -107,12 +87,10 @@ export interface DCDBundleManagerType {
 	addListener: Fn;
 	removeListeners: Fn;
 }
-/** The constant directory paths exposed by the native `DCDFileManager`. */
 export interface DCDFileManagerConstants {
 	CacheDirPath: string;
 	DocumentsDirPath: string;
 }
-/** The native `DCDFileManager` module surface for reading, writing, and inspecting files. */
 export interface DCDFileManagerType extends DCDFileManagerConstants {
 	readFile(path: string, encoding: DCDFileManagerEncoding): Promise<string>;
 	writeFile(
@@ -129,7 +107,6 @@ export interface DCDFileManagerType extends DCDFileManagerConstants {
 	saveFileToGallery(): Promise<unknown>;
 	getConstants(): DCDFileManagerConstants;
 }
-/** Hardware and OS details reported by the native device module. */
 export interface DeviceInfoType {
 	isTaskBarEnabled: boolean;
 	maxCpuFreq: string;
@@ -145,6 +122,5 @@ export interface DeviceInfoType {
 	device: string;
 }
 
-/** The text encodings accepted by the native `DCDFileManager` read/write operations. */
 export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
 export { NativePlatform$1 as NativePlatform };

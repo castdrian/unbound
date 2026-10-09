@@ -896,7 +896,7 @@ export type UnboundAsset = DiscordAsset & {
 /** The lifecycle and settings contract implemented by a plugin. */
 interface Plugin$1 {
 	start?(context?: PluginContext): void;
-	stop?(): void;
+	stop?(): void | Promise<void>;
 	getSettingsPanel?(): ReactNode;
 }
 

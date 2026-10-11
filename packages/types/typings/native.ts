@@ -55,6 +55,7 @@ export interface NativeViewSearchOptions {
 	maxResults?: number;
 	attachedOnly?: boolean;
 	stopAtMatch?: boolean;
+	direction?: 'ancestors' | 'descendants';
 }
 
 export interface NativeViewSnapshotNode {

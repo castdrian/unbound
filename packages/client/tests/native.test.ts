@@ -11,6 +11,7 @@ const cleared: unknown[] = [];
 const unmounted: unknown[] = [];
 const asynchronouslyUnmounted: unknown[] = [];
 const cancelled: string[] = [];
+const viewSearches: unknown[][] = [];
 const sizeHeightFloors: unknown[][] = [];
 const capabilities = [
 	'native.objc.classes',
@@ -72,10 +73,12 @@ const bridge = {
 			Object.assign(new Promise<unknown>(() => undefined), {
 				cancel: () => cancelled.push('super'),
 			}),
-		findViews: () =>
-			Object.assign(Promise.resolve([{ found: true }]), {
+		findViews: (...args: unknown[]) => {
+			viewSearches.push(args);
+			return Object.assign(Promise.resolve([{ found: true }]), {
 				cancel: () => cancelled.push('findViews'),
-			}),
+			});
+		},
 		invokeSuper: () => undefined,
 		hook: (...args: string[]) => {
 			void args;
@@ -391,6 +394,13 @@ describe('native plugin capability scopes', () => {
 		expect(await context.native.objc.findViews({}, 'DCDLabel', { maxVisited: 100 })).toEqual([
 			{ found: true },
 		]);
+		expect(
+			await context.native.objc.findViews({}, 'UITableView', {
+				direction: 'ancestors',
+				maxDepth: 14,
+			}),
+		).toEqual([{ found: true }]);
+		expect(viewSearches.at(-1)?.[2]).toEqual({ direction: 'ancestors', maxDepth: 14 });
 		context.dispose();
 		expect(() => context.native.objc.findViews({}, 'DCDLabel')).toThrow(
 			NativePluginDisposedError,

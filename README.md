@@ -123,32 +123,50 @@ The [debugger](https://docs.unbound.rip/development/debugging) (`bunx @unbound-a
 5. The client runs on a single `initialize` / `shutdown` lifecycle. Each manager starts its add-ons on startup and tears them down on shutdown, and settings are saved before the global is cleared.
 
 ```mermaid
-flowchart TD
-    Loader["<b>Native Loader</b><br/>iOS / Android<br/>Reload, File System, evaluateBytecode"]
-
-    subgraph Client["Unbound Client"]
-        direction TB
-        Managers["<b>Add-on Managers</b><br/>Plugins, Themes,<br/>Fonts, Icon Packs"]
-        APIs["<b>APIs</b><br/>Storage, Toasts, Assets"]
-        Patcher["<b>Patcher</b><br/>possess"]
-        Metro["<b>Metro Layer</b><br/>findByProps, findByName,<br/>findStore"]
-
-        Managers --> APIs
-        Managers --> Patcher
-        APIs --> Metro
-        Patcher --> Metro
+%%{init: {"flowchart": {"nodeSpacing": 40, "rankSpacing": 45}}}%%
+flowchart TB
+    subgraph Native["Native Side · iOS / Android"]
+        direction LR
+        Loader["<b>Unbound Loader</b><br/>Tweak / Xposed Module"]
+        App["<b>Discord App</b><br/>UIKit / Android Views"]
+        Loader -->|Hooks Colors and Fonts| App
     end
 
-    Discord["<b>Discord Internals</b><br/>Modules, React UI"]
+    subgraph JS["JS Land · Hermes"]
+        direction LR
+        subgraph Client["Unbound Client"]
+            direction TB
+            Managers["<b>Add-on Managers</b><br/>Plugins, Themes,<br/>Fonts, Icon Packs"]
+            APIs["<b>APIs</b><br/>Storage, Toasts, Assets"]
+            Patcher["<b>Patcher</b><br/>possess"]
+            Metro["<b>Metro Layer</b><br/>findByProps, findByName"]
+            Managers --> APIs
+            Managers --> Patcher
+            APIs --> Metro
+            Patcher --> Metro
+        end
+        subgraph DJS["Discord JS"]
+            direction TB
+            Registry["<b>Module Registry</b><br/>__r / __d"]
+            UI["<b>React UI</b><br/>Components"]
+            Stores["<b>Flux Stores</b><br/>App State"]
+            Registry ~~~ UI ~~~ Stores
+        end
+        Client -->|Find and Patch| DJS
+    end
 
-    Loader <-->|Injects Bundle / Native Bridge| Client
-    Metro <-->|Find and Patch| Discord
+    Native <-->|"Injects Bundle<br/>Native Bridge"| JS
 
-    classDef external fill:#2b2b2b,stroke:#6b6b6b,color:#ffffff
+    classDef native fill:#2b2b2b,stroke:#6b6b6b,color:#ffffff
     classDef core fill:#c74050,stroke:#c74050,color:#ffffff
-    class Loader,Discord external
+    classDef discord fill:#5865f2,stroke:#5865f2,color:#ffffff
+    class App,Loader native
     class Managers,APIs,Patcher,Metro core
+    class Registry,UI,Stores discord
+    style Native fill:transparent,stroke:#6b6b6b,stroke-width:2px
+    style JS fill:transparent,stroke:#6b6b6b,stroke-width:2px
     style Client fill:transparent,stroke:#c74050,stroke-width:2px
+    style DJS fill:transparent,stroke:#5865f2,stroke-width:2px
 ```
 
 #### Packages

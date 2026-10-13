@@ -23,20 +23,13 @@ Install plugins, themes, fonts, and icon packs on the official Discord app, on b
 
 ## Contents
 
-- [What Is Unbound?](#what-is-unbound)
-- [Features](#features)
-- [Installation](#installation)
-- [Creating Add-ons](#creating-add-ons)
-- [Developing Unbound](#developing-unbound)
-- [Architecture](#architecture)
-- [Contributing](#contributing)
-- [Acknowledgements](#acknowledgements)
-- [Star History](#star-history)
-- [License](#license)
+- **For Users:** [What Is Unbound?](#what-is-unbound) · [Features](#features) · [Installation](#installation)
+- **For Developers:** [Creating Add-ons](#creating-add-ons) · [Developing Unbound](#developing-unbound) · [Architecture](#architecture)
+- **Project:** [Contributing](#contributing) · [Acknowledgements](#acknowledgements) · [Star History](#star-history) · [License](#license)
 
----
+## For Users
 
-## What Is Unbound?
+### What Is Unbound?
 
 Unbound is a client modification for the official Discord mobile app. It runs inside Discord and exposes a stable API for add-ons, so plugins, themes, fonts, and icon packs can be installed without patching Discord manually.
 
@@ -46,9 +39,7 @@ Unbound runs on iOS and Android through a single native bridge. iOS is the prima
 
 This repository contains the client. The native loaders that install Unbound on a device are maintained in separate repositories.
 
----
-
-## Features
+### Features
 
 | Feature         | Description                                                             |
 | --------------- | ----------------------------------------------------------------------- |
@@ -59,9 +50,7 @@ This repository contains the client. The native loaders that install Unbound on 
 | Cross-platform  | iOS and Android share one native bridge and behave the same way.        |
 | Typed SDK       | `@unbound-app/api` provides type definitions for the entire client API. |
 
----
-
-## Installation
+### Installation
 
 Follow the [installation guide](https://docs.unbound.rip/user-guide/installing) for your platform:
 
@@ -73,9 +62,9 @@ Follow the [installation guide](https://docs.unbound.rip/user-guide/installing) 
 
 For problems after installation, see [Troubleshooting](https://docs.unbound.rip/user-guide/troubleshooting).
 
----
+## For Developers
 
-## Creating Add-ons
+### Creating Add-ons
 
 1. Create a project with the CLI:
 
@@ -96,9 +85,7 @@ For problems after installation, see [Troubleshooting](https://docs.unbound.rip/
 
 The [add-on documentation](https://docs.unbound.rip/addons/introduction) covers the manifest, the lifecycle, the SDK, and publishing.
 
----
-
-## Developing Unbound
+### Developing Unbound
 
 Requirements: [Bun](https://bun.sh) and a device or emulator with Unbound installed.
 
@@ -127,31 +114,44 @@ bun run --filter @unbound-app/client serve
 
 The [debugger](https://docs.unbound.rip/development/debugging) (`bunx @unbound-app/debugger`) evaluates code and streams logs from the device.
 
----
-
-## Architecture
+### Architecture
 
 1. A platform-specific native loader patches Discord to run JavaScript, then injects the client bundle.
 2. On boot, the client traps Discord's Metro registry (`__r`/`__d`) and wraps every module factory. That gives it a searchable view of Discord's internal modules.
 3. Add-ons find modules through the Metro layer (`findByProps`, `findByName`, `findStore`) and patch them, both plain functions and React components, with [possess](https://www.npmjs.com/package/possess).
 4. The client calls into the loader for native capabilities such as reload, the filesystem, and `evaluateBytecode`.
+5. The client runs on a single `initialize` / `shutdown` lifecycle. Each manager starts its add-ons on startup and tears them down on shutdown, and settings are saved before the global is cleared.
 
 ```mermaid
-flowchart LR
-    Loader["Platform Native Loader<br/><i>reload · filesystem · evaluateBytecode</i>"] <-->|native bridge| Core
+flowchart TD
+    Loader["<b>Native Loader</b><br/>iOS / Android<br/>Reload, File System, evaluateBytecode"]
 
-    subgraph Core["Core"]
+    subgraph Client["Unbound Client"]
         direction TB
-        Managers["Addon Managers<br/><i>plugins · themes · fonts · icon packs</i>"] --> APIs["APIs<br/><i>storage · toasts · assets</i>"]
-        Managers --> Patcher["Patcher<br/><i>possess</i>"]
+        Managers["<b>Add-on Managers</b><br/>Plugins, Themes,<br/>Fonts, Icon Packs"]
+        APIs["<b>APIs</b><br/>Storage, Toasts, Assets"]
+        Patcher["<b>Patcher</b><br/>possess"]
+        Metro["<b>Metro Layer</b><br/>findByProps, findByName,<br/>findStore"]
+
+        Managers --> APIs
+        Managers --> Patcher
         APIs --> Metro
-        Patcher --> Metro["Metro Layer<br/><i>findByProps · findByName · findStore</i>"]
+        Patcher --> Metro
     end
 
-    Metro <-->|find / patch| Discord["Discord Internals<br/><i>modules · React UI</i>"]
+    Discord["<b>Discord Internals</b><br/>Modules, React UI"]
+
+    Loader <-->|Injects Bundle / Native Bridge| Client
+    Metro <-->|Find and Patch| Discord
+
+    classDef external fill:#2b2b2b,stroke:#6b6b6b,color:#ffffff
+    classDef core fill:#c74050,stroke:#c74050,color:#ffffff
+    class Loader,Discord external
+    class Managers,APIs,Patcher,Metro core
+    style Client fill:transparent,stroke:#c74050,stroke-width:2px
 ```
 
-The client runs on a single `initialize` / `shutdown` lifecycle. Each manager starts its add-ons on startup and tears them down on shutdown, and settings are saved before the global is cleared.
+#### Packages
 
 The client is the runtime that ships into Discord. The remaining packages support it:
 
@@ -165,9 +165,9 @@ The client is the runtime that ships into Discord. The remaining packages suppor
 | [`packages/utils`](packages/utils)       | Per-file utilities, each imported individually for tree-shaking.                                 |
 | [`packages/types`](packages/types)       | Shared TypeScript types used across the project.                                                 |
 
----
+## Project
 
-## Contributing
+### Contributing
 
 Contributions are welcome. Before opening a PR:
 
@@ -176,9 +176,7 @@ Contributions are welcome. Before opening a PR:
 3. Write commit messages in the [Angular convention](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, ...). A commit hook enforces this.
 4. Keep the PR focused and up to date with `main`.
 
----
-
-## Acknowledgements
+### Acknowledgements
 
 Unbound wouldn't exist without the work of:
 
@@ -195,9 +193,7 @@ Unbound wouldn't exist without the work of:
 
 </div>
 
----
-
-## Star History
+### Star History
 
 <div align="center">
 
@@ -207,8 +203,6 @@ Unbound wouldn't exist without the work of:
 
 </div>
 
----
-
-## License
+### License
 
 Unbound is licensed under the [GNU General Public License v3.0](./LICENSE).

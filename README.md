@@ -15,7 +15,7 @@ Install plugins, themes, fonts, and icon packs on the official Discord app, on b
 [![Discord](https://img.shields.io/discord/950850315601711176?style=for-the-badge&label=discord&labelColor=0c0c0c&color=c74050)](https://discord.gg/unbound)
 [![License](https://img.shields.io/badge/license-GPL--3.0-c74050?style=for-the-badge&labelColor=0c0c0c)](./LICENSE)
 
-**[Documentation](https://docs.unbound.rip)** · [Contributing](./CONTRIBUTING.md)
+**[Documentation](https://docs.unbound.rip)** · [Install](https://docs.unbound.rip/user-guide/installing) · [Discord](https://discord.gg/unbound)
 
 </div>
 
@@ -27,8 +27,8 @@ Install plugins, themes, fonts, and icon packs on the official Discord app, on b
 - [Features](#features)
 - [Installation](#installation)
 - [Creating Add-ons](#creating-add-ons)
+- [Developing Unbound](#developing-unbound)
 - [Architecture](#architecture)
-- [Getting Started](#getting-started)
 - [Contributing](#contributing)
 - [Acknowledgements](#acknowledgements)
 - [Star History](#star-history)
@@ -38,62 +38,103 @@ Install plugins, themes, fonts, and icon packs on the official Discord app, on b
 
 ## What Is Unbound?
 
-Unbound is a client modification for the official Discord mobile app. It loads inside Discord and wraps the app's internals in a stable API, so you can install plugins, themes, fonts, and icon packs without patching Discord by hand.
+Unbound is a client modification for the official Discord mobile app. It runs inside Discord and exposes a stable API for add-ons, so plugins, themes, fonts, and icon packs can be installed without patching Discord manually.
 
-Running inside Discord gives add-ons direct access to the same modules, state, and UI the app itself uses. Unbound builds on that with tools for patching Discord's internals, both its behavior and its React components, so add-ons can change how the app works and how it looks. All of it is reversible: add-ons run behind error boundaries and can be torn down completely, so disabling one returns Discord to stock. That is what makes hot-reloading safe.
+Add-ons have direct access to the modules, state, and UI that Discord itself uses. They can patch both Discord's behavior and its React components. Every change is reversible: disabling an add-on returns Discord to its stock state.
 
-Unbound runs on both iOS and Android through a single native bridge, so the client behaves the same on each without platform-specific code paths. iOS is the primary target; Android is supported.
+Unbound runs on iOS and Android through a single native bridge. iOS is the primary platform, and Android support is at an early stage.
 
-This repository holds the client source. The native loaders that install Unbound onto a device live in separate repositories. To install it, see the sections below.
+This repository contains the client. The native loaders that install Unbound on a device are maintained in separate repositories.
 
 ---
 
 ## Features
 
-- **Add-ons:** plugins, themes, fonts, and icon packs on top of the stock Discord app.
-- **Safe hot-reloading:** add-ons update at runtime without restarting Discord.
-- **Error isolation:** a broken add-on is caught and recorded instead of crashing the app.
-- **Recovery mode:** a reliable path back to a stock Discord when something goes wrong.
-- **Cross-platform:** native iOS and Android through a single bridge, with matching behavior.
-- **Typed SDK:** `@unbound-app/api` gives autocomplete across the entire client API.
+| Feature         | Description                                                             |
+| --------------- | ----------------------------------------------------------------------- |
+| Add-ons         | Plugins, themes, fonts, and icon packs for the stock Discord app.       |
+| Hot reloading   | Add-ons update at runtime without restarting Discord.                   |
+| Error isolation | A failing add-on is caught and recorded instead of crashing the app.    |
+| Recovery mode   | Returns Discord to a working state when an add-on or bundle breaks it.  |
+| Cross-platform  | iOS and Android share one native bridge and behave the same way.        |
+| Typed SDK       | `@unbound-app/api` provides type definitions for the entire client API. |
 
 ---
 
 ## Installation
 
-Follow the loader docs for your platform:
+Follow the [installation guide](https://docs.unbound.rip/user-guide/installing) for your platform:
 
-- **iOS:** [docs.unbound.rip/loader/ios](https://docs.unbound.rip/loader/ios)
-- **Android:** [docs.unbound.rip/loader/android](https://docs.unbound.rip/loader/android)
+| Platform                | Method                                                                      |
+| ----------------------- | --------------------------------------------------------------------------- |
+| iOS without a jailbreak | Sideload with SideStore, Feather, or AltStore, or install the `.ipa` file.  |
+| iOS with a jailbreak    | Install from the `repo.unbound.rip` package repository.                     |
+| Android                 | Xposed module. Support is early, and no official download is available yet. |
 
-If you're new to loaders, start with the [loader introduction](https://docs.unbound.rip/loader/introduction).
+For problems after installation, see [Troubleshooting](https://docs.unbound.rip/user-guide/troubleshooting).
 
 ---
 
 ## Creating Add-ons
 
-Every add-on uses the same [manifest format](https://docs.unbound.rip/addons/manifest) and declares a `type` that tells the client how to load it:
+1. Create a project with the CLI:
 
-- **Plugins** change how Discord behaves, through commands, UI, and patches. They're written against the typed [`@unbound-app/api`](packages/api) SDK and have a `start()` / `stop()` lifecycle that the client runs for you.
-- **Themes** override colors and can set custom backgrounds.
-- **Fonts** register custom font families natively.
-- **Icon packs** replace Discord's built-in assets.
+    ```bash
+    bunx @unbound-app/cli create
+    ```
 
-Scaffold a new add-on with the CLI:
+2. Set the add-on `type` in its [manifest](https://docs.unbound.rip/addons/manifest):
+
+    | Type      | Purpose                                                                                                |
+    | --------- | ------------------------------------------------------------------------------------------------------ |
+    | Plugin    | Changes Discord's behavior through UI and patches. The client runs its `start()` / `stop()` lifecycle. |
+    | Theme     | Overrides colors and can set a custom background.                                                      |
+    | Font      | Registers custom font families natively.                                                               |
+    | Icon pack | Replaces Discord's built-in assets.                                                                    |
+
+3. Build against [`@unbound-app/api`](packages/api) for typed access to `metro`, `storage`, `toasts`, and the rest of the client API.
+
+The [add-on documentation](https://docs.unbound.rip/addons/introduction) covers the manifest, the lifecycle, the SDK, and publishing.
+
+---
+
+## Developing Unbound
+
+Requirements: [Bun](https://bun.sh) and a device or emulator with Unbound installed.
+
+1. Clone the repository and install the dependencies:
+
+    ```bash
+    git clone https://github.com/marioparaschiv/unbound
+    cd unbound
+    bun install
+    ```
+
+2. Start the development server. It rebuilds the bundle on every change and serves it on the local network (port `3000` by default, configurable with `PORT`):
+
+    ```bash
+    bun run --filter @unbound-app/client dev
+    ```
+
+3. Set your Unbound installation's bundle URL to the printed LAN address, then restart Discord. See [Local Builds](https://docs.unbound.rip/development/local-builds) for the exact steps.
+
+To build once without watching for changes, run `build`, then `serve`:
 
 ```bash
-bunx @unbound-app/cli create
+bun run --filter @unbound-app/client build
+bun run --filter @unbound-app/client serve
 ```
 
-Installing `@unbound-app/api` gives you typed access to the client API (`unbound.metro`, `unbound.storage`, `unbound.toasts`, and the rest), with autocomplete for everything it exposes. The [add-on documentation](https://docs.unbound.rip/addons/introduction) covers the manifest, the lifecycle, the SDK, and publishing.
+The [debugger](https://docs.unbound.rip/development/debugging) (`bunx @unbound-app/debugger`) evaluates code and streams logs from the device.
 
 ---
 
 ## Architecture
 
-A platform-specific native loader patches Discord to get JavaScript execution, then injects the client bundle. On boot the client traps Discord's Metro registry (`__r`/`__d`) and wraps every module factory, which gives it a searchable view of Discord's internal modules. Unbound can then look modules up through that Metro layer (`findByProps`, `findByName`, `findStore`) and patch them, both plain functions and React components, using [possess](https://www.npmjs.com/package/possess).
-
-The native side is bidirectional. The client calls into the loader for native capabilities (reload, filesystem, `evaluateBytecode`)
+1. A platform-specific native loader patches Discord to run JavaScript, then injects the client bundle.
+2. On boot, the client traps Discord's Metro registry (`__r`/`__d`) and wraps every module factory. That gives it a searchable view of Discord's internal modules.
+3. Add-ons find modules through the Metro layer (`findByProps`, `findByName`, `findStore`) and patch them, both plain functions and React components, with [possess](https://www.npmjs.com/package/possess).
+4. The client calls into the loader for native capabilities such as reload, the filesystem, and `evaluateBytecode`.
 
 ```mermaid
 flowchart LR
@@ -110,7 +151,9 @@ flowchart LR
     Metro <-->|find / patch| Discord["Discord Internals<br/><i>modules · React UI</i>"]
 ```
 
-The client is the runtime that ships into Discord. Everything else is a small package that supports it.
+The client runs on a single `initialize` / `shutdown` lifecycle. Each manager starts its add-ons on startup and tears them down on shutdown, and settings are saved before the global is cleared.
+
+The client is the runtime that ships into Discord. The remaining packages support it:
 
 | Package                                  | What it is                                                                                       |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -122,43 +165,16 @@ The client is the runtime that ships into Discord. Everything else is a small pa
 | [`packages/utils`](packages/utils)       | Per-file utilities, each imported individually for tree-shaking.                                 |
 | [`packages/types`](packages/types)       | Shared TypeScript types used across the project.                                                 |
 
-The client runs on a single `initialize` / `shutdown` lifecycle. Each manager brings its add-ons up on startup and tears them down on shutdown, and settings are persisted before the global is cleared.
-
----
-
-## Getting Started
-
-You'll need [Bun](https://bun.sh) and an existing Unbound installation on a device or emulator to load your bundle into.
-
-```bash
-git clone https://github.com/marioparaschiv/unbound
-cd unbound
-
-bun install        # install workspace dependencies
-bun run build      # build the bundle once
-bun run dev        # or rebuild automatically on every change
-```
-
-These scripts live in `packages/client`. Run them from that directory, or from the repo root by prefixing them with `bun --filter @unbound-app/client run`.
-
-To test your bundle, serve it over the local network, then point your Unbound installation's custom bundle URL at your machine and restart Discord (see the [docs](https://docs.unbound.rip/loader/local-build) for the exact steps):
-
-```bash
-bun serve [PORT]   # serves ./dist
-```
-
-Repo-wide checks from the root:
-
-```bash
-bun run lint       # oxlint
-bun run fmt        # oxfmt (write); fmt:check to verify
-```
-
 ---
 
 ## Contributing
 
-Contributions are welcome. Before opening a PR, read the [contribution guide](./CONTRIBUTING.md), since formatting and lint rules are enforced. Keep PRs focused, write clear commit messages, make sure the project builds, and stay current with `main`.
+Contributions are welcome. Before opening a PR:
+
+1. Run `bun run lint` and `bun run fmt:check` from the repo root. Both are enforced in CI.
+2. Confirm that the client builds.
+3. Write commit messages in the [Angular convention](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, ...). A commit hook enforces this.
+4. Keep the PR focused and up to date with `main`.
 
 ---
 

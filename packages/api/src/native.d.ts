@@ -15,7 +15,6 @@ export type {
 	NativeFabricFrame,
 	NativeFabricSize,
 	NativeFabricSurface,
-	NativeFiberHandle,
 	NativeHandle,
 	NativeHookContext,
 	NativeHookHandlers,
@@ -29,7 +28,6 @@ export type {
 	NativePluginError,
 	NativePluginErrorCode,
 	NativePointer,
-	NativeReactBridge,
 	NativeStruct,
 	NativeThreadPolicy,
 	NativeViewSearchOptions,
@@ -57,10 +55,6 @@ export declare class NativePluginVersionError extends Error {
 	readonly installedApi: string;
 	readonly requiredApi: string;
 	constructor(requiredApi: string, installedApi: string);
-}
-export declare class NativeReactStaleFiberError extends Error {
-	readonly code = 'NATIVE_REACT_STALE_FIBER';
-	constructor();
 }
 export declare const BundleInfo: BundleInfoType;
 export declare const BundleManager: DCDBundleManagerType;

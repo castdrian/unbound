@@ -4,6 +4,7 @@ import type {
 	NativeCancelablePromise,
 	NativeFabricBridge,
 	NativeFabricSurface,
+	NativeFiberHandle,
 	NativeFFIBridge,
 	NativeHookHandlers,
 	NativeHookOptions,
@@ -13,6 +14,7 @@ import type {
 	NativePlatformBridge,
 	NativePluginBridge,
 	NativePluginCapability,
+	NativeReactBridge,
 	PluginContext,
 	PromiseFn,
 } from '@unbound-app/types';
@@ -30,6 +32,7 @@ export type {
 	NativeFabricFrame,
 	NativeFabricSize,
 	NativeFabricSurface,
+	NativeFiberHandle,
 	NativeFFIBridge,
 	NativeFFISignature,
 	NativeFFIType,
@@ -44,6 +47,7 @@ export type {
 	NativePlatformBridge,
 	NativePluginBridge,
 	NativePluginCapability,
+	NativeReactBridge,
 	NativePluginError,
 	NativePluginErrorCode,
 	NativePointer,
@@ -151,6 +155,11 @@ type AssociationBinding = {
 	key: NativeAssociationKey;
 };
 
+type NativeReactRuntimeBridge = NativeReactBridge & {
+	isSupported?: () => boolean;
+	release?: (fiber: NativeFiberHandle) => void;
+};
+
 const nativePluginGlobal = globalThis as NativePluginRuntimeGlobal;
 const nativePluginBridge = nativePluginGlobal.NativePlugin;
 
@@ -197,6 +206,8 @@ const capabilityRequirements: Record<string, NativePluginCapability> = {
 	fabricMeasureAsync: 'native.fabric.async',
 	fabricUnmount: 'native.fabric.mount',
 	fabricUnmountAsync: 'native.fabric.async',
+	reactGetFiber: 'native.react.remount',
+	reactForceRemount: 'native.react.remount',
 };
 
 export class NativePluginUnavailableError extends Error {
@@ -230,6 +241,14 @@ export class NativePluginDisposedError extends Error {
 
 	constructor() {
 		super('The native plugin scope has been disposed.');
+	}
+}
+
+export class NativeReactStaleFiberError extends Error {
+	readonly code = 'NATIVE_REACT_STALE_FIBER';
+
+	constructor() {
+		super('Fiber handle is no longer active in this plugin scope.');
 	}
 }
 
@@ -289,6 +308,7 @@ function unavailableNativePlugin(): NativePluginBridge {
 	const unavailableObjC = new Proxy({}, { get: () => unavailableMethod }) as NativeObjCBridge;
 	const unavailableFFI = new Proxy({}, { get: () => unavailableMethod }) as NativeFFIBridge;
 	const unavailableFabric = new Proxy({}, { get: () => unavailableMethod }) as NativeFabricBridge;
+	const unavailableReact = new Proxy({}, { get: () => unavailableMethod }) as NativeReactBridge;
 
 	return {
 		apiVersion: '0.0.0',
@@ -297,6 +317,7 @@ function unavailableNativePlugin(): NativePluginBridge {
 		objc: unavailableObjC,
 		ffi: unavailableFFI,
 		fabric: unavailableFabric,
+		react: unavailableReact,
 	};
 }
 
@@ -306,8 +327,11 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 } {
 	const bridge = getNativePlugin() ?? unavailableNativePlugin();
 	const fabricBridge = bridge.fabric ?? unavailableNativePlugin().fabric;
+	const reactBridge: NativeReactRuntimeBridge = bridge.react ?? unavailableNativePlugin().react;
 	const tokens = new Set<NativeHookToken>();
 	const surfaces = new Set<NativeFabricSurface>();
+	const fibers = new Set<NativeFiberHandle>();
+	const pendingRemounts = new Map<NativeFiberHandle, NativeCancelablePromise<void>>();
 	const pendingInvocations = new Set<NativeCancelablePromise<unknown>>();
 	const associations: AssociationBinding[] = [];
 	let disposed = false;
@@ -322,6 +346,14 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			() => pendingInvocations.delete(pending),
 		);
 		return pending;
+	};
+	const releaseFiber = (fiber: NativeFiberHandle): void => {
+		if (!fibers.delete(fiber)) return;
+		try {
+			reactBridge.release?.(fiber);
+		} catch {
+			return;
+		}
 	};
 	const disposeSurface = (surface: NativeFabricSurface): void => {
 		try {
@@ -602,6 +634,56 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 		}) as NativeFabricBridge['unmountAsync'],
 	};
 
+	const react: NativeReactBridge = {
+		getFiber(view) {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.reactGetFiber);
+			if (
+				!bridge.capabilities.includes('native.react.remount') ||
+				!reactBridge.isSupported?.()
+			)
+				throw new NativePluginUnavailableError('React remounting is unavailable.');
+			const pending = trackInvocation(reactBridge.getFiber(view));
+			pending.then(
+				(fiber) => {
+					if (!fiber) return;
+					if (disposed) {
+						fibers.add(fiber);
+						releaseFiber(fiber);
+						return;
+					}
+					if (fibers.size >= 256) {
+						const oldest = fibers.values().next().value;
+						if (oldest) releaseFiber(oldest);
+					}
+					fibers.add(fiber);
+				},
+				() => undefined,
+			);
+			return pending;
+		},
+		forceRemount(fiber) {
+			if (disposed) throw new NativePluginDisposedError();
+			requireCapability(capabilities, capabilityRequirements.reactForceRemount);
+			if (!fibers.has(fiber)) throw new NativeReactStaleFiberError();
+			const existing = pendingRemounts.get(fiber);
+			if (existing) return existing;
+			const pending = trackInvocation(reactBridge.forceRemount(fiber));
+			pendingRemounts.set(fiber, pending);
+			pending.then(
+				() => {
+					pendingRemounts.delete(fiber);
+					releaseFiber(fiber);
+				},
+				() => {
+					pendingRemounts.delete(fiber);
+					releaseFiber(fiber);
+				},
+			);
+			return pending;
+		},
+	};
+
 	return {
 		bridge: {
 			apiVersion: bridge.apiVersion,
@@ -610,16 +692,19 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			objc,
 			ffi,
 			fabric,
+			react,
 		},
 		dispose: () => {
 			if (disposed) return;
 			disposed = true;
 			for (const pending of pendingInvocations) pending.cancel();
 			pendingInvocations.clear();
+			pendingRemounts.clear();
 			for (const token of tokens) token.remove();
 			tokens.clear();
 			for (const surface of surfaces) disposeSurface(surface);
 			surfaces.clear();
+			for (const fiber of fibers) releaseFiber(fiber);
 			for (const binding of associations) {
 				bridge.objc.setAssociatedObject(binding.handle, binding.key, null, 'assign');
 			}
@@ -640,6 +725,11 @@ export function validateNativePluginRequirements(
 		(capability) => !nativePlugin.capabilities.includes(capability),
 	);
 	if (unknown) throw new NativePluginCapabilityError(unknown);
+	if (capabilities.includes('native.react.remount')) {
+		const react = nativePlugin.react as NativeReactRuntimeBridge | undefined;
+		if (!react?.isSupported?.())
+			throw new NativePluginUnavailableError('React remounting is unavailable.');
+	}
 	if (minimumApi && compareVersions(nativePlugin.apiVersion, minimumApi) < 0)
 		throw new NativePluginVersionError(minimumApi, nativePlugin.apiVersion);
 }

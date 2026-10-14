@@ -10,6 +10,7 @@ const removed: string[] = [];
 const cleared: unknown[] = [];
 const unmounted: unknown[] = [];
 const asynchronouslyUnmounted: unknown[] = [];
+const releasedFibers: unknown[] = [];
 const cancelled: string[] = [];
 const viewSearches: unknown[][] = [];
 const sizeHeightFloors: unknown[][] = [];
@@ -26,6 +27,7 @@ const capabilities = [
 	'native.ffi.call',
 	'native.fabric.mount',
 	'native.fabric.async',
+	'native.react.remount',
 ] as const;
 
 const bridge = {
@@ -124,6 +126,18 @@ const bridge = {
 			return Object.assign(Promise.resolve(), { cancel: () => cancelled.push('unmount') });
 		},
 	},
+	react: {
+		isSupported: () => true,
+		getFiber: () =>
+			Object.assign(Promise.resolve({ fiber: true }), {
+				cancel: () => cancelled.push('fiber-lookup'),
+			}),
+		forceRemount: () =>
+			Object.assign(new Promise<void>(() => undefined), {
+				cancel: () => cancelled.push('remount'),
+			}),
+		release: (fiber: unknown) => releasedFibers.push(fiber),
+	},
 };
 
 const manifest: AddonManifest = {
@@ -142,8 +156,13 @@ const manifest: AddonManifest = {
 
 (globalThis as any).NativePlugin = bridge;
 
-const { NativePluginCapabilityError, NativePluginDisposedError, NativePluginVersionError } =
-	await import('~/api/native');
+const {
+	NativePluginCapabilityError,
+	NativePluginDisposedError,
+	NativePluginUnavailableError,
+	NativePluginVersionError,
+	NativeReactStaleFiberError,
+} = await import('~/api/native');
 const { createPluginContext, validateNativePluginRequirements } =
 	await import('~/api/native-runtime');
 
@@ -152,6 +171,7 @@ afterEach(() => {
 	cleared.length = 0;
 	unmounted.length = 0;
 	asynchronouslyUnmounted.length = 0;
+	releasedFibers.length = 0;
 	cancelled.length = 0;
 	sizeHeightFloors.length = 0;
 });
@@ -263,6 +283,150 @@ describe('native plugin capability scopes', () => {
 		expect(asynchronouslyUnmounted).toEqual([surface]);
 		expect(unmounted).toEqual([]);
 		expect(cancelled).toEqual(['measure']);
+	});
+
+	test('scopes Fiber remounts and releases handles on plugin stop', async () => {
+		const denied = createPluginContext({ ...manifest, capabilities: [] });
+		expect(() => denied.native.react.getFiber({})).toThrow(NativePluginCapabilityError);
+
+		const context = createPluginContext({
+			...manifest,
+			capabilities: ['native.react.remount'],
+		});
+		const fiber = await context.native.react.getFiber({});
+		expect(fiber).not.toBeNull();
+		if (!fiber) throw new Error('Expected a Fiber handle');
+		context.native.react.forceRemount(fiber);
+		context.dispose();
+
+		expect(cancelled).toEqual(['remount']);
+		expect(releasedFibers).toEqual([fiber]);
+		expect(() => context.native.react.getFiber({})).toThrow(NativePluginDisposedError);
+	});
+
+	test('rejects Fiber handles from another plugin scope', async () => {
+		const first = createPluginContext({
+			...manifest,
+			capabilities: ['native.react.remount'],
+		});
+		const second = createPluginContext({
+			...manifest,
+			capabilities: ['native.react.remount'],
+		});
+		const fiber = await first.native.react.getFiber({});
+		if (!fiber) throw new Error('Expected a Fiber handle');
+		expect(() => second.native.react.forceRemount(fiber)).toThrow(NativeReactStaleFiberError);
+		first.dispose();
+		second.dispose();
+	});
+
+	test('coalesces concurrent remounts for one scoped Fiber handle', async () => {
+		const context = createPluginContext({
+			...manifest,
+			capabilities: ['native.react.remount'],
+		});
+		const fiber = await context.native.react.getFiber({});
+		if (!fiber) throw new Error('Expected a Fiber handle');
+		const first = context.native.react.forceRemount(fiber);
+		const second = context.native.react.forceRemount(fiber);
+		expect(second).toBe(first);
+		context.dispose();
+		expect(cancelled).toEqual(['remount']);
+	});
+
+	test('forwards direct remount cancellation and releases its Fiber handle', async () => {
+		const forceRemount = bridge.react.forceRemount;
+		let rejectPending: ((error: Error) => void) | undefined;
+		bridge.react.forceRemount = () =>
+			Object.assign(
+				new Promise<void>((_, reject) => {
+					rejectPending = reject;
+				}),
+				{
+					cancel: () => {
+						rejectPending?.(new Error('cancelled'));
+						return cancelled.push('remount');
+					},
+				},
+			);
+		try {
+			const context = createPluginContext({
+				...manifest,
+				capabilities: ['native.react.remount'],
+			});
+			const fiber = await context.native.react.getFiber({});
+			if (!fiber) throw new Error('Expected a Fiber handle');
+			const pending = context.native.react.forceRemount(fiber);
+			pending.cancel();
+			await expect(pending).rejects.toThrow('cancelled');
+			expect(cancelled).toEqual(['remount']);
+			expect(releasedFibers).toEqual([fiber]);
+			context.dispose();
+			expect(cancelled).toEqual(['remount']);
+		} finally {
+			bridge.react.forceRemount = forceRemount;
+		}
+	});
+
+	test('releases a Fiber handle after its remount completes', async () => {
+		const forceRemount = bridge.react.forceRemount;
+		bridge.react.forceRemount = () =>
+			Object.assign(Promise.resolve(), { cancel: () => cancelled.push('remount') });
+		try {
+			const context = createPluginContext({
+				...manifest,
+				capabilities: ['native.react.remount'],
+			});
+			const fiber = await context.native.react.getFiber({});
+			if (!fiber) throw new Error('Expected a Fiber handle');
+			await context.native.react.forceRemount(fiber);
+			expect(releasedFibers).toEqual([fiber]);
+			expect(() => context.native.react.forceRemount(fiber)).toThrow(
+				NativeReactStaleFiberError,
+			);
+			context.dispose();
+			expect(releasedFibers).toEqual([fiber]);
+		} finally {
+			bridge.react.forceRemount = forceRemount;
+		}
+	});
+
+	test('bounds unused Fiber handles within a plugin scope', async () => {
+		const context = createPluginContext({
+			...manifest,
+			capabilities: ['native.react.remount'],
+		});
+		await Promise.all(Array.from({ length: 257 }, () => context.native.react.getFiber({})));
+		expect(releasedFibers).toHaveLength(1);
+		context.dispose();
+		expect(releasedFibers).toHaveLength(257);
+	});
+
+	test('cancels a pending Fiber lookup and releases a late result', async () => {
+		const originalGetFiber = bridge.react.getFiber;
+		const handle = { fiber: true };
+		let resolveLookup: ((fiber: typeof handle) => void) | undefined;
+		bridge.react.getFiber = () =>
+			Object.assign(
+				new Promise<typeof handle>((resolve) => {
+					resolveLookup = resolve;
+				}),
+				{ cancel: () => cancelled.push('fiber-lookup') },
+			);
+		try {
+			const context = createPluginContext({
+				...manifest,
+				capabilities: ['native.react.remount'],
+			});
+			const pending = context.native.react.getFiber({});
+			context.dispose();
+			resolveLookup?.(handle);
+			expect(await pending).toBe(handle);
+			expect(cancelled).toContain('fiber-lookup');
+			expect(releasedFibers).toEqual([handle]);
+		} finally {
+			bridge.react.getFiber = originalGetFiber;
+		}
 	});
 
 	test('removes a surface if its mount resolves after scope disposal', async () => {
@@ -409,6 +573,18 @@ describe('native plugin capability scopes', () => {
 });
 
 describe('native plugin negotiation', () => {
+	test('rejects an unrecognized renderer even on a loader with the capability', () => {
+		const supported = bridge.react.isSupported;
+		bridge.react.isSupported = () => false;
+		try {
+			expect(() => validateNativePluginRequirements(['native.react.remount'])).toThrow(
+				NativePluginUnavailableError,
+			);
+		} finally {
+			bridge.react.isSupported = supported;
+		}
+	});
+
 	test('rejects capabilities that the bridge does not advertise', () => {
 		expect(() =>
 			validateNativePluginRequirements(['native.objc.hooks', 'native.ffi.call'], '1.0.0'),

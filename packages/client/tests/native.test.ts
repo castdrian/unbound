@@ -334,6 +334,40 @@ describe('native plugin capability scopes', () => {
 		expect(cancelled).toEqual(['remount']);
 	});
 
+	test('forwards direct remount cancellation and releases its Fiber handle', async () => {
+		const forceRemount = bridge.react.forceRemount;
+		let rejectPending: ((error: Error) => void) | undefined;
+		bridge.react.forceRemount = () =>
+			Object.assign(
+				new Promise<void>((_, reject) => {
+					rejectPending = reject;
+				}),
+				{
+					cancel: () => {
+						rejectPending?.(new Error('cancelled'));
+						return cancelled.push('remount');
+					},
+				},
+			);
+		try {
+			const context = createPluginContext({
+				...manifest,
+				capabilities: ['native.react.remount'],
+			});
+			const fiber = await context.native.react.getFiber({});
+			if (!fiber) throw new Error('Expected a Fiber handle');
+			const pending = context.native.react.forceRemount(fiber);
+			pending.cancel();
+			await expect(pending).rejects.toThrow('cancelled');
+			expect(cancelled).toEqual(['remount']);
+			expect(releasedFibers).toEqual([fiber]);
+			context.dispose();
+			expect(cancelled).toEqual(['remount']);
+		} finally {
+			bridge.react.forceRemount = forceRemount;
+		}
+	});
+
 	test('releases a Fiber handle after its remount completes', async () => {
 		const forceRemount = bridge.react.forceRemount;
 		bridge.react.forceRemount = () =>

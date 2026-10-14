@@ -372,11 +372,16 @@ export interface NativePluginBridge {
 	readonly objc: NativeObjCBridge;
 	readonly ffi: NativeFFIBridge;
 	readonly fabric: NativeFabricBridge;
+	readonly react: NativeReactBridge;
 }
 export interface NativePluginError {
 	code: NativePluginErrorCode;
 	message: string;
 	capability?: NativePluginCapability;
+}
+export interface NativeReactBridge {
+	getFiber(view: NativeObjectHandle): NativeFiberHandle | null;
+	forceRemount(fiber: NativeFiberHandle): NativeCancelablePromise<void>;
 }
 export interface NativeStruct<T extends object = Record<string, unknown>> extends NativeHandle {
 	readonly name: string;
@@ -787,6 +792,7 @@ export type NativeFFITypeName =
 	| 'class'
 	| 'selector';
 export type NativeFabricSurface = NativeHandle;
+export type NativeFiberHandle = NativeHandle;
 export type NativeHandle = object;
 export type NativeObjectHandle = NativeHandle;
 export type NativePluginCapability =
@@ -801,7 +807,8 @@ export type NativePluginCapability =
 	| 'native.ffi.symbols'
 	| 'native.ffi.call'
 	| 'native.fabric.mount'
-	| 'native.fabric.async';
+	| 'native.fabric.async'
+	| 'native.react.remount';
 export type NativePluginErrorCode =
 	| 'NATIVE_BRIDGE_ERROR'
 	| 'NATIVE_WRONG_THREAD'
@@ -809,7 +816,11 @@ export type NativePluginErrorCode =
 	| 'NATIVE_PLUGIN_API_VERSION_UNSUPPORTED'
 	| 'NATIVE_PLUGIN_CAPABILITY_DENIED'
 	| 'NATIVE_PLUGIN_SCOPE_DISPOSED'
-	| 'NATIVE_PLUGIN_UNAVAILABLE';
+	| 'NATIVE_PLUGIN_UNAVAILABLE'
+	| 'NATIVE_REACT_UNSUPPORTED_RENDERER'
+	| 'NATIVE_REACT_STALE_FIBER'
+	| 'NATIVE_REACT_BUSY'
+	| 'NATIVE_REACT_TIMEOUT';
 export type NativePointer = NativeHandle;
 export type NativeThreadPolicy = 'current' | 'main';
 /** An {@link Addon} whose instance is a {@link Plugin}. */

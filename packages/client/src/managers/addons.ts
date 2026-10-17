@@ -282,8 +282,11 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		if (!resolved) return;
 
 		try {
-			const manifest = await this.fetchManifest(update.manifestUrl);
-			const bundle = await this.fetchBundle(update.bundleUrl);
+			const [manifest, bundle] = await Promise.all([
+				this.fetchManifest(update.manifestUrl),
+				this.fetchBundle(update.bundleUrl),
+			]);
+
 			// `fetchBundle` decodes the body as UTF-8; re-encoding gives back the served bytes for
 			// any valid UTF-8 bundle, and anything else fails closed as a mismatch.
 			const digest = bytesToHex(sha256(utf8ToBytes(bundle)));

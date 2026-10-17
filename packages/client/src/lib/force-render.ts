@@ -44,7 +44,9 @@ function forceRender<T extends unknown[]>(
 	return (...args) => {
 		const dispatcher = (React as ReactWithInternals)
 			.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.H;
-		const originals = { ...dispatcher };
+		const originals = Object.fromEntries(
+			Object.keys(overrides).map((key) => [key, Reflect.get(dispatcher, key)]),
+		);
 
 		Object.assign(dispatcher, overrides);
 

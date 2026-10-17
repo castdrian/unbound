@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+	createPublicBucket,
 	IncompleteVersionError,
 	parseUploadEnv,
 	uploadBuild,
@@ -17,14 +18,7 @@ const env = parseUploadEnv({
 	UNBOUND_VERSION: crypto.randomUUID().replaceAll('-', ''),
 });
 
-const bucket = new Bun.S3Client({
-	endpoint: env.S3_ENDPOINT,
-	region: env.S3_REGION,
-	accessKeyId: env.S3_ACCESS_KEY_ID,
-	secretAccessKey: env.S3_SECRET_ACCESS_KEY,
-	bucket: env.S3_PUBLIC_BUCKET,
-});
-
+const bucket = createPublicBucket(env);
 const dist = mkdtempSync(join(tmpdir(), 'unbound-dist-'));
 const target = { bucket, channel: env.UNBOUND_CHANNEL, version: env.UNBOUND_VERSION };
 const prefix = `unbound/${target.channel}/${target.version}/`;

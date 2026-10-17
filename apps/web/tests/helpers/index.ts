@@ -1,5 +1,6 @@
 export { default as finalizeSubmissionEndpoint } from '~/endpoints/finalize-submission';
 export { default as createSubmissionEndpoint } from '~/endpoints/create-submission';
+export { default as checkUpdatesEndpoint } from '~/endpoints/check-updates';
 export { default as meEndpoint } from '~/endpoints/me';
 export type { AppContext } from '~/lib/context';
 export * as schema from '~/db/schema';

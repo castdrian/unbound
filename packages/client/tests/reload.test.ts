@@ -1,122 +1,16 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { describe, expect, test, beforeEach } from 'bun:test';
+import type { Addon } from '@unbound-app/types';
 
-// The base Addons manager reaches native FS and storage through these modules, which pull in
-// react-native. Stub both so the pure lifecycle logic loads under bun with no device harness.
-const writes: string[] = [];
-const states: Record<string, boolean> = {};
-
-mock.module('~/api/fs', () => ({
-	default: {
-		Documents: '/docs',
-		write: async (path: string) => void writes.push(path),
-		read: async () => '',
-		rm: async () => true,
-		exists: async () => false,
-	},
-}));
-
-mock.module('~/api/storage', () => {
-	const store = {
-		get: <T>(key: string, fallback: T) => (key === 'states' ? states : fallback),
-		set: () => {},
-	};
-
-	return {
-		default: { getStore: () => store, get: <T>(_s: string, _k: string, d: T) => d },
-		getStore: () => store,
-	};
-});
-
-mock.module('react-native', () => ({
-	NativeModules: {},
-	TurboModuleRegistry: { get: () => undefined },
-}));
-
-import type { Addon, AddonManifest, PluginContext } from '@unbound-app/types';
-
-// Loaded dynamically after the mocks above: static imports hoist above `mock.module`, which would let
-// the real react-native-backed fs/storage load before the stubs are registered.
-const { Manager, ManagerType } = await import('~/managers/base');
-const { Addons } = await import('~/managers/addons');
-const { createPluginContext } = await import('~/api/native-runtime');
-
-function makeManifest(id: string): AddonManifest {
-	return {
-		id,
-		name: id,
-		description: 'test',
-		authors: [{ name: 'Mario', id: '1' }],
-		icon: '',
-		updates: '',
-		main: 'index.js',
-		version: '1.0.0',
-		folder: '',
-		path: '',
-		url: '',
-	};
-}
-
-function makeInstance(id: string, log: string[], stopThrows = false) {
-	return {
-		start: () => void log.push(`start:${id}`),
-		stop: () => {
-			log.push(`stop:${id}`);
-
-			if (stopThrows) {
-				throw new Error('teardown blew up');
-			}
-		},
-	};
-}
-
-class FakeAddons extends Addons<Addon> {
-	log: string[] = [];
-	contexts: { disposed: boolean }[] = [];
-	nextStartFails = false;
-	nextInstanceStartFails = false;
-
-	constructor() {
-		super(ManagerType.PLUGINS);
-	}
-
-	initialize() {}
-
-	protected handleBundle(bundle: string) {
-		if (this.nextStartFails) {
-			throw new Error('bundle threw on eval');
-		}
-
-		return {
-			...makeInstance(bundle, this.log),
-			start: () => {
-				this.log.push(`start:${bundle}`);
-
-				if (this.nextInstanceStartFails) {
-					throw new Error('instance start failed');
-				}
-			},
-		};
-	}
-
-	protected get entityType() {
-		return 'plugin' as const;
-	}
-
-	protected createContext(): PluginContext {
-		const state = { disposed: false };
-
-		this.contexts.push(state);
-
-		return {
-			...createPluginContext(makeManifest('test')),
-			dispose: () => void (state.disposed = true),
-		};
-	}
-
-	seed(entity: Addon) {
-		this.entities.set(entity.id, entity);
-	}
-}
+import {
+	Addons,
+	FakeAddons,
+	Manager,
+	makeInstance,
+	makeManifest,
+	resetDevice,
+	states,
+	writes,
+} from './helpers/addons';
 
 class PersistingAddons extends FakeAddons {
 	protected override async persist(bundle: string): Promise<void> {
@@ -129,9 +23,7 @@ class PersistingAddons extends FakeAddons {
 let manager: FakeAddons;
 
 beforeEach(() => {
-	writes.length = 0;
-
-	for (const key of Object.keys(states)) delete states[key];
+	resetDevice();
 
 	manager = new FakeAddons();
 });

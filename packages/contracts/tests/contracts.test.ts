@@ -7,6 +7,7 @@ import {
 } from '../src/publish';
 import { UPDATES_BATCH_LIMIT, updatesRequestSchema, updatesResponseSchema } from '../src/updates';
 import { addonManifestSchema, semverSchema } from '../src/manifest';
+import { reviewSubmissionRequestSchema } from '../src/review';
 import { apiErrorResponseSchema } from '../src/errors';
 
 const manifest = {
@@ -27,8 +28,8 @@ describe('semverSchema', () => {
 		}
 	});
 
-	test('rejects partial, ranged and non-version strings', () => {
-		for (const version of ['1.2', '1.x', '^1.2.3', 'latest', 3]) {
+	test('rejects partial, ranged, prefixed, zero-padded and non-version strings', () => {
+		for (const version of ['1.2', '1.x', '^1.2.3', 'v1.2.3', '=1.2.3', '01.2.3', 'latest', 3]) {
 			expect(semverSchema.safeParse(version).success).toBe(false);
 		}
 	});
@@ -56,6 +57,16 @@ describe('addonManifestSchema', () => {
 			false,
 		);
 		expect(addonManifestSchema.safeParse({ ...manifest, id: '../escape' }).success).toBe(false);
+	});
+
+	test('accepts a main inside the addon and rejects one that leaves it', () => {
+		expect(addonManifestSchema.safeParse({ ...manifest, main: 'dist/index.js' }).success).toBe(
+			true,
+		);
+
+		for (const main of ['../other/index.js', '/index.js', 'https://example.test/index.js']) {
+			expect(addonManifestSchema.safeParse({ ...manifest, main }).success).toBe(false);
+		}
 	});
 
 	test('rejects non-numeric author ids and empty author lists', () => {
@@ -157,6 +168,7 @@ describe('publish contract', () => {
 		status: 'awaiting_upload',
 		repository: null,
 		unverifiedSource: true,
+		review: null,
 	};
 
 	test('parses a create request with an optional repository', () => {
@@ -208,6 +220,30 @@ describe('publish contract', () => {
 			finalizeSubmissionResponseSchema.safeParse({
 				submission: { ...submission, status: 'queued' },
 			}).success,
+		).toBe(false);
+	});
+});
+
+describe('reviewSubmissionRequestSchema', () => {
+	test('approval takes an optional note; rejection and requested changes need one', () => {
+		expect(reviewSubmissionRequestSchema.safeParse({ decision: 'approved' }).success).toBe(
+			true,
+		);
+
+		for (const decision of ['rejected', 'changes_requested']) {
+			expect(reviewSubmissionRequestSchema.safeParse({ decision }).success).toBe(false);
+			expect(reviewSubmissionRequestSchema.safeParse({ decision, note: '  ' }).success).toBe(
+				false,
+			);
+			expect(reviewSubmissionRequestSchema.parse({ decision, note: ' Why. ' }).note).toBe(
+				'Why.',
+			);
+		}
+	});
+
+	test('rejects a decision that is not a review outcome', () => {
+		expect(
+			reviewSubmissionRequestSchema.safeParse({ decision: 'superseded', note: 'x' }).success,
 		).toBe(false);
 	});
 });

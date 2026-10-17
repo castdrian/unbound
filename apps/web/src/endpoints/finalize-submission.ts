@@ -2,25 +2,22 @@ import {
 	finalizeSubmissionRequestSchema,
 	finalizeSubmissionResponseSchema,
 } from '@unbound-app/contracts/publish';
+import { z } from 'zod';
 
+import endpoint, { requireParam } from '~/lib/api/endpoint';
 import { finalizeSubmission } from '~/lib/submissions';
 import { requireCaller } from '~/lib/api/caller';
-import { ApiError } from '~/lib/api/errors';
-import endpoint from '~/lib/api/endpoint';
 
 const finalizeSubmissionEndpoint = endpoint(
 	{
 		body: finalizeSubmissionRequestSchema.optional(),
+		query: z.undefined(),
 		response: finalizeSubmissionResponseSchema,
 	},
 	async ({ ctx, request, params }) => {
 		const caller = await requireCaller(ctx, request.headers);
 
-		if (!params.id) {
-			throw new ApiError('invalid_request', 'A submission id is required.');
-		}
-
-		return finalizeSubmission(ctx, caller, params.id);
+		return finalizeSubmission(ctx, caller, requireParam(params, 'id'));
 	},
 );
 

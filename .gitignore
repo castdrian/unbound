@@ -94,6 +94,9 @@ jspm_packages/
 .nuxt
 dist
 
+# TanStack Start build cache
+.tanstack
+
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and *not* Next.js

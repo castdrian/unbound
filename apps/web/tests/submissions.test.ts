@@ -1,12 +1,11 @@
 import { createSubmissionResponseSchema } from '@unbound-app/contracts/publish';
 import type { CreateSubmissionRequest } from '@unbound-app/contracts/publish';
-import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import { apiErrorResponseSchema } from '@unbound-app/contracts/errors';
 import { afterAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
-import { addon, addonMaintainer, addonVersion, submission, user } from '~/db/schema';
 import createSubmissionEndpoint from '~/endpoints/create-submission';
+import { addonMaintainer, submission, user } from '~/db/schema';
 import type { AppContext } from '~/lib/context';
 import { API_KEY_HEADER } from '~/api/client';
 
@@ -19,6 +18,7 @@ import {
 	signInWithDiscord,
 	snowflakeAt,
 } from './helpers/context';
+import { manifest, seedApprovedAddon } from './helpers/addons';
 
 const NOW = new Date('2026-10-17T12:00:00.000Z');
 const DAY_MS = 86_400_000;
@@ -57,17 +57,6 @@ type SubmitRequest = Partial<CreateSubmissionRequest> & Pick<CreateSubmissionReq
 
 let users = 0;
 
-function manifest(id: string, version: string = '1.0.0'): PublishedManifest {
-	return {
-		id,
-		name: 'Hello',
-		description: 'Says hello.',
-		authors: [{ name: 'Mario', id: '1234567890' }],
-		version,
-		main: 'index.js',
-	};
-}
-
 async function signUp(target: AppContext = ctx, accountAgeDays: number = 365) {
 	users += 1;
 
@@ -99,39 +88,6 @@ async function refused(response: Response) {
 	const { error } = apiErrorResponseSchema.parse(await response.json());
 
 	return { status: response.status, code: error.code };
-}
-
-// Stands in for the review slice approving a first listing.
-async function seedApprovedAddon(ownerId: string, id: string, version: string = '1.0.0') {
-	const submissionId = crypto.randomUUID();
-
-	await ctx.db.insert(submission).values({
-		id: submissionId,
-		addonId: id,
-		authorId: ownerId,
-		kind: 'listing',
-		status: 'approved',
-		version,
-		manifest: manifest(id, version),
-		bundleSize: 1024,
-		stagingKey: `submissions/${submissionId}/bundle`,
-		uploadExpiresAt: new Date(0),
-		sha256: 'a'.repeat(64),
-		createdAt: new Date(0),
-	});
-
-	await ctx.db.insert(addon).values({ id });
-	await ctx.db.insert(addonMaintainer).values({ addonId: id, userId: ownerId, role: 'owner' });
-	await ctx.db.insert(addonVersion).values({
-		addonId: id,
-		version,
-		submissionId,
-		manifest: manifest(id, version),
-		bundleSize: 1024,
-		sha256: 'a'.repeat(64),
-	});
-
-	await ctx.db.update(user).set({ role: 'developer' }).where(eq(user.id, ownerId));
 }
 
 describe('authentication', () => {
@@ -183,6 +139,7 @@ describe('new listings', () => {
 			status: 'awaiting_upload',
 			repository: null,
 			unverifiedSource: true,
+			review: null,
 		});
 
 		expect(result.upload.method).toBe('PUT');
@@ -283,7 +240,7 @@ describe('updates', () => {
 		const owner = await signUp();
 		const stranger = await signUp();
 
-		await seedApprovedAddon(owner.userId, 'update.foreign');
+		await seedApprovedAddon(ctx, owner.userId, manifest('update.foreign'));
 
 		const response = await submit(stranger.headers, {
 			manifest: manifest('update.foreign', '1.1.0'),
@@ -296,7 +253,7 @@ describe('updates', () => {
 		const owner = await signUp();
 		const maintainer = await signUp();
 
-		await seedApprovedAddon(owner.userId, 'update.pending');
+		await seedApprovedAddon(ctx, owner.userId, manifest('update.pending'));
 		await ctx.db.insert(addonMaintainer).values({
 			addonId: 'update.pending',
 			userId: maintainer.userId,
@@ -319,7 +276,7 @@ describe('updates', () => {
 	test('refuses a version the addon already has', async () => {
 		const owner = await signUp();
 
-		await seedApprovedAddon(owner.userId, 'update.existing');
+		await seedApprovedAddon(ctx, owner.userId, manifest('update.existing'));
 
 		const response = await submit(owner.headers, { manifest: manifest('update.existing') });
 

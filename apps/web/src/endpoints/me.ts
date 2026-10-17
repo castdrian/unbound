@@ -6,7 +6,7 @@ import { DEFAULT_ROLE } from '~/lib/auth/access';
 import endpoint from '~/lib/api/endpoint';
 
 const me = endpoint(
-	{ body: z.undefined(), response: meResponseSchema },
+	{ body: z.undefined(), query: z.undefined(), response: meResponseSchema },
 	async ({ ctx, request }) => {
 		const { user } = await requireCaller(ctx, request.headers);
 

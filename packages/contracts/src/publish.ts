@@ -12,6 +12,10 @@ export const submissionStatusSchema = z.enum([
 	'approved',
 	'rejected',
 	'superseded',
+	/** The upload reservation lapsed without being finalized. */
+	'expired',
+	/** Closed without review because the author was banned. */
+	'cancelled',
 ]);
 
 /** Statuses that keep a submission in the queue: they hold a listing's addon id and count towards the pending caps. */
@@ -29,6 +33,20 @@ export const repositorySchema = z
 		'Must be a GitHub owner/name.',
 	);
 
+/** The statuses a reviewer's decision moves a pending submission to. */
+export const reviewDecisionSchema = submissionStatusSchema.extract([
+	'approved',
+	'rejected',
+	'changes_requested',
+]);
+
+export const submissionReviewSchema = z.object({
+	decision: reviewDecisionSchema,
+	/** The rejection reason or requested changes; optional only on approval. */
+	note: z.string().nullable(),
+	reviewedAt: z.iso.datetime(),
+});
+
 export const submissionSchema = z.object({
 	id: z.string().min(1),
 	addonId: addonIdSchema,
@@ -38,6 +56,8 @@ export const submissionSchema = z.object({
 	repository: repositorySchema.nullable(),
 	/** No repository was named, so reviewers cannot tie the artifact to source the author controls. */
 	unverifiedSource: z.boolean(),
+	/** The reviewer's decision, once one was made. */
+	review: submissionReviewSchema.nullable(),
 });
 
 /**
@@ -74,6 +94,8 @@ export const finalizeSubmissionResponseSchema = z.object({
 export type SubmissionKind = z.infer<typeof submissionKindSchema>;
 export type SubmissionStatus = z.infer<typeof submissionStatusSchema>;
 export type OpenSubmissionStatus = z.infer<typeof openSubmissionStatusSchema>;
+export type ReviewDecision = z.infer<typeof reviewDecisionSchema>;
+export type SubmissionReview = z.infer<typeof submissionReviewSchema>;
 export type Submission = z.infer<typeof submissionSchema>;
 export type CreateSubmissionRequest = z.infer<typeof createSubmissionRequestSchema>;
 export type SubmissionUpload = z.infer<typeof submissionUploadSchema>;
@@ -86,6 +108,8 @@ export default {
 	submissionStatusSchema,
 	openSubmissionStatusSchema,
 	repositorySchema,
+	reviewDecisionSchema,
+	submissionReviewSchema,
 	submissionSchema,
 	createSubmissionRequestSchema,
 	submissionUploadSchema,

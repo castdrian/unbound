@@ -6,9 +6,14 @@ import {
 	uniqueIndex,
 	primaryKey,
 } from 'drizzle-orm/sqlite-core';
-import type { SubmissionKind, SubmissionStatus } from '@unbound-app/contracts/publish';
+import type {
+	ReviewDecision,
+	SubmissionKind,
+	SubmissionStatus,
+} from '@unbound-app/contracts/publish';
 import { openSubmissionStatusSchema } from '@unbound-app/contracts/publish';
 import type { PublishedManifest } from '@unbound-app/contracts/manifest';
+import type { MaintainerRole } from '@unbound-app/contracts/addons';
 import { defineRelationsPart, sql } from 'drizzle-orm';
 
 import { user } from './auth';
@@ -34,7 +39,7 @@ export const addonMaintainer = sqliteTable(
 		userId: text('user_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
-		role: text('role', { enum: ['owner', 'maintainer'] }).notNull(),
+		role: text('role').$type<MaintainerRole>().notNull(),
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
@@ -68,12 +73,15 @@ export const submission = sqliteTable(
 		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 		submittedAt: integer('submitted_at', { mode: 'timestamp_ms' }),
 		reviewerId: text('reviewer_id').references(() => user.id, { onDelete: 'set null' }),
+		reviewDecision: text('review_decision').$type<ReviewDecision>(),
 		reviewedAt: integer('reviewed_at', { mode: 'timestamp_ms' }),
 		reviewNote: text('review_note'),
 	},
 	(table) => [
 		index('submission_addonId_status_idx').on(table.addonId, table.status),
 		index('submission_authorId_createdAt_idx').on(table.authorId, table.createdAt),
+		// The review queue and the staging sweeper's lapsed reservations.
+		index('submission_status_submittedAt_idx').on(table.status, table.submittedAt),
 		// An open listing is the claim on its addon id.
 		uniqueIndex('submission_listing_claim_uidx')
 			.on(table.addonId)
@@ -89,6 +97,10 @@ export const addonVersion = sqliteTable(
 			.notNull()
 			.references(() => addon.id, { onDelete: 'cascade' }),
 		version: text('version').notNull(),
+		/** `version` encoded so string order is semver precedence; see `toVersionKey`. */
+		versionKey: text('version_key').notNull(),
+		/** The key of the manifest's `unbound.min`, or `''` when it sets none. */
+		minClientKey: text('min_client_key').notNull(),
 		submissionId: text('submission_id')
 			.notNull()
 			.references(() => submission.id),
@@ -100,7 +112,11 @@ export const addonVersion = sqliteTable(
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
 	},
-	(table) => [primaryKey({ columns: [table.addonId, table.version] })],
+	(table) => [
+		primaryKey({ columns: [table.addonId, table.version] }),
+		// An addon's newest version, read in version order without sorting.
+		index('addon_version_addonId_versionKey_idx').on(table.addonId, table.versionKey),
+	],
 );
 
 export const addonRelations = defineRelationsPart(

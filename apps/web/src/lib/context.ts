@@ -22,11 +22,13 @@ export type AppContext = {
  * @returns The application context.
  */
 export function createAppContext(env: Env, db: Database): AppContext {
+	const storage = createStorage(env);
+
 	return {
 		env,
 		db,
-		auth: createAuth(db, env),
-		storage: createStorage(env),
+		auth: createAuth(db, env, storage),
+		storage,
 		now: () => new Date(),
 	};
 }

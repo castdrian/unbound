@@ -1,26 +1,57 @@
 import { drizzleAdapter } from '@better-auth/drizzle-adapter/relations-v2';
+import type { Auth as BetterAuth, BetterAuthOptions } from 'better-auth';
 import { admin, bearer, deviceAuthorization } from 'better-auth/plugins';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
+import type { AdminOptions } from 'better-auth/plugins';
+import { createLogger } from '@unbound-app/logger';
 import { apiKey } from '@better-auth/api-key';
 import { betterAuth } from 'better-auth';
 
 import { API_KEY_HEADER, CLI_CLIENT_ID } from '~/api/client';
 import { DEFAULT_ROLE, ac, roles } from '~/lib/auth/access';
+import { purgeUserSubmissions } from '~/lib/staging';
 import type { Database } from '~/db/database';
+import type { Storage } from '~/lib/storage';
 import * as schema from '~/db/schema';
 import type { Env } from '~/lib/env';
 
+const logger = createLogger('Web', 'Auth');
+
 export const DEVICE_VERIFICATION_PATH = '/device';
+
+const adminOptions = {
+	ac,
+	roles,
+	defaultRole: DEFAULT_ROLE,
+	adminRoles: ['admin'],
+} satisfies AdminOptions;
+
+type AuthPlugins = [
+	ReturnType<typeof admin<typeof adminOptions>>,
+	ReturnType<typeof bearer>,
+	ReturnType<typeof deviceAuthorization>,
+	ReturnType<typeof apiKey>,
+];
+
+// Named so declaration emit can reference it; the inferred options type is too large to serialize.
+type AuthOptions = Omit<BetterAuthOptions, 'plugins'> & {
+	plugins: AuthPlugins;
+};
+
+export type Auth = BetterAuth<AuthOptions>;
+export type Session = Auth['$Infer']['Session'];
 
 /**
  * @description Builds the Better Auth instance: Discord is the only sign-up path, GitHub can only be
  * linked to an existing session, and the CLI authenticates through device authorization or API keys.
+ * Banning a user cancels their open submissions and deletes their staged files.
  * @param db The database the auth tables live in.
  * @param env The validated environment.
+ * @param storage The object storage, for purging a banned user's staged files.
  * @returns The configured Better Auth instance.
  */
-export function createAuth(db: Database, env: Env) {
-	return betterAuth({
+export function createAuth(db: Database, env: Env, storage: Storage): Auth {
+	const options: AuthOptions = {
 		appName: 'Unbound',
 		baseURL: env.PUBLIC_URL,
 		secret: env.BETTER_AUTH_SECRET,
@@ -57,6 +88,26 @@ export function createAuth(db: Database, env: Env) {
 				ipAddressHeaders: [env.IP_ADDRESS_HEADER],
 			},
 		},
+		databaseHooks: {
+			user: {
+				update: {
+					// The admin plugin's ban is a user update; purging here also covers bans made outside it.
+					after: async (updated) => {
+						if (updated.banned !== true) return;
+
+						try {
+							await purgeUserSubmissions({ db, storage }, updated.id);
+						} catch (error) {
+							// The submissions are cancelled first, so the staging sweeper reaps what is left.
+							logger.error(
+								`Failed to purge the staged files of banned user ${updated.id}:`,
+								error,
+							);
+						}
+					},
+				},
+			},
+		},
 		hooks: {
 			before: createAuthMiddleware(async (ctx) => {
 				if (ctx.path !== '/sign-in/social' || ctx.body?.provider !== 'github') return;
@@ -67,7 +118,7 @@ export function createAuth(db: Database, env: Env) {
 			}),
 		},
 		plugins: [
-			admin({ ac, roles, defaultRole: DEFAULT_ROLE, adminRoles: ['admin'] }),
+			admin(adminOptions),
 			bearer(),
 			deviceAuthorization({
 				verificationUri: DEVICE_VERIFICATION_PATH,
@@ -82,10 +133,9 @@ export function createAuth(db: Database, env: Env) {
 				},
 			}),
 		],
-	});
-}
+	};
 
-export type Auth = ReturnType<typeof createAuth>;
-export type Session = Auth['$Infer']['Session'];
+	return betterAuth(options);
+}
 
 export default { DEVICE_VERIFICATION_PATH, createAuth };

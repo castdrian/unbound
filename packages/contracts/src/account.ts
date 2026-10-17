@@ -1,9 +1,13 @@
 import { z } from 'zod';
 
-export const callerSchema = z.object({
+/** A user as other users see them, e.g. a submitter or a maintainer. */
+export const userSummarySchema = z.object({
 	id: z.string().min(1),
 	name: z.string(),
 	image: z.string().nullable(),
+});
+
+export const callerSchema = userSummarySchema.extend({
 	role: z.string(),
 });
 
@@ -12,7 +16,8 @@ export const meResponseSchema = z.object({
 	user: callerSchema,
 });
 
+export type UserSummary = z.infer<typeof userSummarySchema>;
 export type Caller = z.infer<typeof callerSchema>;
 export type MeResponse = z.infer<typeof meResponseSchema>;
 
-export default { callerSchema, meResponseSchema };
+export default { userSummarySchema, callerSchema, meResponseSchema };

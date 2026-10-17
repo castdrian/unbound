@@ -1,0 +1,206 @@
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
+import { apiErrorResponseSchema } from '@unbound-app/contracts/errors';
+import { updatesResponseSchema } from '@unbound-app/contracts/updates';
+import type { UpdatesRequest } from '@unbound-app/contracts/updates';
+import { eq } from 'drizzle-orm';
+
+import { findUpdates, newestCompatibleVersions } from '~/lib/updates';
+import checkUpdatesEndpoint from '~/endpoints/check-updates';
+import type { AppContext } from '~/lib/context';
+import { addon } from '~/db/schema';
+
+import { manifest, seedApprovedAddon, seedSubmission, seedVersion } from './helpers/addons';
+import { createTestContext, signInWithDiscord } from './helpers/context';
+
+type PlanStep = {
+	detail: string;
+};
+
+const NOW = new Date('2026-10-17T12:00:00.000Z');
+
+const base = createTestContext();
+const ctx: AppContext = { ...base.ctx, now: () => NOW };
+
+afterAll(base.close);
+
+let ownerId = '';
+
+beforeAll(async () => {
+	({ userId: ownerId } = await signInWithDiscord(ctx, {
+		id: '80351110224678920',
+		name: 'Owner',
+		email: 'owner@example.com',
+	}));
+
+	await seedApprovedAddon(ctx, ownerId, manifest('up.newer', '1.0.0'));
+	await seedVersion(ctx, ownerId, manifest('up.newer', '1.1.0'));
+	await seedVersion(ctx, ownerId, manifest('up.newer', '1.10.0'));
+	await seedVersion(ctx, ownerId, manifest('up.newer', '1.2.0'));
+
+	await seedApprovedAddon(ctx, ownerId, manifest('up.compat', '1.0.0'));
+	await seedVersion(ctx, ownerId, manifest('up.compat', '1.1.0', { unbound: { min: '2.0.0' } }));
+	await seedVersion(ctx, ownerId, manifest('up.compat', '2.0.0', { unbound: { min: '3.0.0' } }));
+
+	await seedApprovedAddon(ctx, ownerId, manifest('up.current', '1.0.0'));
+
+	await seedApprovedAddon(ctx, ownerId, manifest('up.delisted', '1.0.0'));
+	await seedVersion(ctx, ownerId, manifest('up.delisted', '1.1.0'));
+	await ctx.db.update(addon).set({ delistedAt: NOW }).where(eq(addon.id, 'up.delisted'));
+
+	await seedApprovedAddon(ctx, ownerId, manifest('up.unapproved', '1.0.0'));
+	await seedSubmission(ctx, ownerId, manifest('up.unapproved', '1.1.0'), { kind: 'update' });
+});
+
+// Malformed bodies still fit the type: the schema refuses their values, not their shape.
+function check(body: UpdatesRequest, target: AppContext = ctx, ip: string = '203.0.113.1') {
+	return checkUpdatesEndpoint.handle(
+		target,
+		new Request(new URL('/api/v1/updates', target.env.PUBLIC_URL), {
+			method: 'POST',
+			headers: { [target.env.IP_ADDRESS_HEADER]: ip },
+			body: JSON.stringify(body),
+		}),
+	);
+}
+
+async function updatesFor(request: UpdatesRequest) {
+	const response = await check(request);
+
+	expect(response.status).toBe(200);
+
+	return updatesResponseSchema.parse(await response.json()).updates;
+}
+
+async function refused(response: Response) {
+	const { error } = apiErrorResponseSchema.parse(await response.json());
+
+	return { status: response.status, code: error.code };
+}
+
+describe('POST /api/v1/updates', () => {
+	test('returns the newest newer version by semver, with CDN URLs', async () => {
+		const updates = await updatesFor({
+			clientVersion: '1.0.0',
+			addons: [{ id: 'up.newer', version: '1.0.0' }],
+		});
+
+		const row = await ctx.db.query.addonVersion.findFirst({
+			where: { addonId: 'up.newer', version: '1.10.0' },
+		});
+
+		expect(updates).toEqual([
+			{
+				id: 'up.newer',
+				version: '1.10.0',
+				manifestUrl: `${ctx.env.CDN_URL}/addons/up.newer/1.10.0/manifest.json`,
+				bundleUrl: `${ctx.env.CDN_URL}/addons/up.newer/1.10.0/index.js`,
+				sha256: row?.sha256 ?? '',
+				changelog: 'Changes in 1.10.0.',
+			},
+		]);
+	});
+
+	test('skips versions that need a newer client for an older compatible one', async () => {
+		const request = (clientVersion: string) =>
+			updatesFor({ clientVersion, addons: [{ id: 'up.compat', version: '1.0.0' }] });
+
+		expect((await request('1.9.0')).map((update) => update.version)).toEqual([]);
+		expect((await request('2.5.0')).map((update) => update.version)).toEqual(['1.1.0']);
+		expect((await request('3.0.0')).map((update) => update.version)).toEqual(['2.0.0']);
+	});
+
+	test('omits up-to-date, ahead, unknown, delisted and unapproved addons', async () => {
+		const updates = await updatesFor({
+			clientVersion: '9.0.0',
+			addons: [
+				{ id: 'up.current', version: '1.0.0' },
+				{ id: 'up.newer', version: '2.0.0' },
+				{ id: 'up.unknown', version: '1.0.0' },
+				{ id: 'up.delisted', version: '1.0.0' },
+				{ id: 'up.unapproved', version: '1.0.0' },
+			],
+		});
+
+		expect(updates).toEqual([]);
+	});
+
+	test('rejects a malformed body and an oversize batch with invalid_request', async () => {
+		const oversize = Array.from({ length: 501 }, (_, index) => ({
+			id: `addon-${index}`,
+			version: '1.0.0',
+		}));
+
+		expect(await refused(await check({ clientVersion: 'latest', addons: [] }))).toEqual({
+			status: 400,
+			code: 'invalid_request',
+		});
+		expect(await refused(await check({ clientVersion: '1.0.0', addons: oversize }))).toEqual({
+			status: 400,
+			code: 'invalid_request',
+		});
+	});
+
+	test('rate limits each client IP within UPDATES_RATE_LIMIT_WINDOW_SECONDS', async () => {
+		const limited = createTestContext({ UPDATES_RATE_LIMIT_MAX: '2' });
+		let clock = NOW;
+		const target: AppContext = { ...limited.ctx, now: () => clock };
+		const body = { clientVersion: '1.0.0', addons: [] };
+
+		try {
+			expect((await check(body, target)).status).toBe(200);
+			expect((await check(body, target)).status).toBe(200);
+			expect(await refused(await check(body, target))).toEqual({
+				status: 429,
+				code: 'rate_limited',
+			});
+			expect((await check(body, target, '203.0.113.2')).status).toBe(200);
+
+			clock = new Date(NOW.getTime() + target.env.UPDATES_RATE_LIMIT_WINDOW_SECONDS * 1000);
+
+			expect((await check(body, target)).status).toBe(200);
+		} finally {
+			limited.close();
+		}
+	});
+});
+
+describe('findUpdates', () => {
+	const request: UpdatesRequest = {
+		clientVersion: '2.0.0',
+		addons: [
+			{ id: 'up.newer', version: '1.0.0' },
+			{ id: 'up.compat', version: '1.0.0' },
+			{ id: 'up.current', version: '1.0.0' },
+		],
+	};
+
+	test('resolves the whole batch in one statement', async () => {
+		// Drizzle's bun:sqlite session prepares every statement through `query`.
+		const statements = spyOn(ctx.db.$client, 'query');
+
+		try {
+			const { updates } = await findUpdates(ctx, request);
+
+			expect(updates.map((update) => update.id)).toEqual(['up.compat', 'up.newer']);
+			expect(statements).toHaveBeenCalledTimes(1);
+		} finally {
+			statements.mockRestore();
+		}
+	});
+
+	test('reads only the listed addons through an index, never a table scan', () => {
+		const { sql, params } = newestCompatibleVersions(ctx, request).toSQL();
+		// Every parameter of this query is a string: addon ids and version keys.
+		const plan = ctx.db.$client
+			.query<PlanStep, string[]>(`EXPLAIN QUERY PLAN ${sql}`)
+			.all(...params.map(String))
+			.map((step) => step.detail);
+
+		expect(plan).toContainEqual(
+			expect.stringMatching(
+				/^SEARCH addon_version USING (COVERING )?INDEX \S+ \(addon_id=\?/,
+			),
+		);
+		expect(plan).not.toContainEqual(expect.stringMatching(/^SCAN/));
+	});
+});

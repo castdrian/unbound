@@ -37,7 +37,7 @@
     },
     "apps/web": {
       "name": "@unbound-app/web",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "dependencies": {
         "@better-auth/api-key": "1.7.10",
         "@better-auth/drizzle-adapter": "1.7.10",
@@ -101,7 +101,7 @@
     },
     "packages/cli": {
       "name": "@unbound-app/cli",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "bin": {
         "ubd": "src/index.ts",
       },
@@ -201,7 +201,7 @@
     },
     "packages/contracts": {
       "name": "@unbound-app/contracts",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "dependencies": {
         "@unbound-app/types": "workspace:*",
         "zod": "^4.0.0",

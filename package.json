@@ -10,6 +10,8 @@
 			"packages/types",
 			"packages/api",
 			"apps/sdk-generator",
+			"apps/web",
+			"packages/contracts",
 			"packages/plugin-test",
 			"packages/utils",
 			"packages/logger",
@@ -25,7 +27,9 @@
 		"catalogs": {
 			"react": {
 				"@types/react": "^19.2.7",
-				"react": "^19.2.3",
+				"@types/react-dom": "^19.2.3",
+				"react": "^19.3.1",
+				"react-dom": "^19.3.1",
 				"react-native": "^0.83.0"
 			}
 		}
@@ -33,6 +37,7 @@
 	"scripts": {
 		"prepare": "lefthook install --reset-hooks-path",
 		"generate-sdk": "bun apps/sdk-generator/src/index.ts",
+		"test:s3": "bun scripts/test-s3.ts",
 		"lint": "bun run lint:rules && oxlint --config .oxlintrc.json --type-aware apps packages",
 		"lint:fix": "bun run lint:rules && oxlint --config .oxlintrc.json --type-aware --fix-dangerously apps packages",
 		"lint:rules": "oxc-config-check .oxlintrc.json",

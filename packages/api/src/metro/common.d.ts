@@ -21,3 +21,5 @@ export declare const Util: any;
 export declare const i18n: any;
 
 export { Clipboard$1 as Clipboard, React$1 as React, ReactNative$1 as ReactNative };
+
+export {};

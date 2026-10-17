@@ -29,9 +29,10 @@ export type {
 	NativeThreadPolicy,
 	PluginContext,
 } from './_internal';
-import type { NativePlatformBridge, NativePluginCapability } from './_internal';
 import type { Fn, PromiseFn } from './utils';
+import type { NativePlatformBridge, NativePluginCapability } from './_internal';
 declare const NativePlatform$1: NativePlatformBridge | undefined;
+
 export declare class NativePluginCapabilityError extends Error {
 	readonly code = 'NATIVE_PLUGIN_CAPABILITY_DENIED';
 	readonly capability: NativePluginCapability;
@@ -74,7 +75,6 @@ export declare function getRuntimeProperties(): Record<string, any>;
  * @description Persists pending settings to storage, then reloads the native bundle.
  */
 export declare function reload(): Promise<void>;
-
 /** Build and release metadata reported by the native client info module. */
 export interface BundleInfoType {
 	Version: string;
@@ -142,3 +142,5 @@ export interface DeviceInfoType {
 /** The text encodings accepted by the native `DCDFileManager` read/write operations. */
 export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
 export { NativePlatform$1 as NativePlatform };
+
+export {};

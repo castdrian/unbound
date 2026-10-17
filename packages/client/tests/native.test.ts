@@ -103,8 +103,10 @@ describe('native plugin capability scopes', () => {
 	test('denies operations that are outside the declared scope', () => {
 		const context = createPluginContext({ ...manifest, capabilities: ['native.objc.classes'] });
 
+		const handle = context.native.objc.alloc('NSObject');
+
 		expect(context.manifest.id).toBe('test');
-		expect(() => context.native.objc.invoke({}, 'description', [])).toThrow(
+		expect(() => context.native.objc.invoke(handle, 'description', [])).toThrow(
 			NativePluginCapabilityError,
 		);
 	});
@@ -123,9 +125,9 @@ describe('native plugin capability scopes', () => {
 	test('clears associations and denies calls after disposal', () => {
 		const context = createPluginContext({
 			...manifest,
-			capabilities: ['native.objc.associations'],
+			capabilities: ['native.objc.classes', 'native.objc.associations'],
 		});
-		const handle = {};
+		const handle = context.native.objc.alloc('NSObject');
 		const key = context.native.objc.createAssociationKey();
 
 		context.native.objc.setAssociatedObject(handle, key, { value: true });
@@ -141,8 +143,14 @@ describe('native plugin capability scopes', () => {
 	});
 
 	test('disposes Fabric surfaces owned by a plugin context', () => {
-		const context = createPluginContext({ ...manifest, capabilities: ['native.fabric.mount'] });
-		const surface = context.native.fabric.mount({}, 'TestSurface');
+		const context = createPluginContext({
+			...manifest,
+			capabilities: ['native.objc.classes', 'native.fabric.mount'],
+		});
+		const surface = context.native.fabric.mount(
+			context.native.objc.alloc('UIView'),
+			'TestSurface',
+		);
 
 		context.dispose();
 

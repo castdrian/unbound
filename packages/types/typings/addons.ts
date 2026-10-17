@@ -2,6 +2,11 @@ import type { ReactNode } from 'react';
 
 import type { NativePluginCapability, PluginContext } from './native';
 
+/** The kinds of addon a manifest can declare. */
+export const ADDON_TYPES = ['plugin', 'theme', 'icon-pack', 'font'] as const;
+
+export type AddonType = (typeof ADDON_TYPES)[number];
+
 /** The author of an addon: a display name and a numeric user id. */
 export type AddonAuthor = {
 	name: string;
@@ -9,10 +14,10 @@ export type AddonAuthor = {
 };
 
 /** The manifest describing an addon's metadata, entry point, and source. */
-export interface AddonManifest {
+export type AddonManifest = {
 	id: string;
 	/** The addon kind this manifest describes; used to validate installs. */
-	type?: 'plugin' | 'theme' | 'icon-pack' | 'font';
+	type?: AddonType;
 	name: string;
 	description: string;
 	authors: AddonAuthor[];
@@ -25,18 +30,24 @@ export interface AddonManifest {
 	url: string;
 	capabilities?: NativePluginCapability[];
 	minNativePluginApi?: string;
-}
+	/** Requirements on the Unbound client running the addon. */
+	unbound?: {
+		/** The minimum Unbound client version (semver) the addon supports. */
+		min?: string;
+	};
+};
 
 /** A loaded addon entity: its runtime state, instance, source bundle, and {@link AddonManifest}. */
-export interface Addon {
+export type Addon = {
 	started: boolean;
-	instance: any;
+	/** What the bundle evaluated to. Every addon kind may implement the {@link Plugin} lifecycle hooks. */
+	instance: Plugin | null;
 	context?: PluginContext;
 	id: string;
 	failed: boolean;
 	data: AddonManifest;
 	bundle: string;
-}
+};
 
 /** An addon referenced either by its id string or the {@link Addon} entity itself. */
 export type AddonResolveable = string | Addon;
@@ -47,11 +58,11 @@ export type PluginEntity = Addon & {
 };
 
 /** The lifecycle and settings contract implemented by a plugin. */
-export interface Plugin {
+export type Plugin = {
 	start?(context?: PluginContext): void;
 	stop?(): void;
 	getSettingsPanel?(): ReactNode;
-}
+};
 
 /** An {@link Addon} whose instance is a {@link Theme}, tracking its registration state. */
 export type ThemeEntity = Addon & {
@@ -67,7 +78,7 @@ export type ThemeSemanticColor = {
 };
 
 /** A theme's semantic and raw colour definitions plus optional background. */
-export interface Theme {
+export type Theme = {
 	semantic: Record<PropertyKey, ThemeSemanticColor>;
 	raw: Record<PropertyKey, string>;
 	type: 'midnight' | 'darker' | 'light';
@@ -76,7 +87,7 @@ export interface Theme {
 		opacity?: number;
 		url: string;
 	};
-}
+};
 
 /** An icon pack's manifest: an {@link AddonManifest} tagged with its source kind. */
 export type IconPackManifest = AddonManifest & {

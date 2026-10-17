@@ -51,6 +51,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 
 	protected createContext(entity: T): PluginContext | undefined {
 		void entity;
+
 		return undefined;
 	}
 
@@ -76,6 +77,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			this.entities.set(manifest.id, entity as T);
 
 			const states = this.getStates();
+
 			if (states[manifest.id]) {
 				this.start(entity);
 			}
@@ -93,6 +95,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 */
 	unload(entity: AddonResolveable) {
 		const resolved = this.resolve(entity);
+
 		if (!resolved) return;
 
 		try {
@@ -140,6 +143,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			const error = new Error(
 				`Push targeted ${targetId} but the manifest declares ${manifest.id}.`,
 			);
+
 			this.logger.error(`Failed to reload addon ${targetId}:`, error);
 
 			return { ok: false, error };
@@ -156,13 +160,18 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 				const loaded = this.getEntity(manifest.id);
 				const loadError = this.errors.get(manifest.id);
 
-				if (!loaded) throw loadError ?? new Error('Addon failed to load.');
+				if (!loaded) {
+					throw loadError ?? new Error('Addon failed to load.');
+				}
+
 				if (loadError) {
 					this.emit('reload-error', loaded, loadError);
+
 					return { ok: false, error: loadError };
 				}
 
 				this.emit('reloaded', loaded);
+
 				return { ok: true };
 			} catch (error: any) {
 				this.logger.error(`Failed to reload addon ${manifest.id}:`, error);
@@ -178,11 +187,14 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			// Restart only what was running, mirroring enable/disable: a save must not start an addon the
 			// user has explicitly disabled.
 			const wasStarted = resolved.started;
+
 			await this.persist(bundle, manifest);
 
 			// A throwing stop() must not abort the swap; stop() catches and records internally, so its
 			// failure surfaces as a recorded error rather than a throw.
-			if (wasStarted) this.stop(resolved);
+			if (wasStarted) {
+				this.stop(resolved);
+			}
 
 			// A throwing stop() leaves `started`/`instance` untouched (stop() bails before clearing them),
 			// which would wedge start()'s `already started` guard. Force a stopped state so the new bundle
@@ -195,21 +207,28 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			resolved.failed = false;
 			this.errors.delete(resolved.id);
 
-			if (wasStarted) this.start(resolved);
+			if (wasStarted) {
+				this.start(resolved);
+			}
 
 			const startError = this.errors.get(resolved.id);
+
 			if (startError || resolved.failed) {
 				const error = startError ?? new Error('Addon failed to start after reload.');
+
 				this.emit('reload-error', resolved, error);
+
 				return { ok: false, error };
 			}
 
 			this.emit('reloaded', resolved);
+
 			return { ok: true };
 		} catch (error: any) {
 			this.logger.error(`Failed to reload addon ${resolved.id}:`, error);
 			this.errors.set(resolved.id, error);
 			this.emit('reload-error', resolved, error);
+
 			return { ok: false, error };
 		}
 	}
@@ -223,7 +242,10 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	async install(url: string): Promise<T | undefined> {
 		try {
 			const manifest: AddonManifest = await fetch(url, { cache: 'no-cache' }).then((res) => {
-				if (!res.ok) throw new Error(`Failed to fetch manifest (${res.status}).`);
+				if (!res.ok) {
+					throw new Error(`Failed to fetch manifest (${res.status}).`);
+				}
+
 				return res.json();
 			});
 
@@ -236,7 +258,10 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			const origin = url.split('/').slice(0, -1).join('/');
 			const bundleUrl = new URL(manifest.main, `${origin}/`).toString();
 			const bundle = await fetch(bundleUrl, { cache: 'no-cache' }).then((res) => {
-				if (!res.ok) throw new Error(`Failed to fetch bundle (${res.status}).`);
+				if (!res.ok) {
+					throw new Error(`Failed to fetch bundle (${res.status}).`);
+				}
+
 				return res.text();
 			});
 
@@ -244,12 +269,16 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 
 			this.load(bundle, manifest);
 			const entity = this.getEntity(manifest.id);
-			if (entity) this.emit('installed', entity);
+
+			if (entity) {
+				this.emit('installed', entity);
+			}
 
 			return entity;
 		} catch (error: any) {
 			this.logger.error('Failed to install addon:', error);
 			this.emit('install-error', error);
+
 			return undefined;
 		}
 	}
@@ -260,6 +289,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 */
 	async delete(entity: AddonResolveable): Promise<void> {
 		const resolved = this.resolve(entity);
+
 		if (!resolved) return;
 
 		try {
@@ -278,6 +308,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 */
 	start(entity: AddonResolveable) {
 		const resolved = this.resolve(entity);
+
 		if (!resolved || resolved.started) return;
 
 		try {
@@ -287,6 +318,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 				resolved.instance = { start: noop, stop: noop };
 			} else {
 				const instance = this.handleBundle(resolved.bundle);
+
 				resolved.instance = instance;
 			}
 
@@ -310,6 +342,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 */
 	stop(entity: AddonResolveable) {
 		const resolved = this.resolve(entity);
+
 		if (!resolved || !resolved.started) return;
 
 		try {
@@ -334,10 +367,12 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 */
 	enable(entity: AddonResolveable) {
 		const resolved = this.resolve(entity);
+
 		if (!resolved) return;
 
 		try {
 			const states = this.getStates();
+
 			states[resolved.id] = true;
 			this.settings.set('states', states);
 
@@ -358,10 +393,12 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 */
 	disable(entity: AddonResolveable) {
 		const resolved = this.resolve(entity);
+
 		if (!resolved) return;
 
 		try {
 			const states = this.getStates();
+
 			states[resolved.id] = false;
 			this.settings.set('states', states);
 
@@ -382,9 +419,11 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 */
 	toggle(entity: AddonResolveable) {
 		const resolved = this.resolve(entity);
+
 		if (!resolved) return;
 
 		const states = this.getStates();
+
 		if (states[resolved.id]) {
 			this.disable(resolved);
 		} else {
@@ -460,6 +499,16 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 
 		if (manifest.capabilities !== undefined && !Array.isArray(manifest.capabilities)) {
 			throw new Error('Manifest capabilities must be an array');
+		}
+
+		if (manifest.unbound !== undefined) {
+			if (typeof manifest.unbound !== 'object' || manifest.unbound === null) {
+				throw new Error('Manifest unbound must be an object');
+			}
+
+			if (manifest.unbound.min !== undefined && typeof manifest.unbound.min !== 'string') {
+				throw new Error('Manifest unbound.min must be a version string');
+			}
 		}
 
 		if (manifest.capabilities || manifest.minNativePluginApi) {

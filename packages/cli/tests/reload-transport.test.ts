@@ -1,6 +1,6 @@
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import type { PluginPushResult } from '@unbound-app/debugger-protocol';
-import { describe, expect, test, afterEach } from 'bun:test';
+import { describe, expect, test, afterEach, spyOn } from 'bun:test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -18,9 +18,11 @@ afterEach(() => {
 
 function builtPlugin(): BuiltAddon {
 	const dir = mkdtempSync(join(tmpdir(), 'ubd-push-'));
+
 	roots.push(dir);
 
 	const output = join(dir, 'dist');
+
 	mkdirSync(output, { recursive: true });
 
 	writeFileSync(
@@ -54,6 +56,7 @@ function fakeContext(client: FakeClient): ReloadContext {
 			},
 			async pushPlugin(push) {
 				client.pushes.push({ addonId: push.addonId, bundle: push.bundle });
+
 				return client.result;
 			},
 		},
@@ -67,6 +70,7 @@ describe('createReloadTransport', () => {
 		const client: FakeClient = { isDeviceConnected: true, pushes: [], result: ok };
 
 		const transport = createReloadTransport(fakeContext(client));
+
 		await transport.reload(builtPlugin());
 
 		expect(client.pushes).toHaveLength(1);
@@ -81,6 +85,7 @@ describe('createReloadTransport', () => {
 		setTimeout(() => void (client.isDeviceConnected = true), 60);
 
 		const transport = createReloadTransport(fakeContext(client), 500);
+
 		await transport.reload(builtPlugin());
 
 		expect(client.pushes).toHaveLength(1);
@@ -101,6 +106,7 @@ describe('createReloadTransport', () => {
 		const plugin = builtPlugin();
 
 		const transport = createReloadTransport(fakeContext(client));
+
 		await transport.reload({ ...plugin, kind: 'theme' });
 
 		expect(client.pushes).toEqual([]);
@@ -127,18 +133,20 @@ describe('createReloadTransport', () => {
 		rmSync(join(plugin.output, 'index.js'));
 		writeFileSync(join(plugin.output, 'bundle.js'), 'module.exports = {};');
 
-		const errors: string[] = [];
-		const original = process.stderr.write.bind(process.stderr);
-		process.stderr.write = ((chunk: any) => void errors.push(String(chunk))) as any;
+		const write = spyOn(process.stderr, 'write').mockImplementation(() => true);
+		let errors = '';
 
 		try {
 			const transport = createReloadTransport(fakeContext(client));
+
 			await transport.reload(plugin);
+
+			errors = write.mock.calls.map(([chunk]) => String(chunk)).join('');
 		} finally {
-			process.stderr.write = original;
+			write.mockRestore();
 		}
 
 		expect(client.pushes).toEqual([]);
-		expect(errors.join('')).toContain(join(plugin.output, 'index.js'));
+		expect(errors).toContain(join(plugin.output, 'index.js'));
 	});
 });

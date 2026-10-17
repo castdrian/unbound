@@ -27,7 +27,10 @@ const ToastStore = create<ToastStoreState>((set, get) => ({
 	updateToastWithOptions(id: string, options: Partial<InternalToastOptions>) {
 		set((prev) => {
 			const existing = prev.toasts[id];
-			if (!existing) return prev;
+
+			if (!existing) {
+				return prev;
+			}
 
 			return {
 				toasts: {

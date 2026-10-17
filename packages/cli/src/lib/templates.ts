@@ -33,10 +33,15 @@ export function templatesDir(): string {
 	while (true) {
 		const candidate = join(dir, 'templates');
 
-		if (existsSync(candidate)) return candidate;
+		if (existsSync(candidate)) {
+			return candidate;
+		}
 
 		const parent = dirname(dir);
-		if (parent === dir) throw new Error('Could not locate the bundled templates directory.');
+
+		if (parent === dir) {
+			throw new Error('Could not locate the bundled templates directory.');
+		}
 
 		dir = parent;
 	}

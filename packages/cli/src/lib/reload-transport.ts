@@ -1,8 +1,10 @@
 import type { ControllerClient } from '@unbound-app/debugger-protocol/controller';
 import type { AddonManifest } from '@unbound-app/types';
 import { readFileSync, existsSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import toError from '@unbound-app/utils/to-error';
+import { join } from 'node:path';
 
+import { getBundleName } from '~/lib/bundle-name';
 import { waitForDevice } from '~/lib/context';
 
 export type ReloadClient = Pick<ControllerClient, 'isDeviceConnected' | 'pushPlugin'>;
@@ -20,16 +22,15 @@ export type BuiltAddon = {
 };
 
 /** How `ubd dev` pushes a freshly built addon to the running client. */
-export interface ReloadTransport {
+export type ReloadTransport = {
 	reload(addon: BuiltAddon): Promise<void>;
-}
+};
 
 type ReadAddon = { manifest: AddonManifest; bundle: string };
 
 /**
- * How long the watcher waits for a dropped device to reconnect before warning and dropping a reload.
- * Longer than a one-shot command's poll (`DEVICE_WAIT_TIMEOUT_MS`): a `ubd dev` session runs for
- * hours, and a backgrounded app or slept device can take a few seconds to redial the bridge.
+ * How long the watcher waits for a dropped device to reconnect before dropping a reload. Longer than
+ * a one-shot command's poll, since a backgrounded app or slept device can take seconds to redial.
  */
 const RECONNECT_WAIT_MS = 5_000;
 
@@ -55,6 +56,7 @@ export function createReloadTransport(
 				process.stdout.write(
 					`Rebuilt ${addon.id}, but ${addon.kind} hot reload isn't available yet — restart the app to load it.\n`,
 				);
+
 				return;
 			}
 
@@ -62,12 +64,15 @@ export function createReloadTransport(
 
 			// The device dials the bridge; a momentary drop (backgrounded app, slept device) shouldn't
 			// force a restart, so wait out a bounded window for it to come back before giving up.
-			if (!client.isDeviceConnected) await waitForDevice(client, reconnectWaitMs);
+			if (!client.isDeviceConnected) {
+				await waitForDevice(client, reconnectWaitMs);
+			}
 
 			if (!client.isDeviceConnected) {
 				process.stderr.write(
 					`Device not connected — skipping reload of ${addon.id}; save again once reconnected.\n`,
 				);
+
 				return;
 			}
 
@@ -83,9 +88,9 @@ export function createReloadTransport(
 				} else {
 					process.stderr.write(`Failed to reload ${addon.id}: ${result.error}\n`);
 				}
-			} catch (error: any) {
+			} catch (error) {
 				// A missing build output or unreadable manifest must not kill the watcher — report and drop.
-				process.stderr.write(`Failed to reload ${addon.id}: ${error?.message ?? error}\n`);
+				process.stderr.write(`Failed to reload ${addon.id}: ${toError(error).message}\n`);
 			}
 		},
 	};
@@ -103,9 +108,7 @@ function readBuiltAddon(addon: BuiltAddon): ReadAddon {
 		readFileSync(join(addon.dir, 'manifest.json'), 'utf8'),
 	);
 
-	const bundleName = addon.static
-		? manifest.main
-		: basename(manifest.main).replace(/\.\w+$/, '.js');
+	const bundleName = getBundleName(addon, manifest.main);
 	const bundlePath = join(addon.output, bundleName);
 
 	// Hot reload assumes the build emits `<main-basename>.js` into `output`; a differently-named

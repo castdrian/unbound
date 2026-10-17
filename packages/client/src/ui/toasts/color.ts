@@ -18,12 +18,16 @@ export function unitToHex(unit: number): string {
  */
 export function withoutOpacity(color: ColorValue | undefined): string {
 	// A missing theme token resolves to undefined; degrade to an empty string rather than crash the toast.
-	if (!color || typeof color !== 'string') return '';
+	if (!color || typeof color !== 'string') {
+		return '';
+	}
 
 	if (color.startsWith('rgba')) {
 		const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+
 		if (match) {
 			const [, r, g, b] = match;
+
 			return `rgb(${r}, ${g}, ${b})`;
 		}
 	}

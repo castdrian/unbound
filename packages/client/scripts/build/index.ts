@@ -8,9 +8,11 @@ import { swc } from 'rollup-plugin-swc3';
 import { join } from 'node:path';
 
 import {
+	API_URL,
 	IS_DEV_BUILD,
 	GIT_REVISION,
 	I18N_BASE_URL,
+	CLIENT_VERSION,
 	DEV_SERVER_URL,
 	IGNORED_WARNINGS,
 	DEBUGGER_ADDRESS,
@@ -64,10 +66,17 @@ const config: RolldownOptions = {
 		replace({
 			preventAssignment: true,
 			$$VERSION$$: GIT_REVISION,
+			$$CLIENT_VERSION$$: CLIENT_VERSION,
+			$$API_URL$$: API_URL,
 			$$I18N_BASE_URL$$: I18N_BASE_URL,
 			$$DEBUGGER_ADDRESS$$: DEBUGGER_ADDRESS,
 		}),
-		swc({ tsconfig: false, swcrc: true, exclude: /node_modules\/(?!\.bun\/possess|possess)/ }),
+		// Dependencies that ship classes or async functions must be down-levelled for older Hermes.
+		swc({
+			tsconfig: false,
+			swcrc: true,
+			exclude: /node_modules\/(?!(\.bun\/)?(possess|zod|@noble))/,
+		}),
 		hermes(),
 		generateManifest(GIT_REVISION),
 		...(IS_DEV_BUILD ? [locales()] : []),
@@ -85,20 +94,23 @@ const config: RolldownOptions = {
 		}
 
 		const _logger = pluginLoggers.get(log.plugin);
-		if (!_logger) return console[level](log.message);
+
+		if (!_logger) {
+			return console[level](log.message);
+		}
 
 		_logger[level](log.message);
 	},
 };
 
 /**
- * Mirrors the repo-root `i18n/` locale tables into `dist/i18n/` so the `serve`
- * script exposes them at the same origin as the bundle. Dev-only: production
- * builds fetch from GitHub raw instead.
+ * Mirrors the repo-root `i18n/` tables into `dist/i18n/` so `serve` exposes them beside the bundle.
+ * Dev-only: production builds fetch from GitHub raw instead.
  */
 async function copyLocales() {
 	if (!existsSync(localeSource)) {
 		logger.warn(`No i18n/ directory at ${localeSource}; skipping locale copy.`);
+
 		return;
 	}
 
@@ -131,7 +143,9 @@ async function build() {
 		logger.debug('Building Unbound...');
 		logger.info('Revision:', GIT_REVISION);
 
-		if (IS_DEV_BUILD) logger.info('Dev mode - device will connect to:', DEV_SERVER_URL);
+		if (IS_DEV_BUILD) {
+			logger.info('Dev mode - device will connect to:', DEV_SERVER_URL);
+		}
 
 		const bundle = await rolldown(config);
 

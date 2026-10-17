@@ -1,7 +1,6 @@
-import type { SettingsEntry } from '@unbound-app/types';
+import type { SettingsScreen, SettingsEntry } from '@unbound-app/types';
 import { createLogger } from '@unbound-app/logger';
 import { useState, useEffect } from 'react';
-import type { ComponentType } from 'react';
 import { createPatcher } from 'possess';
 
 import MarketplacePage from '~/ui/settings/marketplace';
@@ -30,10 +29,16 @@ const unpatches: Array<() => void> = [];
 type RouteOptions = {
 	key: string;
 	useTitle: () => string;
-	getComponent: () => ComponentType<any>;
+	getComponent: SettingsScreen['getComponent'];
 	usePredicate?: () => boolean;
 	icon?: string;
 	hidden?: boolean;
+};
+
+/** A section of Discord's settings overview: a label and the route keys listed under it. */
+type SettingsSection = {
+	label: string;
+	settings: string[];
 };
 
 /**
@@ -130,11 +135,13 @@ function allEntries(): Record<string, SettingsEntry> {
 	return { ...builtInEntries, ...SettingsStore.getState().sections };
 }
 
+/** Adds Unbound's settings routes and its section to Discord's settings overview. */
 export function start() {
 	patchRendererConfig();
 	patchOverview();
 }
 
+/** Removes Unbound's settings routes and section. */
 export function stop() {
 	unpatches.splice(0).map((unpatch) => unpatch());
 	Patcher.unpatchAll();
@@ -142,7 +149,10 @@ export function stop() {
 
 function patchRendererConfig() {
 	const module = findByProps('SETTING_RENDERER_CONFIG');
-	if (!module) return Logger.error('Failed to find SETTING_RENDERER_CONFIG.');
+
+	if (!module) {
+		return Logger.error('Failed to find SETTING_RENDERER_CONFIG.');
+	}
 
 	const original = module.SETTING_RENDERER_CONFIG;
 	let current = original;
@@ -164,18 +174,25 @@ function patchRendererConfig() {
 
 function patchOverview() {
 	const Overview = findByName('SettingsOverviewScreen', { interop: false });
-	if (!Overview) return Logger.error('Failed to find SettingsOverviewScreen.');
+
+	if (!Overview) {
+		return Logger.error('Failed to find SettingsOverviewScreen.');
+	}
 
 	Patcher.after(Overview, 'default', ({ result }) => {
 		const [, forceUpdate] = useState({});
 
 		useEffect(() => {
 			const unsubscribe = SettingsStore.subscribe(() => forceUpdate({}));
+
 			return () => unsubscribe();
 		}, []);
 
 		const node = result?.props?.node;
-		if (!node || !Array.isArray(node.sections)) return result;
+
+		if (!node || !Array.isArray(node.sections)) {
+			return result;
+		}
 
 		const keys = Object.values(allEntries())
 			.filter((entry) => !entry.excludeFromDisplay)
@@ -183,7 +200,10 @@ function patchOverview() {
 
 		// Rebuild from the native sections only (dropping any Unbound section a prior render of this
 		// same memoised node already prepended) so re-renders don't stack duplicate sections.
-		const native = node.sections.filter((section: any) => section.label !== CLIENT_NAME);
+		const native = node.sections.filter(
+			(section: SettingsSection) => section.label !== CLIENT_NAME,
+		);
+
 		node.sections = [{ label: CLIENT_NAME, settings: keys }, ...native];
 
 		return result;

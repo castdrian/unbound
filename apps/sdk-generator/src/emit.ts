@@ -48,6 +48,7 @@ export function buildRoot(entries: ModuleEntry[]): string {
 		.filter((entry) => entry.topLevel)
 		.map((entry) => {
 			const specifier = relativeSpecifier(join(API_SRC, 'index.d.ts'), entry.out);
+
 			return `export * as ${entry.name} from '${specifier}';`;
 		})
 		.sort();
@@ -80,8 +81,13 @@ export function buildGlobal(
 	// Keep only the ambient `declare global` blocks and the imports that may feed them; the named
 	// type surface lives in `_internal.d.ts`.
 	for (const statement of sourceFile.getStatements()) {
-		if (Node.isModuleDeclaration(statement) && statement.hasDeclareKeyword()) continue;
-		if (Node.isImportDeclaration(statement)) continue;
+		if (Node.isModuleDeclaration(statement) && statement.hasDeclareKeyword()) {
+			continue;
+		}
+
+		if (Node.isImportDeclaration(statement)) {
+			continue;
+		}
 
 		if (declaredNames(statement).length > 0 || Node.isExportDeclaration(statement)) {
 			statement.remove();
@@ -95,32 +101,43 @@ export function buildGlobal(
 
 	for (const statement of ambient) {
 		const body = statement.getBody();
-		if (!body || !Node.isStatemented(body)) continue;
+
+		if (!body || !Node.isStatemented(body)) {
+			continue;
+		}
 
 		for (const inner of body.getStatements()) {
 			for (const name of declaredNames(inner)) declaredInAmbient.add(name);
 		}
 	}
 
-	// A re-export creates no local binding, so every name the ambient block references must resolve
-	// through a real import or a local declaration. Existing imports are pruned to the referenced
-	// names; names owned by a hoist file are imported from their owner; anything left resolves
-	// ambiently (TypeScript lib globals such as `Promise`).
+	// A re-export creates no local binding, so every name the ambient block references needs a real
+	// import or local declaration. Anything left resolves ambiently (lib globals like `Promise`).
 	const bound = new Set<string>();
 
 	for (const statement of sourceFile.getStatements()) {
-		if (!Node.isImportDeclaration(statement)) continue;
+		if (!Node.isImportDeclaration(statement)) {
+			continue;
+		}
 
 		const defaultImport = statement.getDefaultImport();
+
 		if (defaultImport) {
-			if (referenced.has(defaultImport.getText())) bound.add(defaultImport.getText());
-			else statement.removeDefaultImport();
+			if (referenced.has(defaultImport.getText())) {
+				bound.add(defaultImport.getText());
+			} else {
+				statement.removeDefaultImport();
+			}
 		}
 
 		for (const specifier of statement.getNamedImports()) {
 			const local = specifier.getAliasNode()?.getText() ?? specifier.getName();
-			if (referenced.has(local)) bound.add(local);
-			else specifier.remove();
+
+			if (referenced.has(local)) {
+				bound.add(local);
+			} else {
+				specifier.remove();
+			}
 		}
 
 		if (
@@ -135,18 +152,25 @@ export function buildGlobal(
 	const importsByOwner = new Map<string, Set<string>>();
 
 	for (const name of referenced) {
-		if (declaredInAmbient.has(name) || bound.has(name)) continue;
+		if (declaredInAmbient.has(name) || bound.has(name)) {
+			continue;
+		}
 
 		const owner = ownerByName.get(name);
-		if (owner === void 0) continue;
+
+		if (owner === void 0) {
+			continue;
+		}
 
 		const bucket = importsByOwner.get(owner) ?? new Set<string>();
+
 		bucket.add(name);
 		importsByOwner.set(owner, bucket);
 	}
 
 	for (const [owner, names] of importsByOwner) {
 		const specifier = relativeSpecifier(outPath, owner);
+
 		sourceFile.insertStatements(
 			0,
 			`import type { ${[...names].sort().join(', ')} } from '${specifier}';`,
@@ -169,6 +193,7 @@ export function buildGlobal(
 			.filter((entry) => entry.topLevel)
 			.map((entry) => {
 				const path = './' + relative(API_SRC, entry.out).split('\\').join('/');
+
 				return { name: entry.name, type: `typeof import('${path}')` };
 			}),
 	});
@@ -208,13 +233,17 @@ export function writeManifest(version: string, entries: ModuleEntry[]) {
 	};
 
 	for (const entry of entries) {
-		if (entry.name === '.') continue;
+		if (entry.name === '.') {
+			continue;
+		}
 
 		const target = './src/' + relative(API_SRC, entry.out).split('\\').join('/');
+
 		exports[`./${entry.name}`] = target;
 	}
 
 	const ordered: Record<string, string> = {};
+
 	for (const key of Object.keys(exports).sort()) ordered[key] = exports[key];
 
 	manifest.version = version;

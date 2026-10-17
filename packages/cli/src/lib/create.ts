@@ -30,8 +30,13 @@ export function scaffold(
 ): ScaffoldResult {
 	const tokens = toTokens(options);
 
-	if (options.shape === 'repository') return scaffoldRepository(options, tokens);
-	if (options.shape === 'add') return scaffoldWorkspaceAddon(options, tokens, workspace);
+	if (options.shape === 'repository') {
+		return scaffoldRepository(options, tokens);
+	}
+
+	if (options.shape === 'add') {
+		return scaffoldWorkspaceAddon(options, tokens, workspace);
+	}
 
 	return scaffoldBareAddon(options, tokens);
 }
@@ -44,10 +49,16 @@ function scaffoldRepository(options: CreateOptions, tokens: Tokens): ScaffoldRes
 	scaffoldTemplate(templatePath('repository'), dir, tokens);
 
 	const folder = options.kind === 'plugin' ? 'plugins' : 'themes';
+
 	scaffoldTemplate(templatePath(options.kind), join(dir, folder, options.name), tokens);
 
-	if (options.gitInit) gitInit(dir);
-	if (options.install) bunInstall(dir);
+	if (options.gitInit) {
+		gitInit(dir);
+	}
+
+	if (options.install) {
+		bunInstall(dir);
+	}
 
 	return { dir, kind: options.kind, name: options.name };
 }
@@ -67,7 +78,9 @@ function scaffoldWorkspaceAddon(
 	tokens: Tokens,
 	workspace: ResolvedConfig | undefined,
 ): ScaffoldResult {
-	if (!workspace) throw new Error('Cannot add an addon: no workspace config was found.');
+	if (!workspace) {
+		throw new Error('Cannot add an addon: no workspace config was found.');
+	}
 
 	const dir = join(workspaceAddonDir(workspace, options.kind), options.name);
 

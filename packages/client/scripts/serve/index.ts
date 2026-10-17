@@ -8,9 +8,8 @@ import * as hot from './hot-reload';
 const logger = Logger.create('Serve');
 
 /**
- * Starts the dev `serve` server: hosts the hot-reload SSE stream at `/__hot`, serves the built
- * bundle and locale tables from `dist/`, and watches the bundle to broadcast reloads. Returns the
- * `Bun.Server` so an orchestrator can stop it.
+ * @description Starts the dev server: the hot-reload stream at `/__hot` and the built files in `dist/`.
+ * @returns The `Bun.Server`, so an orchestrator can stop it.
  */
 export function startServer() {
 	const server = Bun.serve({
@@ -21,7 +20,9 @@ export function startServer() {
 		fetch(req) {
 			const pathname = new URL(req.url).pathname;
 
-			if (pathname === '/__hot') return hot.handleHot(req);
+			if (pathname === '/__hot') {
+				return hot.handleHot(req);
+			}
 
 			return serveStatic(pathname);
 		},
@@ -38,6 +39,7 @@ export function startServer() {
 
 	if (!process.env.DEV_SERVER_URL && !process.env.DEV_HOST && candidates.length > 1) {
 		const others = candidates.map((c) => `${c.address} (${c.name})`).join(', ');
+
 		logger.warn(`Multiple network interfaces found: ${others}.`);
 		logger.warn(`If the wrong one was chosen, rebuild with --host <ip> or DEV_HOST=<ip>.`);
 	}

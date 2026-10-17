@@ -12,6 +12,7 @@ import {
 	INTERNAL_OUT,
 	API_SRC,
 	relativeSpecifier,
+	isJsonObject,
 	readJson,
 	CLIENT,
 	logger,
@@ -78,10 +79,16 @@ function findPackageDir(library: string): string | undefined {
 
 	while (true) {
 		const candidate = join(dir, 'node_modules', library);
-		if (existsSync(join(candidate, 'package.json'))) return realpathSync(candidate);
+
+		if (existsSync(join(candidate, 'package.json'))) {
+			return realpathSync(candidate);
+		}
 
 		const parent = dirname(dir);
-		if (parent === dir) return void 0;
+
+		if (parent === dir) {
+			return void 0;
+		}
 
 		dir = parent;
 	}
@@ -96,25 +103,31 @@ function findPackageDir(library: string): string | undefined {
  */
 export function resolveLibraryTypes(library: string): string | undefined {
 	const packageDir = findPackageDir(library);
-	if (!packageDir) return void 0;
 
-	const manifest = readJson(join(packageDir, 'package.json'));
-	const rootExport = manifest.exports?.['.'];
+	if (!packageDir) {
+		return void 0;
+	}
+
+	const { exports, types, typings, main } = readJson(join(packageDir, 'package.json'));
+	const rootExport = isJsonObject(exports) ? exports['.'] : void 0;
 
 	const candidates = [
-		typeof rootExport === 'string' ? rootExport : rootExport?.types,
-		manifest.types,
-		manifest.typings,
-		typeof manifest.main === 'string'
-			? manifest.main.replace(/\.([cm]?)js$/, '.d.$1ts')
-			: void 0,
+		isJsonObject(rootExport) ? rootExport.types : rootExport,
+		types,
+		typings,
+		typeof main === 'string' ? main.replace(/\.([cm]?)js$/, '.d.$1ts') : void 0,
 	];
 
 	for (const candidate of candidates) {
-		if (typeof candidate !== 'string') continue;
+		if (typeof candidate !== 'string') {
+			continue;
+		}
 
 		const resolved = join(packageDir, candidate);
-		if (existsSync(resolved)) return resolved;
+
+		if (existsSync(resolved)) {
+			return resolved;
+		}
 	}
 
 	return void 0;
@@ -140,14 +153,17 @@ export function bundleLibrary(
 	ownerByName: Map<string, string> = new Map<string, string>(),
 ): LibraryBundle | undefined {
 	let entry: string;
+
 	if (isAbsolute(library)) {
 		entry = library;
 	} else {
 		const resolved = resolveLibraryTypes(library);
+
 		if (!resolved) {
 			// A library without a resolvable typings entry (e.g. one exporting per-file) has no
 			// standalone bundle to hoist; its declarations, if any, stay inlined as before.
 			logger.debug(`Skipping hoist for '${library}': no resolvable typings entry.`);
+
 			return void 0;
 		}
 
@@ -159,6 +175,7 @@ export function bundleLibrary(
 		logger.debug(
 			`Skipping hoist for '${library}': '${entry}' is not a bundleable typings entry.`,
 		);
+
 		return void 0;
 	}
 
@@ -166,9 +183,8 @@ export function bundleLibrary(
 
 	stripInternal(sourceFile, new Set<string>(), new Set<string>());
 
-	// The `declare global` block (ambient `$$DEV$$`, `NativePlugin`, `React`, …) belongs to
-	// `global.d.ts`, not to a hoist file whose job is the library's named type surface. Declarations
-	// already claimed by an earlier hoist file are pruned so no shared type is declared twice.
+	// The `declare global` block belongs to `global.d.ts`, not to a hoist file. Declarations already
+	// claimed by an earlier hoist file are pruned so no shared type is declared twice.
 	for (const statement of sourceFile.getStatements()) {
 		if (Node.isModuleDeclaration(statement) && statement.hasDeclareKeyword()) {
 			statement.remove();
@@ -176,7 +192,10 @@ export function bundleLibrary(
 		}
 
 		const declared = declaredNames(statement);
-		if (declared.length === 0) continue;
+
+		if (declared.length === 0) {
+			continue;
+		}
 
 		if (declared.every((name) => ownerByName.has(name))) {
 			statement.remove();
@@ -187,7 +206,9 @@ export function bundleLibrary(
 		// so a mixed-ownership statement never re-declares a name that already has a home.
 		if (Node.isVariableStatement(statement)) {
 			for (const declaration of statement.getDeclarations()) {
-				if (ownerByName.has(declaration.getName())) declaration.remove();
+				if (ownerByName.has(declaration.getName())) {
+					declaration.remove();
+				}
 			}
 		}
 	}
@@ -201,9 +222,13 @@ export function bundleLibrary(
 
 	for (const name of referenced) {
 		const owner = ownerByName.get(name);
-		if (owner === void 0 || owner === out) continue;
+
+		if (owner === void 0 || owner === out) {
+			continue;
+		}
 
 		const bucket = importsByOwner.get(owner) ?? new Set<string>();
+
 		bucket.add(name);
 		importsByOwner.set(owner, bucket);
 	}
@@ -211,18 +236,24 @@ export function bundleLibrary(
 	const imports = [...importsByOwner.entries()]
 		.map(([owner, importedNames]) => {
 			const specifier = relativeSpecifier(out, owner);
+
 			return `import type { ${[...importedNames].sort().join(', ')} } from '${specifier}';`;
 		})
 		.sort();
 
-	if (imports.length > 0) sourceFile.insertStatements(0, imports.join('\n'));
+	if (imports.length > 0) {
+		sourceFile.insertStatements(0, imports.join('\n'));
+	}
 
 	const names = new Set<string>();
+
 	for (const statement of survivors) {
 		for (const name of declaredNames(statement)) names.add(name);
 	}
 
-	if (names.size === 0) return void 0;
+	if (names.size === 0) {
+		return void 0;
+	}
 
 	return {
 		text: sourceFile.getFullText(),
@@ -242,26 +273,31 @@ export function buildHoistFiles(): HoistFiles {
 	const files: HoistFile[] = [];
 	const ownerByName = new Map<string, string>();
 
-	// The utils typings are hoisted first so their names (`Fn`, `Widen`, …) claim the public `utils.d.ts`
-	// home before the full `@unbound-app/types` index bundle claims the remaining names for `_internal.d.ts`
-	// (both feed `global.d.ts`), so each shared type has exactly one home and neither duplicates a `types.d.ts`.
+	// The utils typings are hoisted first so their names claim the public `utils.d.ts` home before the
+	// `@unbound-app/types` index claims the rest for `_internal.d.ts`.
 	const assigned = new Set<string>([UTILS_OUT, INTERNAL_OUT]);
 
-	const outFor = (library: string): string => {
+	function outFor(library: string): string {
 		const flat = (name: string) => join(API_SRC, `${name.split('/').join('-')}.d.ts`);
 
 		const out = flat(library.replace(/^@[^/]+\//, ''));
-		if (!assigned.has(out)) return out;
+
+		if (!assigned.has(out)) {
+			return out;
+		}
 
 		// A scope-stripped name that is already taken (e.g. `@unbound-app/utils` vs the fixed
 		// `utils.d.ts` home) keeps its scope so distinct libraries never share a file.
 		const scoped = flat(library.replace(/^@/, ''));
-		if (!assigned.has(scoped)) return scoped;
+
+		if (!assigned.has(scoped)) {
+			return scoped;
+		}
 
 		throw new Error(
 			`Hoist file name collision for '${library}': '${scoped}' is already taken.`,
 		);
-	};
+	}
 
 	const sources: { library: string; out: string }[] = [
 		{ library: UTILS_INDEX, out: UTILS_OUT },
@@ -269,6 +305,7 @@ export function buildHoistFiles(): HoistFiles {
 		...INLINED_LIBRARIES.filter((library) => library !== '@unbound-app/types').map(
 			(library) => {
 				const out = outFor(library);
+
 				assigned.add(out);
 
 				return { library, out };
@@ -278,7 +315,10 @@ export function buildHoistFiles(): HoistFiles {
 
 	for (const { library, out } of sources) {
 		const bundled = bundleLibrary(library, out, ownerByName);
-		if (!bundled) continue;
+
+		if (!bundled) {
+			continue;
+		}
 
 		files.push({
 			out,
@@ -289,7 +329,9 @@ export function buildHoistFiles(): HoistFiles {
 		});
 
 		for (const name of bundled.names) {
-			if (!ownerByName.has(name)) ownerByName.set(name, out);
+			if (!ownerByName.has(name)) {
+				ownerByName.set(name, out);
+			}
 		}
 	}
 

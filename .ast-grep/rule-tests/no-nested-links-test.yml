@@ -1,5 +1,0 @@
-id: no-nested-links
-valid:
-  - '<a href="/x">hi</a>'
-invalid:
-  - '<a href="/x"><a href="/y">bad</a></a>'

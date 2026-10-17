@@ -58,6 +58,7 @@ export class Fonts extends Manager<FontEntity, FontsEvents> {
 				.map((f) => f.trim());
 
 			map[group] ??= new Set();
+
 			for (const family of families) map[group].add(family);
 		}
 
@@ -66,7 +67,7 @@ export class Fonts extends Manager<FontEntity, FontsEvents> {
 
 	/** @returns The current override map (`{ [family]: overrideName }`). */
 	getOverrides(): Record<string, string> {
-		return storage.get('unbound', 'font-states', {} as Record<string, string>);
+		return storage.get<Record<string, string>>('unbound', 'font-states', {});
 	}
 
 	/**
@@ -76,6 +77,7 @@ export class Fonts extends Manager<FontEntity, FontsEvents> {
 	 */
 	setOverride(family: string, name: string) {
 		const states = this.getOverrides();
+
 		states[family] = name;
 		storage.set('unbound', 'font-states', states);
 		this.emit('changed');
@@ -87,6 +89,7 @@ export class Fonts extends Manager<FontEntity, FontsEvents> {
 	 */
 	clearOverride(family: string) {
 		const states = this.getOverrides();
+
 		delete states[family];
 		storage.set('unbound', 'font-states', states);
 		this.emit('changed');
@@ -116,18 +119,23 @@ export class Fonts extends Manager<FontEntity, FontsEvents> {
 			const file = url.split('/').pop() ?? `font-${Date.now()}.ttf`;
 
 			const data = await fetch(url, { cache: 'no-cache' }).then((res) => {
-				if (!res.ok) throw new Error(`Failed to fetch font (${res.status}).`);
+				if (!res.ok) {
+					throw new Error(`Failed to fetch font (${res.status}).`);
+				}
 
 				return res.arrayBuffer();
 			});
 
 			const base64 = Buffer.from(data).toString('base64');
+
 			await fs.write(`Unbound/Fonts/${file}`, base64, 'base64');
 
 			this.emit('changed');
+
 			return file;
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error('Failed to install font:', error);
+
 			return undefined;
 		}
 	}

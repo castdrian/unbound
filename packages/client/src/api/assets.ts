@@ -12,24 +12,39 @@ const cached = Cache.getCachedAssets();
 if (cached.length) {
 	for (const id of cached) {
 		const initialized = initializeModule(id);
-		if (!initialized) continue;
 
-		const exported = window.modules.get(id).publicModule.exports;
+		if (!initialized) {
+			continue;
+		}
+
+		const exported = window.modules.get(id)?.publicModule.exports;
 		const asset = Assets.getAssetByID(exported);
-		if (!asset) continue;
+
+		if (!asset) {
+			continue;
+		}
 
 		assets.set(exported, asset);
 	}
 } else {
-	for (const id of [...window.modules.keys()]) {
+	for (const id of window.modules.keys()) {
 		const initialized = initializeModule(id);
-		if (!initialized) continue;
 
-		const exported = window.modules.get(id).publicModule.exports;
-		if (typeof exported !== 'number') continue;
+		if (!initialized) {
+			continue;
+		}
+
+		const exported = window.modules.get(id)?.publicModule.exports;
+
+		if (typeof exported !== 'number') {
+			continue;
+		}
 
 		const asset = Assets.getAssetByID(exported);
-		if (!asset) continue;
+
+		if (!asset) {
+			continue;
+		}
 
 		Cache.addAssetToCache(id);
 		assets.set(exported, asset);
@@ -73,6 +88,7 @@ export function getByID(id: number): UnboundAsset | undefined {
 export function getIDByName(name: string, type: 'svg' | 'png' = 'png'): number | undefined {
 	const [id] =
 		[...assets.entries()].find(([, asset]) => asset.name === name && asset.type === type) ?? [];
+
 	return id;
 }
 

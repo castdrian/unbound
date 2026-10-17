@@ -2,25 +2,30 @@ import { expect, test } from 'bun:test';
 
 import createMomentCalendarLocale from './create-moment-calendar-locale';
 
+type MomentInstance = {
+	activeLocale: string;
+};
+
 test('uses the active Discord locale for existing localized calendar instances', () => {
 	let activeLocale = 'en-US';
 	const calls: unknown[][] = [];
-	const moment = {
-		locale(locale: string) {
-			this.activeLocale = locale;
-			return this;
-		},
-		activeLocale: 'ar',
-		calendar(referenceTime?: Date) {
-			calls.push([this.activeLocale, referenceTime]);
-			return this.activeLocale;
-		},
-	};
+
+	function locale(this: MomentInstance, value: string) {
+		this.activeLocale = value;
+	}
+
+	function calendar(this: MomentInstance, referenceTime?: Date) {
+		calls.push([this.activeLocale, referenceTime]);
+
+		return this.activeLocale;
+	}
+
+	const moment: MomentInstance = { activeLocale: 'ar' };
 	const wrapped = createMomentCalendarLocale(
-		moment.calendar,
+		calendar,
 		() => activeLocale,
 		() => ['en', 'en-us', 'de', 'de-de', 'ar'],
-		moment.locale,
+		locale,
 	);
 	const referenceTime = new Date(0);
 

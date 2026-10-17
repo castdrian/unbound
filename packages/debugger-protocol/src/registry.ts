@@ -3,9 +3,8 @@ import type { z } from 'zod';
 import type { ControllerClient } from './controller';
 
 /**
- * A single command definition is the one source both surfaces derive from: the CLI adapter builds
- * flags and positionals from its schema, the MCP adapter uses the schema as the tool's input schema.
- * Defining a command once keeps the two surfaces structurally in parity.
+ * One command definition feeds both surfaces: the CLI builds flags and positionals from its schema,
+ * and the MCP server uses the schema as the tool's input schema.
  */
 
 /** The shared runtime a command handler runs against: the bridge controller it evaluates through. */

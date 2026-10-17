@@ -31,7 +31,7 @@ export declare function format(key: string, vars?: FormatVars): string;
  * @returns A promise that resolves once the initial locales have been ensured and the subscription is wired.
  */
 export declare function init(): Promise<void>;
-export type FormatVars = Record<string, unknown>;
+export type FormatVars = Record<string, string | number | boolean | Date>;
 export type LocaleStrings = Record<string, string>;
 export type Localizations = {
 	Messages: Record<string, string>;
@@ -40,3 +40,5 @@ export type Localizations = {
 export type StringStore = Record<string, LocaleStrings>;
 
 export { _default as default };
+
+export {};

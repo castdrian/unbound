@@ -1,16 +1,6 @@
-/** Any function: accepts any arguments and returns `T`. */
-export type Fn<T = any> = (...args: any) => T;
-/** Any function returning a promise (`T` defaults to `Promise<any>`). */
-export type PromiseFn<T = Promise<any>> = (...args: any) => T;
-
-/** An object of shape `T` widened with an arbitrary string/number/symbol index. */
-export type AnyProps<T extends Record<PropertyKey, any> = Record<PropertyKey, any>> = T &
-	Record<PropertyKey, any>;
-
 /**
- * A string union that keeps `T`'s literals for autocomplete while still accepting any other string.
- * Use this for Discord's open-ended enums (typography variants, colour tokens, sizes) so newly added
- * values keep type-checking without an update here.
+ * A string union that keeps `T`'s literals for autocomplete while still accepting any other string,
+ * for Discord's open-ended enums (typography variants, colour tokens, sizes).
  */
 export type LiteralUnion<T extends string> = T | (string & {});
 
@@ -26,7 +16,7 @@ export type Falsy = false | 0 | '' | null | undefined;
 /** The set of all truthy values. */
 export type Truthy = true | number | string | object | symbol | bigint;
 /** The result of a predicate: any {@link Truthy} or {@link Falsy} value. */
-export type PredicateResult = Truthy | Falsy;
+export type PredicateResult = Truthy | false | null | undefined;
 
 /** Widens a literal type to its primitive base (e.g. `'a'` to `string`, `1` to `number`). */
 export type Widen<T> = T extends number

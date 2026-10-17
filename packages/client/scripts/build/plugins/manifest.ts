@@ -18,6 +18,7 @@ function getBytecodeVersion(bundlePath: string): number | null {
 
 	try {
 		const header = readFileSync(bundlePath).subarray(0, 12);
+
 		if (header.length < 12 || header.readBigUInt64LE(0) !== HBC_MAGIC) {
 			return null;
 		}
@@ -34,20 +35,32 @@ function getBytecodeVersion(bundlePath: string): number | null {
 }
 
 function getBytecodeVersions(): number[] {
-	if (!existsSync(dist)) return [];
+	if (!existsSync(dist)) {
+		return [];
+	}
 
 	const versions: number[] = [];
 
 	for (const file of readdirSync(dist)) {
-		if (!file.startsWith('unbound.') || !file.endsWith('.bundle')) continue;
+		if (!file.startsWith('unbound.') || !file.endsWith('.bundle')) {
+			continue;
+		}
 
 		const version = getBytecodeVersion(resolve(dist, file));
-		if (version !== null) versions.push(version);
+
+		if (version !== null) {
+			versions.push(version);
+		}
 	}
 
 	return [...new Set(versions)].sort((a, b) => b - a);
 }
 
+/**
+ * @description Writes `manifest.json` next to the bundles, listing the revision and bytecode versions.
+ * @param revision The git revision the bundle was built from.
+ * @returns A rolldown plugin writing the manifest after the bundle.
+ */
 export default function generateManifest(revision: string): Plugin {
 	return {
 		name: 'generate-manifest',

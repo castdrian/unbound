@@ -21,7 +21,9 @@ export function buildOwnership(entries: ModuleEntry[]): Map<string, Set<string>>
 	const owned = new Map<string, Set<string>>();
 
 	for (const entry of entries) {
-		if (entry.name === '.') continue;
+		if (entry.name === '.') {
+			continue;
+		}
 
 		const sourceFile = parseSource('module.ts', readFileSync(entry.source, 'utf8'));
 
@@ -30,12 +32,21 @@ export function buildOwnership(entries: ModuleEntry[]): Map<string, Set<string>>
 		for (const declaration of sourceFile.getImportDeclarations()) {
 			const specifier = declaration.getModuleSpecifierValue();
 			const match = TYPES_SUBPATH.exec(specifier);
-			if (!match) continue;
-			if (match[1] === 'utils') continue;
+
+			if (!match) {
+				continue;
+			}
+
+			if (match[1] === 'utils') {
+				continue;
+			}
 
 			// A namespace import cannot map to per-name ownership; default and named imports can.
 			const defaultImport = declaration.getDefaultImport();
-			if (defaultImport) names.add(defaultImport.getText());
+
+			if (defaultImport) {
+				names.add(defaultImport.getText());
+			}
 
 			for (const named of declaration.getNamedImports()) {
 				names.add(named.getName());
@@ -45,14 +56,19 @@ export function buildOwnership(entries: ModuleEntry[]): Map<string, Set<string>>
 		for (const declaration of sourceFile.getExportDeclarations()) {
 			const specifier = declaration.getModuleSpecifierValue();
 			const match = TYPES_SUBPATH.exec(specifier ?? '');
-			if (!match || match[1] === 'utils') continue;
+
+			if (!match || match[1] === 'utils') {
+				continue;
+			}
 
 			for (const named of declaration.getNamedExports()) {
 				names.add(named.getAliasNode()?.getText() ?? named.getName());
 			}
 		}
 
-		if (names.size > 0) owned.set(entry.out, names);
+		if (names.size > 0) {
+			owned.set(entry.out, names);
+		}
 	}
 
 	return owned;

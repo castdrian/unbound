@@ -91,8 +91,13 @@ export async function resolveOptions(
 }
 
 async function resolveShape(flag: CreateInput['shape'], hasWorkspace: boolean): Promise<Shape> {
-	if (flag === 'repository') return 'repository';
-	if (flag === 'addon') return hasWorkspace ? 'add' : 'addon';
+	if (flag === 'repository') {
+		return 'repository';
+	}
+
+	if (flag === 'addon') {
+		return hasWorkspace ? 'add' : 'addon';
+	}
 
 	if (hasWorkspace) {
 		const choice = await select({
@@ -118,7 +123,9 @@ async function resolveShape(flag: CreateInput['shape'], hasWorkspace: boolean): 
 }
 
 async function resolveKind(flag: Kind | undefined): Promise<Kind> {
-	if (flag) return flag;
+	if (flag) {
+		return flag;
+	}
 
 	const choice = await select({
 		message: 'Which kind of addon?',
@@ -153,8 +160,13 @@ async function resolveName(flag: string | undefined): Promise<string> {
 		message: 'Addon name',
 		placeholder: 'my-addon',
 		validate(input) {
-			if (!input) return 'A name is required.';
-			if (!KEBAB_CASE.test(input)) return 'Must be kebab-case (lowercase, digits, hyphens).';
+			if (!input) {
+				return 'A name is required.';
+			}
+
+			if (!KEBAB_CASE.test(input)) {
+				return 'Must be kebab-case (lowercase, digits, hyphens).';
+			}
 		},
 	});
 
@@ -166,7 +178,9 @@ async function resolveText(
 	message: string,
 	initialValue: string,
 ): Promise<string> {
-	if (flag !== void 0) return flag;
+	if (flag !== void 0) {
+		return flag;
+	}
 
 	const value = await text({ message, initialValue });
 
@@ -178,7 +192,9 @@ async function resolveOptionalText(
 	message: string,
 	fallback: string,
 ): Promise<string> {
-	if (flag !== void 0) return flag;
+	if (flag !== void 0) {
+		return flag;
+	}
 
 	const value = await text({ message, placeholder: fallback });
 	const resolved = unwrap(value);
@@ -187,7 +203,9 @@ async function resolveOptionalText(
 }
 
 async function resolveDir(flag: string | undefined, name: string): Promise<string> {
-	if (flag !== void 0) return flag;
+	if (flag !== void 0) {
+		return flag;
+	}
 
 	const value = await text({ message: 'Target directory', initialValue: `./${name}` });
 
@@ -195,7 +213,9 @@ async function resolveDir(flag: string | undefined, name: string): Promise<strin
 }
 
 async function resolveConfirm(flag: boolean | undefined, message: string): Promise<boolean> {
-	if (flag !== void 0) return flag;
+	if (flag !== void 0) {
+		return flag;
+	}
 
 	const value = await confirm({ message, initialValue: true });
 

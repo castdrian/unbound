@@ -1,4 +1,8 @@
-import type { PluginPushRequest } from '@unbound-app/debugger-protocol';
+import type {
+	PluginPushRequest,
+	PluginPushResult,
+	EvalResult,
+} from '@unbound-app/debugger-protocol';
 import { parseMessage } from '@unbound-app/debugger-protocol';
 import type { PluginEntity } from '@unbound-app/types';
 import { createLogger } from '@unbound-app/logger';
@@ -25,6 +29,7 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 const disposers = new Set<() => void>();
 
+/** Connects to the debugger bridge and streams logs, evals and plugin pushes over it. */
 export function start() {
 	stopped = false;
 
@@ -35,6 +40,7 @@ export function start() {
 	if (!disposers.size) {
 		disposers.add(listenToAppState());
 		disposers.add(listenToSettings());
+
 		for (const dispose of listenToReloads()) disposers.add(dispose);
 	}
 
@@ -43,6 +49,7 @@ export function start() {
 	connect();
 }
 
+/** Disconnects from the debugger bridge and removes every listener and patch. */
 export function stop() {
 	stopped = true;
 	Patcher.unpatchAll();
@@ -51,9 +58,14 @@ export function stop() {
 	closeSocket();
 
 	for (const dispose of disposers) dispose();
+
 	disposers.clear();
 }
 
+/**
+ * @description Whether the debugger is enabled in settings.
+ * @returns `true` when `debugger.enabled` is set.
+ */
 export function shouldStart() {
 	return Settings.get('debugger.enabled', false);
 }
@@ -71,6 +83,7 @@ function connect(isReconnect = false) {
 		Logger.error(
 			'No debugger address configured; set `debugger.address` in developer settings.',
 		);
+
 		return;
 	}
 
@@ -82,8 +95,8 @@ function connect(isReconnect = false) {
 
 	// Clear the socket and retry on both error and close: on failure RN may fire only one of them,
 	// and leaving `ws` non-null would wedge the `if (ws) return` guard so no future attempt runs.
-	ws.addEventListener('error', (event: any) => {
-		Logger.error('Socket error:', event?.message ?? event);
+	ws.addEventListener('error', (event) => {
+		Logger.error('Socket error:', ('message' in event ? event.message : null) ?? event);
 		ws = null;
 		scheduleReconnect();
 	});
@@ -99,9 +112,8 @@ function connect(isReconnect = false) {
 	});
 }
 
-// Read per attempt rather than once at load, so an address edited in settings takes effect on the
-// reconnect the change triggers. Falls back to the address baked in at build time, which tracks the
-// dev host and is empty in production builds.
+// Read per attempt so an address edited in settings applies on the next reconnect. The build-time
+// fallback tracks the dev host and is empty in production builds.
 function resolveAddress() {
 	return Settings.get('debugger.address', '') || DEBUGGER_ADDRESS;
 }
@@ -127,15 +139,19 @@ function clearReconnectTimer() {
 function closeSocket() {
 	if (!ws) return;
 
-	if (ws.readyState === WebSocket.OPEN) ws.close();
+	if (ws.readyState === WebSocket.OPEN) {
+		ws.close();
+	}
+
 	ws = null;
 }
 
-function handleMessage(raw: any) {
+function handleMessage(raw: string) {
 	const request = parseMessage(raw);
 
 	if (request?.type === 'eval') {
 		void handleEvalRequest(request.id, request.code);
+
 		return;
 	}
 
@@ -149,8 +165,9 @@ async function handleEvalRequest(id: string, code: string) {
 		// Await so `await`-style expressions resolve to their value, not a pending Promise.
 		// oxlint-disable-next-line no-eval
 		const value = await (0, eval)(code);
+
 		reply({ type: 'eval-result', id, ok: true, value: inspect(value) });
-	} catch (error: any) {
+	} catch (error) {
 		reply({ type: 'eval-result', id, ok: false, error: inspect(error) });
 	}
 }
@@ -167,12 +184,12 @@ async function handlePluginPush(request: PluginPushRequest) {
 			ok: result.ok,
 			error: result.ok ? void 0 : inspect(result.error),
 		});
-	} catch (error: any) {
+	} catch (error) {
 		reply({ type: 'plugin-push-result', id: request.id, ok: false, error: inspect(error) });
 	}
 }
 
-function reply(payload: object) {
+function reply(payload: EvalResult | PluginPushResult) {
 	if (ws?.readyState !== WebSocket.OPEN) return;
 
 	try {
@@ -182,18 +199,34 @@ function reply(payload: object) {
 	}
 }
 
-function inspect(value: any): string {
-	if (value instanceof Error)
+// UNKNOWN: summarises arbitrary eval results and thrown values.
+function inspect(value: unknown): string {
+	if (value instanceof Error) {
 		return `${value.name}: ${value.message}\n${value.stack ?? ''}`.trim();
-	if (typeof value === 'string') return value;
+	}
+
+	if (typeof value === 'string') {
+		return value;
+	}
+
 	// Hermes can't stringify function sources, so summarise by name instead of `.toString()`.
-	if (typeof value === 'function') return value.name ? `[Function ${value.name}]` : '[Function]';
-	if (value === undefined) return 'undefined';
+	if (typeof value === 'function') {
+		return value.name ? `[Function ${value.name}]` : '[Function]';
+	}
+
+	if (value === undefined) {
+		return 'undefined';
+	}
+
+	if (typeof value === 'symbol' || typeof value === 'bigint') {
+		return value.toString();
+	}
 
 	try {
-		return JSON.stringify(value, null, 2) ?? String(value);
+		return JSON.stringify(value, null, 2);
 	} catch {
-		return String(value);
+		// Circular structures can't be serialised.
+		return Object.prototype.toString.call(value);
 	}
 }
 
@@ -205,6 +238,7 @@ function patchLoggingHook() {
 		// `nativeLoggingHook` and recurse. Bail if we are already inside a send.
 		if (ws?.readyState === WebSocket.OPEN && !sending) {
 			sending = true;
+
 			try {
 				ws.send(JSON.stringify({ type: 'log', level, message }));
 			} catch {
@@ -230,7 +264,11 @@ function listenToAppState() {
 			case 'background':
 				backgrounded = true;
 				clearReconnectTimer();
-				if (ws?.readyState === WebSocket.OPEN) ws.close();
+
+				if (ws?.readyState === WebSocket.OPEN) {
+					ws.close();
+				}
+
 				break;
 		}
 	});
@@ -252,35 +290,34 @@ function listenToSettings() {
 				return;
 			}
 
-			if (payload.key === 'debugger.address' && ws?.readyState === WebSocket.OPEN) {
-				Logger.info('Address changed, reconnecting...');
-				// The close handler clears `ws` and schedules the retry; dialling here would hit the
-				// `if (ws) return` guard, since `close()` doesn't clear the socket synchronously.
-				ws.close();
-			}
+			if (payload.key !== 'debugger.address' || ws?.readyState !== WebSocket.OPEN) return;
+
+			Logger.info('Address changed, reconnecting...');
+			// The close handler clears `ws` and schedules the retry; dialling here would hit the
+			// `if (ws) return` guard, since `close()` doesn't clear the socket synchronously.
+			ws.close();
 		},
 	);
 }
 
-// Surface hot reloads on the device itself: the debugger builtin only runs when the debugger is
-// enabled, so this is inherently dev-gated. A push-driven reload emits `reloaded`/`reload-error` on
-// the plugins manager; turn each into a toast naming the plugin.
+// Toast hot reloads on the device. This builtin only runs with the debugger enabled, so it is
+// dev-gated by construction.
 function listenToReloads() {
-	const onReloaded = (entity: PluginEntity) => {
+	function onReloaded(entity: PluginEntity) {
 		showToast({
 			id: `reload:${entity.id}`,
 			title: 'Hot reload',
 			content: `Reloaded ${entity.data.name}.`,
 		});
-	};
+	}
 
-	const onReloadError = (entity: PluginEntity, error: Error) => {
+	function onReloadError(entity: PluginEntity, error: Error) {
 		showToast({
 			id: `reload:${entity.id}`,
 			title: 'Hot reload failed',
 			content: `${entity.data.name} failed to reload: ${error.message}`,
 		});
-	};
+	}
 
 	plugins.on('reloaded', onReloaded);
 	plugins.on('reload-error', onReloadError);

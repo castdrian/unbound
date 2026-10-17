@@ -3,8 +3,8 @@ import type { ComponentProps } from 'react';
 import { Pressable } from 'react-native';
 import { useMemo, memo } from 'react';
 
+import type { ManagerKind } from '~/lib/constants';
 import { Discord } from '~/api/metro/components';
-import { ManagerKind } from '~/lib/constants';
 import { getManager } from '~/managers/utils';
 import { TintedIcon } from '~/ui/components';
 import { Icons } from '~/api/assets';

@@ -13,7 +13,10 @@ type ToastIconProps = {
 };
 
 function resolveIcon(icon: string | number): number {
-	if (typeof icon === 'string') return Icons[icon] ?? 0;
+	if (typeof icon === 'string') {
+		return Icons[icon] ?? 0;
+	}
+
 	return icon;
 }
 

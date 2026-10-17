@@ -1,8 +1,8 @@
 import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import { addonManifestSchema } from '@unbound-app/contracts/manifest';
 import type { Submission } from '@unbound-app/contracts/publish';
+import { readFileSync, existsSync, openAsBlob } from 'node:fs';
 import { publishArtifact } from '@unbound-app/web/publish';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 
@@ -21,7 +21,7 @@ export type PublishOptions = {
 
 type Artifact = {
 	manifest: PublishedManifest;
-	bundle: Bun.BunFile;
+	bundlePath: string;
 };
 
 // The bundle is served next to the manifest, so the published `main` names the built bundle.
@@ -35,7 +35,7 @@ function readArtifact(addon: DiscoveredAddon): Artifact {
 
 	const main = getBundleName(addon, parsed.data.main);
 
-	return { manifest: { ...parsed.data, main }, bundle: Bun.file(join(addon.output, main)) };
+	return { manifest: { ...parsed.data, main }, bundlePath: join(addon.output, main) };
 }
 
 /**
@@ -51,11 +51,13 @@ export async function publish({
 	repository,
 	changelog,
 }: PublishOptions): Promise<Submission> {
-	const { manifest, bundle } = readArtifact(addon);
+	const { manifest, bundlePath } = readArtifact(addon);
 
-	if (!(await bundle.exists())) {
-		throw new Error(`Built bundle not found at ${bundle.name}. Build ${addon.id} first.`);
+	if (!existsSync(bundlePath)) {
+		throw new Error(`Built bundle not found at ${bundlePath}. Build ${addon.id} first.`);
 	}
+
+	const bundle = await openAsBlob(bundlePath);
 
 	return publishArtifact(createClient(env), { manifest, bundle, repository, changelog });
 }

@@ -1,13 +1,14 @@
 # Code Style
 
-This is the canonical style guide for this repository. It is the document referenced by the `AGENTS.md` mentions in `.ast-grep/rules/*`. Everything below is derived from the existing source - it describes how this codebase is _already_ written, not an aspiration. Match it exactly.
+This is the canonical style guide for this repository, and the `AGENTS.md` that the `@marioparaschiv/oxc-config` lint messages point to. Everything below is derived from the existing source - it describes how this codebase is _already_ written, not an aspiration. Match it exactly.
 
 The hierarchy of authority, highest first:
 
 1. **`oxfmt`** - owns all whitespace, quoting, and line-wrapping. Never fight it; never hand-format. Run it.
-2. **`ast-grep` rules** (`.ast-grep/rules/`) - structural bans and rewrites. `error` severity blocks; `warning` is auto-fixed.
-3. **`oxlint`** (`.oxlintrc.json`) - correctness lint + import/export ordering via `perfectionist`.
-4. **This document** - the conventions the tools can't encode: naming, file shape, module structure, the _feel_ of the code.
+2. **`oxlint`** (`.oxlintrc.json`, run `--type-aware`) - correctness, structural bans (the custom `oxc-config/*` rules), JSDoc shape, statement padding, and import/export ordering via `perfectionist`. Every rule is an `error`. The rules, the commitlint config and the Claude hook come from `@marioparaschiv/oxc-config`; `.oxlintrc.json` extends its `base`, `react` and `jsdoc` presets with no local rule overrides, so change a shared rule in that package, not here. The one local override allows `any` in the metro layer and the Discord design-module typings (§4). `bun run lint` also runs `oxc-config-check`, which fails on unknown rule names.
+3. **This document** - the conventions the tools can't encode: naming, file shape, module structure, the _feel_ of the code.
+
+Fix a lint finding in the code. Don't silence it with a disable comment, a cast, or a config override.
 
 If you're unsure, open a neighbouring file in the same directory and mirror it. Consistency with the local file beats consistency with this document.
 
@@ -25,7 +26,7 @@ These are settled by `.oxfmtrc.json`. Stated here so you recognise the output, n
 - **Bracket spacing on**: `{ foo }`, not `{foo}`.
 - `*.gen.ts` is formatter-ignored. Don't hand-edit generated files.
 
-You never need to think about any of the above. Save the file; the format-on-save hook (`.claude/hooks/format-lint.mjs`) handles it.
+You never need to think about any of the above. Save the file; the format-on-save hook (`oxc-config-hook`, wired in `.claude/settings.json`) handles it. When a Claude session stops, the same hook runs `oxlint --type-aware --fix` on every file changed in the session and reports what's left.
 
 ---
 
@@ -58,7 +59,7 @@ Don't sort by hand - let the linter do it - but **write new imports knowing this
 
 The `groups` config collapses to three visible blocks in practice:
 
-1. **External** - builtins + third-party + everything from `@unbound-app/*` (these match the `internalPattern` for `@/`, `~/`, `@telecord/` but the workspace packages resolve as external). Side-effect imports sort to the very top of this block.
+1. **External** - builtins + third-party + everything from `@unbound-app/*` (the `internalPattern` only matches `~/` and `@/`, so the workspace packages resolve as external). Side-effect imports sort to the very top of this block.
 2. **Internal aliased** - `~/...` (the `~` alias → `src/`).
 3. **Relative** - `./...` and `../...`.
 
@@ -114,7 +115,7 @@ The default object lists members roughly in definition order (constants first, t
 
 ### 3.1 Naming
 
-- **Files: `kebab-case.ts` / `kebab-case.tsx`.** `toast-container.tsx`, `use-toast-state.ts`, `create-proxy.ts`, `is-empty.ts`, `error-boundary.tsx`.
+- **Files: `kebab-case.ts` / `kebab-case.tsx`** (`oxc-config/kebab-case-filename`). `toast-container.tsx`, `use-toast-state.ts`, `create-proxy.ts`, `is-empty.ts`, `error-boundary.tsx`.
 - **One concept per file.** `utils/src/` is the purest expression: `noop.ts`, `uuid.ts`, `lazy.ts`, `debounce.ts` - each is a single default-exported function and nothing else.
 - **Co-located styles** use the `.style.ts` suffix next to the component: `toast.tsx` ↔ `toast.style.ts`, `toast-container.tsx` ↔ `toast-container.style.ts`.
 - **Hooks** are files prefixed `use-` exporting a `useThing` function as default: `use-toast-state.ts` → `export default useToastState`.
@@ -142,11 +143,15 @@ The default object lists members roughly in definition order (constants first, t
 
 ## 4. TypeScript
 
-The base config is `strict: true` but deliberately relaxes the _unused_ and _implicit-any_ family (`noUnusedLocals: false`, `noImplicitAny: false`, `noImplicitThis: false`, `noPropertyAccessFromIndexSignature: false`). The codebase leans on this: `any` is used freely at dynamic boundaries (the metro layer, settings payloads) where modelling the real type is impractical. **`any` is acceptable for genuinely dynamic runtime values; it is not a substitute for thinking where a type is knowable.**
+The base config is `strict: true` but relaxes the _unused_ and _implicit-any_ family (`noUnusedLocals: false`, `noImplicitAny: false`, `noImplicitThis: false`, `noPropertyAccessFromIndexSignature: false`). Lint is stricter than the compiler here:
 
-### 4.1 Type declarations - the hard rules (ast-grep `error`)
+- **Explicit `any` is a lint error** (`typescript/no-explicit-any`) everywhere except the metro layer (`packages/client/src/api/metro/**`) and the Discord design-module typings (`packages/types/typings/components.ts`), where the shapes are Discord internals that can't be known.
+- **`unknown` needs a reason.** An `unknown` parameter or return type is an error (`oxc-config/no-unknown-parameters`, `oxc-config/no-unknown-returns`) unless the function is a type predicate (`value is T`) or carries a `// UNKNOWN: <reason>` comment on the function or the parameter. Narrow with a type predicate rather than casting.
+- **No unsafe dictionaries** - `Record<string, unknown | any | object | {}>` is banned (`oxc-config/no-unsafe-dictionary-type`); give the value a real type.
 
-- **No inline object types** in parameters, return types, or type arguments (`no-inline-object-type`). Extract to a top-level `type` alias.
+### 4.1 Type declarations - the hard rules
+
+- **No inline object types** in parameters, return types, or type arguments (`oxc-config/no-inline-object-type`). Extract to a top-level `type` alias.
 
     ```ts
     // Bad
@@ -156,18 +161,16 @@ The base config is `strict: true` but deliberately relaxes the _unused_ and _imp
     function f(x: Args) {}
     ```
 
-    _(Object literals inside generic args of a `create<…>()` call and standalone `interface`/`type` bodies are fine - the ban is specifically on object types positioned in param/return/type-argument annotations.)_
+    _(Standalone `type` bodies are fine - the ban is specifically on object types positioned in param/return/type-argument annotations.)_
 
-- **No double type assertions** - `as unknown as T` and `as any as T` are banned (`no-double-type-assertion`). Fix the underlying type so the value is assignable. The one historical exception you'll see (`as unknown as T` in `addons.ts` constructing an entity) predates the rule and is the kind of thing the rule exists to prevent - don't add more.
+- **No bare `object` parameters** (`oxc-config/no-object-parameters`) - give the parameter a specific shape.
+- **No double type assertions** - `as unknown as T` and `as any as T` are banned (`oxc-config/no-double-type-assertion`), as are chained `as A as B` (`oxc-config/no-chained-type-assertions`) and the split form, annotating a variable `unknown`/`any` and asserting it later (`oxc-config/no-widen-then-assert`). Fix the underlying type so the value is assignable.
+- **`as` style only**, and never on an object literal (`typescript/consistent-type-assertions`) - annotate the variable instead.
+- **Type-only imports use `import type`** (`typescript/consistent-type-imports`), never `import()` type annotations.
 
-### 4.2 `type` vs `interface`
+### 4.2 `type`, not `interface`
 
-Both are used, with a soft convention:
-
-- **`interface`** for object shapes that are conceptually a "thing" - store state, option bags meant to be extended: `interface SettingsPayload`, `interface CacheState`, `interface ThemeStore`, `interface MetroStoreOptions extends MetroSearchOptions`.
-- **`type`** for unions, function types, event maps, mapped/conditional types, and small local aliases: `type AddonResolveable = string | Addon`, `type EventMap = { … }`, `type MetroFilter = ((…) => …) & { … }`, the whole `Metro*` conditional-type family.
-
-Interfaces extend; types compose. Use `extends` for interfaces, `&` intersections for types.
+Every object shape is a `type` alias (`typescript/consistent-type-definitions`): `type SettingsPayload = { … }`, `type ThemeStore = { … }`, `type AddonResolveable = string | Addon`, `type MetroFilter = ((…) => …) & { … }`, the whole `Metro*` conditional-type family. Compose and extend with `&` intersections: `type MetroStoreOptions = MetroSearchOptions & { … }`.
 
 ### 4.3 Generics
 
@@ -205,14 +208,14 @@ function save() {
 The single-purpose util files declare a named `function` and default-export it at the bottom - never `export default function`, never an arrow:
 
 ```ts
-function noop(...args: any[]): any {
+function noop(): void {
 	// No.
 }
 
 export default noop;
 ```
 
-Arrow functions are reserved for:
+A block-body arrow assigned to a `const` is a lint error (`oxc-config/no-const-arrow-function`). Arrow functions are reserved for:
 
 - Inline callbacks (`.map`, `.find`, event handlers, predicates).
 - Short factory one-liners: `const find = (...args: string[]) => lazy(() => require('~/api/metro').findByProps(...args));`.
@@ -246,21 +249,33 @@ const {
 
 ### 5.3 Early return / guard clauses
 
-Bail out at the top; don't nest the happy path. This is universal:
+Bail out at the top; don't nest the happy path (`unicorn-js/prefer-early-return`). This is universal:
 
 ```ts
 unload(entity: AddonResolveable) {
 	const resolved = this.resolve(entity);
+
 	if (!resolved) return;
+
 	// … happy path at top indentation
 }
 ```
 
+Only a bare `return;` or `return null;` may go unbraced (`oxc-config/require-block-except-empty-return`); every other branch body, including `throw` and `continue`, takes a block:
+
 ```ts
-if (!filter) throw new Error('You must provide a filter to search by.');
 if (!resolved || resolved.started) return;
-if (cache) continue; // inside loops, continue early
+
+if (!filter) {
+	throw new Error('You must provide a filter to search by.');
+}
+
+if (cache) {
+	continue;
+}
 ```
+
+Statements are padded (`stylistic/padding-line-between-statements`): a blank line before every `if`/`for`/`while`/`switch`/`try`/`return`, after each of those blocks, and after a run of `const`/`let` declarations.
 
 ### 5.4 Explicit return types on public API; inferred internally
 
@@ -270,12 +285,13 @@ Exported API functions annotate their return type (`: ToastHandle`, `: Widen<T>`
 
 ## 6. Control Flow & Language Idioms
 
-These are partly enforced by ast-grep (auto-fixed warnings) - write them this way from the start.
+Most of these are lint rules (some auto-fixed by `bun run lint:fix`) - write them this way from the start.
 
-- **Logical assignment operators.** `x ||= y`, `x &&= y`, `x ??= y` - never the longhand `x = x || y` (`use-logical-assignment`). Heavily used: `data.current[keys[i]] ??= {}`, `options.date ??= Date.now()`, `res[i] ??= []`, `state.modules[key] ??= []`.
-- **Optional chaining for guarded calls.** `obj?.method()` not `obj.method && obj.method()` (`prefer-optional-chaining`). And `resolved.instance?.start?.()`.
+- **Logical assignment operators.** `x ||= y`, `x &&= y`, `x ??= y` - never the longhand `x = x || y` (`oxc-config/use-logical-assignment`). Heavily used: `data.current[keys[i]] ??= {}`, `options.date ??= Date.now()`, `res[i] ??= []`, `state.modules[key] ??= []`.
+- **Optional chaining for guarded calls.** `obj?.method()` not `obj.method && obj.method()` (`oxc-config/prefer-optional-chaining`). And `resolved.instance?.start?.()`.
 - **Nullish coalescing `??`** for defaults (distinct from `||`): `prev ?? []`, `options.duration ?? settings.get(…)`, `entity.id ?? this.getByName(entity)`. Use `??` when `0`/`''`/`false` are valid values; `||` only when any falsy should fall through.
-- **No redundant `await` inside `Promise.all([...])`** (`no-await-in-promise-all`).
+- **No redundant `await` inside `Promise.all([...])`** (`oxc-config/no-await-in-promise-all`), and no `await` on a value that isn't a promise (`typescript/await-thenable`).
+- **No `.forEach()`** (`oxc-config/no-foreach`) - use `for…of`.
 - **`for…of` over arrays/values, classic `for` with cached length in hot loops.** Iteration style is chosen for the context:
     - Readable iteration: `for (const field of required)`, `for (const id of cached)`.
     - Performance-sensitive metro/filter loops use the indexed form with a cached length: `for (let i = 0, len = props.length; i < len; i++)`.
@@ -289,7 +305,7 @@ These are partly enforced by ast-grep (auto-fixed warnings) - write them this wa
 
 Used for stateful, identity-bearing things: managers, the `Logger`. Plain functions/objects for everything else. Conventions, from `managers/base.ts` and `logger.ts`:
 
-- **`abstract class` with abstract methods** to define a contract for subclasses: `abstract initialize(): void;`, `protected abstract handleBundle(bundle: string): any;`.
+- **`abstract class` with abstract methods** to define a contract for subclasses: `abstract initialize(): void;`.
 - **Field declarations with initialisers at the top**, before the constructor:
 
     ```ts
@@ -330,26 +346,26 @@ Event names are past-tense verbs: `loaded`, `unloaded`, `started`, `stopped`, `e
     }
     export default ToastContainer;
     ```
-- **Props are a destructured object in the signature**, with defaults inline: `function TintedIcon({ source, size = 24 }: { source: number; size?: number })`. (Note: a literal prop type on a _local_ tiny component is tolerated, but per §4.1 a reused/exported component's props should be a named `type`.)
+- **Props are a destructured object in the signature**, with defaults inline and the props shape as a named `type` (an inline literal prop type is banned by §4.1): `function TintedIcon({ source, size = 24 }: TintedIconProps)`.
 - Small private sub-components live in the same file above the main one (`TintedIcon`, `unitToHex`, `withoutOpacity` in `toast.tsx`).
 
 ### 8.2 Hooks
 
 - Custom hooks are their own `use-name.ts` file, `useName` default-exported.
-- `useState` - **no type argument when the initial value makes it inferable** (`no-unnecessary-usestate-type`): `useState(1)`, not `useState<number>(1)`. Type args only for non-inferable initial states (`useState(options.closing)` where the type comes from the value is fine; an explicit type is only added when the initial value is `null`/`undefined` and the real type is wider).
+- `useState` - **no type argument when the initial value makes it inferable** (`oxc-config/no-unnecessary-usestate-type`): `useState(1)`, not `useState<number>(1)`. Type args only for non-inferable initial states (`useState(options.closing)` where the type comes from the value is fine; an explicit type is only added when the initial value is `null`/`undefined` and the real type is wider).
 - `useEffect` with `[]` for mount, named `function handler(…)` declared inside for subscriptions, returning the cleanup: `return () => Events.off('changed', handler);`. When the cleanup return value must be discarded, wrap in `void`: `return () => void Events.off('changed', handler);`.
 - `useMemo` for derived collections with explicit dep arrays (`toast-container.tsx`).
 
 ### 8.3 JSX
 
-- **No `&&` short-circuit that can leak a falsy value into render** (`jsx-no-conditional-leak`). Use a ternary returning `null`:
+- **No `&&` short-circuit that can leak a falsy value into render** (`oxc-config/jsx-no-conditional-leak`). Use a ternary returning `null`:
     ```tsx
     {
     	condition ? <Thing /> : null;
     }
     ```
     _(You will see existing `options.icon && (…)` in `toast.tsx`; that pattern is exactly what the rule now flags - write the ternary in new code.)_
-- **No nested `<a>`** (`no-nested-links`) - N/A in RN but enforced for any web JSX.
+- **No nested `<a>`** (`oxc-config/no-nested-links`) - N/A in RN but enforced for any web JSX.
 - Single quotes in JSX attributes (`variant='text-sm/semibold'`, `pointerEvents='box-none'`).
 - `style={[base, conditional, { inline }]}` array form for composing RN styles.
 
@@ -364,11 +380,11 @@ Event names are past-tense verbs: `loaded`, `unloaded`, `started`, `stopped`, `e
 One store per file in `stores/`. `PascalCase` name matching the file's concept, default-exported:
 
 ```ts
-interface ThemeStore {
+type ThemeStore = {
 	applied: string | null;
 	data: Theme | null;
 	setApplied: (id: string | null, theme: Theme | null) => void;
-}
+};
 
 const ThemeStore = create<ThemeStore>((set) => ({
 	applied: null,
@@ -388,14 +404,14 @@ Actions live _in_ the store (method shorthand `addToast(options) { … }` for on
 - **`createLogger(name)`** (or `createLogger('Scope', 'SubScope')` for nested) gives a scoped logger; managers hold one as `this.logger`. Levels: `.log .info .success .warn .error .debug`. The prefix renders as `[Scope → SubScope]`.
 - **Error messages name the thing and the id**: `` `Failed to load addon ${manifest.id}:` `` then the error object as a second arg.
 - **try/catch around fallible mutations**, recording rather than throwing where the system should degrade gracefully (managers record to `this.errors`; metro blacklists the offending module and continues). Throw only for programmer errors / contract violations (`throw new Error('You must provide a filter to search by.')`, manifest validation).
-- **`catch (error: any)`** is the codebase convention (lint allows it via `caughtErrors: "none"`). Empty catch bodies carry an explanatory comment (`// Not in Node environment`).
+- **`catch (error)`**, left as the compiler's `unknown` - an `any` annotation is a lint error outside the metro layer (§4). An unused catch binding is allowed (`caughtErrors: "none"`). Empty catch bodies carry an explanatory comment (`// Not in Node environment`).
 - **Events use `tseep`'s `EventEmitter`** with a typed event map (`new EventEmitter<EventMap>()`). Expose `on`/`off` by binding (`export const on = Events.on.bind(Events)`). Provide an `addListener(predicate, callback)` that returns an unsubscribe function. Event payloads are a single object argument.
 
 ---
 
 ## 10. Comments & Documentation
 
-- **JSDoc on every shared utility and public helper**, with `@description`, `@template` (for generics), `@param`/`@returns`. This is consistent across `utils/src/*`:
+- **JSDoc on every exported function** (`jsdoc-js/require-jsdoc`), with `@description`, `@template` (for generics), and a `@param` per parameter plus `@returns` (`jsdoc-js/require-param`, `jsdoc-js/require-returns`). This is consistent across `utils/src/*`:
     ```ts
     /**
      * @description Creates a lazy object that will run its initializer once any property is accessed for the first time.
@@ -404,6 +420,8 @@ Actions live _in_ the store (method shorthand `addToast(options) { … }` for on
      * @returns An object that appears empty but has the same properties as the object returned from the initializer.
      */
     ```
+- **A JSDoc block is a summary plus tags** (`oxc-config/jsdoc-summary-only`): the summary is one line, two at most, and there are no further prose paragraphs. Put extra detail in `@param`/`@returns`, or in a `//` comment beside the code it explains.
+- **Comments stay under 200 characters** (`oxc-config/max-comment-length`); a run of consecutive `//` lines counts as one comment. If it needs more, it is probably narration.
 - **Inline comments explain _why_, sparingly**, and often carry a performance rationale: `// Instead of creating a symbol each time, use a pre-defined one for performance gains.`, `// Loop through whole registry if any of the items have "all" as an option`.
 - **No commented-out code.** No decorative banners except the deliberate `/****** CACHE ******/` section markers used in the dense metro `find` to delimit the cache fast-path - reserve that for genuinely long, branchy functions.
 - Don't document the obvious. A one-line `noop` gets `// No.` and that's the whole point.

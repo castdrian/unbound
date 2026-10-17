@@ -1,16 +1,10 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 
-import { createTestContext } from './helpers/context';
+import { presignStagingUpload } from '~/lib/storage';
 
-// Run through `bun scripts/test-s3.ts`, which starts MinIO and provides these.
-const { ctx, close } = createTestContext({
-	S3_ENDPOINT: process.env.S3_ENDPOINT,
-	S3_REGION: process.env.S3_REGION,
-	S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID,
-	S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
-	S3_STAGING_BUCKET: process.env.S3_STAGING_BUCKET,
-	S3_PUBLIC_BUCKET: process.env.S3_PUBLIC_BUCKET,
-});
+import { S3_TEST_ENV, createTestContext } from './helpers/context';
+
+const { ctx, close } = createTestContext(S3_TEST_ENV);
 
 const key = `tests/${crypto.randomUUID()}/index.js`;
 
@@ -38,5 +32,39 @@ describe('createStorage', () => {
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe('staged');
+	});
+});
+
+describe('presignStagingUpload', () => {
+	const uploadKey = `tests/${crypto.randomUUID()}/bundle`;
+
+	afterAll(() => ctx.storage.staging.delete(uploadKey));
+
+	function presign(signedAt: Date = new Date()) {
+		return presignStagingUpload(ctx.env, { key: uploadKey, size: 5, signedAt, expiresIn: 60 });
+	}
+
+	test('rejects a body of a different length', async () => {
+		const { url, headers } = presign();
+		const response = await fetch(url, { method: 'PUT', headers, body: 'too long' });
+
+		expect(response.ok).toBe(false);
+		expect(await ctx.storage.staging.exists(uploadKey)).toBe(false);
+	});
+
+	test('rejects an expired URL', async () => {
+		const { url, headers } = presign(new Date(Date.now() - 120_000));
+		const response = await fetch(url, { method: 'PUT', headers, body: 'hello' });
+
+		expect(response.status).toBe(403);
+		expect(await ctx.storage.staging.exists(uploadKey)).toBe(false);
+	});
+
+	test('uploads once and refuses to overwrite', async () => {
+		const { url, headers } = presign();
+
+		expect((await fetch(url, { method: 'PUT', headers, body: 'hello' })).status).toBe(200);
+		expect((await fetch(url, { method: 'PUT', headers, body: 'world' })).status).toBe(412);
+		expect(await ctx.storage.staging.file(uploadKey).text()).toBe('hello');
 	});
 });

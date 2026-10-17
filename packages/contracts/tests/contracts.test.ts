@@ -155,6 +155,8 @@ describe('publish contract', () => {
 		version: manifest.version,
 		kind: 'listing',
 		status: 'awaiting_upload',
+		repository: null,
+		unverifiedSource: true,
 	};
 
 	test('parses a create request with an optional repository', () => {

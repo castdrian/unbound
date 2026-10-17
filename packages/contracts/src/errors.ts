@@ -16,6 +16,8 @@ export const apiErrorCodeSchema = z.enum([
 	'artifact_too_large',
 	'upload_missing',
 	'upload_expired',
+	'upload_size_mismatch',
+	'submission_not_awaiting_upload',
 	'github_not_linked',
 	'github_no_push_access',
 	'internal_error',

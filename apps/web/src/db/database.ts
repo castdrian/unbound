@@ -1,3 +1,4 @@
+import type { SQLiteBunTransaction } from 'drizzle-orm/bun-sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { Database as SQLite } from 'bun:sqlite';
 
@@ -33,5 +34,6 @@ export function createDatabase(path: string) {
 }
 
 export type Database = ReturnType<typeof createDatabase>;
+export type Transaction = SQLiteBunTransaction<typeof relations>;
 
 export default { PRAGMAS, createDatabase };

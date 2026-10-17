@@ -1,3 +1,4 @@
+import { makeSignature } from 'better-auth/crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,6 +7,8 @@ import { createAppContext } from '~/lib/context';
 import type { AppContext } from '~/lib/context';
 import { createDatabase } from '~/db/database';
 import { migrateDatabase } from '~/db/migrate';
+import { DISCORD_EPOCH } from '~/lib/discord';
+import { CLI_CLIENT_ID } from '~/api/client';
 import type { EnvSource } from '~/lib/env';
 import { parseEnv } from '~/lib/env';
 
@@ -25,6 +28,16 @@ export const TEST_ENV = {
 	S3_PUBLIC_BUCKET: 'unbound-addons',
 } satisfies EnvSource;
 
+/** The MinIO endpoint and buckets `bun run test:s3` provides, for `createTestContext` in `*.s3.ts` files. */
+export const S3_TEST_ENV = {
+	S3_ENDPOINT: process.env.S3_ENDPOINT,
+	S3_REGION: process.env.S3_REGION,
+	S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID,
+	S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
+	S3_STAGING_BUCKET: process.env.S3_STAGING_BUCKET,
+	S3_PUBLIC_BUCKET: process.env.S3_PUBLIC_BUCKET,
+} satisfies EnvSource;
+
 export type TestContext = {
 	ctx: AppContext;
 	/** Closes the database and deletes its temporary directory. */
@@ -39,6 +52,8 @@ export type DiscordProfile = {
 
 export type SignedInUser = {
 	userId: string;
+	/** The session token, sent as a bearer token in `headers`. */
+	token: string;
 	headers: Headers;
 };
 
@@ -62,6 +77,16 @@ export function createTestContext(overrides: EnvSource = {}): TestContext {
 			rmSync(dir, { recursive: true, force: true });
 		},
 	};
+}
+
+/**
+ * @description Builds a Discord snowflake id created at the given time, e.g. for an account of a
+ * chosen age.
+ * @param date The creation time.
+ * @returns The snowflake.
+ */
+export function snowflakeAt(date: Date): string {
+	return String((BigInt(date.getTime()) - DISCORD_EPOCH) << 22n);
 }
 
 /**
@@ -108,6 +133,71 @@ export async function signInWithDiscord(
 
 	return {
 		userId: user.id,
+		token: session.token,
 		headers: new Headers({ authorization: `Bearer ${session.token}` }),
 	};
+}
+
+/**
+ * @description Builds the signed session cookie a browser holds after signing in.
+ * @param ctx The application context.
+ * @param token The session token.
+ * @returns Headers carrying the session as a cookie.
+ */
+export async function browserSessionHeaders(ctx: AppContext, token: string): Promise<Headers> {
+	const { authCookies } = await ctx.auth.$context;
+	const signature = await makeSignature(token, ctx.env.BETTER_AUTH_SECRET);
+	const value = encodeURIComponent(`${token}.${signature}`);
+
+	return new Headers({ cookie: `${authCookies.sessionToken.name}=${value}` });
+}
+
+/**
+ * @description Runs the device authorization flow `ubd login` uses: requests a code, approves it as
+ * the signed-in user and exchanges it for a session.
+ * @param ctx The application context.
+ * @param headers The approving user's session headers.
+ * @returns Headers carrying the device-flow session as a bearer token.
+ */
+export async function authorizeDevice(ctx: AppContext, headers: Headers): Promise<Headers> {
+	const code = await authRequest(ctx, '/device/code', {
+		method: 'POST',
+		body: JSON.stringify({ client_id: CLI_CLIENT_ID }),
+	}).then((response) => response.json());
+
+	// The verification page claims the code for the signed-in user before it can be approved.
+	await authRequest(ctx, `/device?user_code=${code.user_code}`, { headers });
+	await authRequest(ctx, '/device/approve', {
+		method: 'POST',
+		headers,
+		body: JSON.stringify({ userCode: code.user_code }),
+	});
+
+	const token = await authRequest(ctx, '/device/token', {
+		method: 'POST',
+		body: JSON.stringify({
+			grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+			device_code: code.device_code,
+			client_id: CLI_CLIENT_ID,
+		}),
+	}).then((response) => response.json());
+
+	return new Headers({ authorization: `Bearer ${token.access_token}` });
+}
+
+/**
+ * @description Links a GitHub account to a user as the account-linking callback does.
+ * @param ctx The application context.
+ * @param userId The user to link.
+ * @param accessToken The GitHub OAuth token GitHub's API is called with.
+ */
+export async function linkGitHub(ctx: AppContext, userId: string, accessToken: string) {
+	const { internalAdapter } = await ctx.auth.$context;
+
+	await internalAdapter.linkAccount({
+		userId,
+		providerId: 'github',
+		accountId: userId,
+		accessToken,
+	});
 }

@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiV1MeRouteImport } from './routes/api/v1/me'
+import { Route as ApiV1SubmissionsRouteImport } from './routes/api/v1/submissions'
+import { Route as ApiV1SubmissionsIdFinalizeRouteImport } from './routes/api/v1/submissions/$id/finalize'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +30,69 @@ const ApiV1MeRoute = ApiV1MeRouteImport.update({
   path: '/api/v1/me',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1SubmissionsRoute = ApiV1SubmissionsRouteImport.update({
+  id: '/api/v1/submissions',
+  path: '/api/v1/submissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1SubmissionsIdFinalizeRoute =
+  ApiV1SubmissionsIdFinalizeRouteImport.update({
+    id: '/$id/finalize',
+    path: '/$id/finalize',
+    getParentRoute: () => ApiV1SubmissionsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
+  '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
+  '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
+  '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/auth/$' | '/api/v1/me'
+  fullPaths:
+    | '/'
+    | '/api/auth/$'
+    | '/api/v1/me'
+    | '/api/v1/submissions'
+    | '/api/v1/submissions/$id/finalize'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/auth/$' | '/api/v1/me'
-  id: '__root__' | '/' | '/api/auth/$' | '/api/v1/me'
+  to:
+    | '/'
+    | '/api/auth/$'
+    | '/api/v1/me'
+    | '/api/v1/submissions'
+    | '/api/v1/submissions/$id/finalize'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/auth/$'
+    | '/api/v1/me'
+    | '/api/v1/submissions'
+    | '/api/v1/submissions/$id/finalize'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiV1MeRoute: typeof ApiV1MeRoute
+  ApiV1SubmissionsRoute: typeof ApiV1SubmissionsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -82,13 +118,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/submissions': {
+      id: '/api/v1/submissions'
+      path: '/api/v1/submissions'
+      fullPath: '/api/v1/submissions'
+      preLoaderRoute: typeof ApiV1SubmissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/submissions/$id/finalize': {
+      id: '/api/v1/submissions/$id/finalize'
+      path: '/$id/finalize'
+      fullPath: '/api/v1/submissions/$id/finalize'
+      preLoaderRoute: typeof ApiV1SubmissionsIdFinalizeRouteImport
+      parentRoute: typeof ApiV1SubmissionsRoute
+    }
   }
 }
+
+interface ApiV1SubmissionsRouteChildren {
+  ApiV1SubmissionsIdFinalizeRoute: typeof ApiV1SubmissionsIdFinalizeRoute
+}
+
+const ApiV1SubmissionsRouteChildren: ApiV1SubmissionsRouteChildren = {
+  ApiV1SubmissionsIdFinalizeRoute: ApiV1SubmissionsIdFinalizeRoute,
+}
+
+const ApiV1SubmissionsRouteWithChildren =
+  ApiV1SubmissionsRoute._addFileChildren(ApiV1SubmissionsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiV1MeRoute: ApiV1MeRoute,
+  ApiV1SubmissionsRoute: ApiV1SubmissionsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

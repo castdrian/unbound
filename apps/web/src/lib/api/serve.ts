@@ -1,10 +1,11 @@
 import type { z } from 'zod';
 
-import type { Endpoint } from '~/lib/api/endpoint';
+import type { Endpoint, PathParams } from '~/lib/api/endpoint';
 import app from '~/lib/app';
 
 export type ServerHandlerArgs = {
 	request: Request;
+	params: PathParams;
 };
 
 /** A TanStack Start server route handler that remembers which endpoint it serves, for the API map. */
@@ -20,9 +21,12 @@ export type ServedEndpoint<E> = ((args: ServerHandlerArgs) => Promise<Response>)
 export function serve<TBody extends z.ZodType, TResponse extends z.ZodType>(
 	target: Endpoint<TBody, TResponse>,
 ): ServedEndpoint<Endpoint<TBody, TResponse>> {
-	return Object.assign(({ request }: ServerHandlerArgs) => target.handle(app, request), {
-		endpoint: target,
-	});
+	return Object.assign(
+		({ request, params }: ServerHandlerArgs) => target.handle(app, request, params),
+		{
+			endpoint: target,
+		},
+	);
 }
 
 export default serve;

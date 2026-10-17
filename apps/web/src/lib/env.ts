@@ -27,6 +27,16 @@ export const envSchema = z.object({
 	S3_SECRET_ACCESS_KEY: z.string().min(1),
 	S3_STAGING_BUCKET: z.string().min(1),
 	S3_PUBLIC_BUCKET: z.string().min(1),
+
+	GITHUB_API_URL: z.url().default('https://api.github.com'),
+
+	ADDON_MAX_BYTES: positiveInt.default(25 * 1024 * 1024),
+	SUBMISSION_UPLOAD_TTL_SECONDS: positiveInt.default(900),
+	SUBMISSION_MAX_PENDING_LISTINGS: positiveInt.default(2),
+	SUBMISSION_MAX_PENDING_UPDATES: positiveInt.default(1),
+	SUBMISSION_MIN_ACCOUNT_AGE_DAYS: z.coerce.number().int().nonnegative().default(30),
+	SUBMISSION_RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(3600),
+	SUBMISSION_RATE_LIMIT_MAX: positiveInt.default(10),
 });
 
 export type Env = z.infer<typeof envSchema>;

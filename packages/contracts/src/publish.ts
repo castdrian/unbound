@@ -14,29 +14,44 @@ export const submissionStatusSchema = z.enum([
 	'superseded',
 ]);
 
+/** Statuses that keep a submission in the queue: they hold a listing's addon id and count towards the pending caps. */
+export const openSubmissionStatusSchema = submissionStatusSchema.extract([
+	'awaiting_upload',
+	'pending_review',
+	'changes_requested',
+]);
+
+/** A GitHub repository as `owner/name`. */
+export const repositorySchema = z
+	.string()
+	.regex(
+		/^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/,
+		'Must be a GitHub owner/name.',
+	);
+
 export const submissionSchema = z.object({
 	id: z.string().min(1),
 	addonId: addonIdSchema,
 	version: z.string(),
 	kind: submissionKindSchema,
 	status: submissionStatusSchema,
+	repository: repositorySchema.nullable(),
+	/** No repository was named, so reviewers cannot tie the artifact to source the author controls. */
+	unverifiedSource: z.boolean(),
 });
 
-/** The submission kind is derived server-side from whether the caller already maintains `manifest.id`. */
+/**
+ * The kind is derived server-side from whether `manifest.id` is an approved addon. Submitting again
+ * supersedes the caller's own submission for the addon that awaits its upload or has changes requested.
+ */
 export const createSubmissionRequestSchema = z.object({
 	manifest: addonManifestSchema,
 	bundleSize: z.int().positive(),
-	repository: z
-		.string()
-		.regex(
-			/^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/,
-			'Must be a GitHub owner/name.',
-		)
-		.optional(),
+	repository: repositorySchema.optional(),
 	changelog: z.string().max(10_000).optional(),
 });
 
-/** A single-use presigned upload for the bundle; send exactly `bundleSize` bytes before `expiresAt`. */
+/** A single-use presigned upload for the bundle; send exactly `bundleSize` bytes with `headers` before `expiresAt`. */
 export const submissionUploadSchema = z.object({
 	url: z.url(),
 	method: z.literal('PUT'),
@@ -58,6 +73,7 @@ export const finalizeSubmissionResponseSchema = z.object({
 
 export type SubmissionKind = z.infer<typeof submissionKindSchema>;
 export type SubmissionStatus = z.infer<typeof submissionStatusSchema>;
+export type OpenSubmissionStatus = z.infer<typeof openSubmissionStatusSchema>;
 export type Submission = z.infer<typeof submissionSchema>;
 export type CreateSubmissionRequest = z.infer<typeof createSubmissionRequestSchema>;
 export type SubmissionUpload = z.infer<typeof submissionUploadSchema>;
@@ -68,6 +84,8 @@ export type FinalizeSubmissionResponse = z.infer<typeof finalizeSubmissionRespon
 export default {
 	submissionKindSchema,
 	submissionStatusSchema,
+	openSubmissionStatusSchema,
+	repositorySchema,
 	submissionSchema,
 	createSubmissionRequestSchema,
 	submissionUploadSchema,

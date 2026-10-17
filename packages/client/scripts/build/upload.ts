@@ -121,17 +121,24 @@ export function parseUploadEnv(
 	return result.data;
 }
 
-if (import.meta.main) {
-	const env = parseUploadEnv();
-
-	const bucket = new Bun.S3Client({
+/**
+ * @description Connects to the public bucket described by the upload environment.
+ * @param env The validated upload environment.
+ * @returns A client for the public bucket.
+ */
+export function createPublicBucket(env: UploadEnv): Bun.S3Client {
+	return new Bun.S3Client({
 		endpoint: env.S3_ENDPOINT,
 		region: env.S3_REGION,
 		accessKeyId: env.S3_ACCESS_KEY_ID,
 		secretAccessKey: env.S3_SECRET_ACCESS_KEY,
 		bucket: env.S3_PUBLIC_BUCKET,
 	});
+}
 
+if (import.meta.main) {
+	const env = parseUploadEnv();
+	const bucket = createPublicBucket(env);
 	const target = { bucket, channel: env.UNBOUND_CHANNEL, version: env.UNBOUND_VERSION };
 	const keys = await uploadBuild(join(import.meta.dir, '..', '..', 'dist'), target);
 

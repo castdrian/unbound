@@ -1,3 +1,8 @@
+type ProxyOptions<T extends object> = {
+	getter: (prop: PropertyKey) => T[keyof T] | undefined;
+	fallback: (prop: PropertyKey) => T[keyof T];
+};
+
 /**
  * @description Creates a Proxy object with custom getter and fallback behavior.
  * @template T The object type that the proxy represents.
@@ -6,11 +11,6 @@
  * @param options.fallback Function called when getter returns undefined, receives the property key.
  * @returns A Proxy object with the specified getter and fallback behavior.
  */
-type ProxyOptions<T extends object> = {
-	getter: (prop: PropertyKey) => T[keyof T] | undefined;
-	fallback: (prop: PropertyKey) => T[keyof T];
-};
-
 function createProxy<T extends object>(options: ProxyOptions<T>): T {
 	const { getter, fallback } = options;
 	const target: T = Object.create(Object.prototype);

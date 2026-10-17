@@ -6,4 +6,8 @@ export default defineConfig({
 	format: 'esm',
 	dts: true,
 	clean: true,
+	deps: {
+		// Imported for types only; inlining its declarations would drag in the React Native typings.
+		neverBundle: ['@unbound-app/types'],
+	},
 });

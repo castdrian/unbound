@@ -98,7 +98,7 @@ function trackGlow(event: MouseEvent<HTMLDivElement>) {
 
 function FeatureGrid() {
 	return (
-		<div className='z-20 relative mx-auto -mt-80 mb-12 px-4 w-full max-w-6xl'>
+		<div className='z-20 relative mx-auto -mt-24 sm:-mt-40 md:-mt-80 mb-12 px-4 w-full max-w-6xl'>
 			<div
 				className='group/features relative gap-4 grid grid-cols-1 md:grid-cols-3'
 				onMouseMove={trackGlow}

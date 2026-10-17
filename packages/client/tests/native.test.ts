@@ -1,5 +1,7 @@
+import type { AddonManifest, NativeFabricSurface } from '@unbound-app/types';
 import { afterEach, describe, expect, mock, test } from 'bun:test';
-import type { AddonManifest } from '@unbound-app/types';
+
+type NativePluginGlobal = typeof globalThis & { NativePlugin?: typeof bridge };
 
 mock.module('react-native', () => ({
 	NativeModules: {},
@@ -8,7 +10,7 @@ mock.module('react-native', () => ({
 
 const removed: string[] = [];
 const cleared: unknown[] = [];
-const unmounted: unknown[] = [];
+const unmounted: NativeFabricSurface[] = [];
 const capabilities = [
 	'native.objc.classes',
 	'native.objc.invoke',
@@ -39,6 +41,7 @@ const bridge = {
 		invokeSuper: () => undefined,
 		hook: (...args: string[]) => {
 			void args;
+
 			return {
 				active: true,
 				remove: () => removed.push('hook'),
@@ -59,7 +62,7 @@ const bridge = {
 		setSize: () => undefined,
 		setFrame: () => undefined,
 		measure: () => ({ x: 0, y: 0, width: 0, height: 0 }),
-		unmount: (surface: unknown) => unmounted.push(surface),
+		unmount: (surface: NativeFabricSurface) => unmounted.push(surface),
 	},
 };
 
@@ -77,7 +80,7 @@ const manifest: AddonManifest = {
 	version: '1.0.0',
 };
 
-(globalThis as any).NativePlugin = bridge;
+(globalThis as NativePluginGlobal).NativePlugin = bridge;
 
 const { NativePluginCapabilityError, NativePluginDisposedError, NativePluginVersionError } =
 	await import('~/api/native');
@@ -94,7 +97,7 @@ describe('native plugin capability scopes', () => {
 	test('hides the raw bridge after capturing it for scoped access', async () => {
 		const nativeApi = await import('~/api/native');
 
-		expect((globalThis as any).NativePlugin).toBeUndefined();
+		expect((globalThis as NativePluginGlobal).NativePlugin).toBeUndefined();
 		expect(nativeApi).not.toHaveProperty('NativePlugin');
 		expect(nativeApi).not.toHaveProperty('createPluginContext');
 		expect(nativeApi).not.toHaveProperty('validateNativePluginRequirements');
@@ -174,6 +177,7 @@ describe('native plugin negotiation', () => {
 
 	test('rejects a plugin that requires a newer bridge API', () => {
 		let failure: unknown;
+
 		try {
 			validateNativePluginRequirements([], '2.0.0');
 		} catch (error) {

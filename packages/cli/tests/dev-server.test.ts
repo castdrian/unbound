@@ -16,6 +16,7 @@ afterEach(() => {
 
 function workspace(build: string): string {
 	const root = mkdtempSync(join(tmpdir(), 'ubd-dev-'));
+
 	roots.push(root);
 
 	writeFileSync(
@@ -24,6 +25,7 @@ function workspace(build: string): string {
 	);
 
 	const pluginDir = join(root, 'plugins', 'sample');
+
 	mkdirSync(join(pluginDir, 'dist'), { recursive: true });
 
 	writeFileSync(
@@ -91,6 +93,7 @@ describe('DevServer rebuild debounce', () => {
 		server.stop();
 
 		const ids = transport.calls.map((addon) => addon.id);
+
 		expect(ids).toEqual(['com.example.sample']);
 		expect(new Set(ids).size).toBe(ids.length);
 	});

@@ -34,7 +34,10 @@ export function fieldToFlag(field: z.ZodType): CleyeFlag {
 	let defaultValue: unknown;
 
 	while (WRAPPER_TYPES.has(def.type) && def.innerType) {
-		if (def.type === 'default') defaultValue = def.defaultValue;
+		if (def.type === 'default') {
+			defaultValue = def.defaultValue;
+		}
+
 		def = def.innerType.def as FieldDef;
 	}
 

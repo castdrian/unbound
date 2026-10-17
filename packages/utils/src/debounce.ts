@@ -1,16 +1,17 @@
-import type { Fn } from '@unbound-app/types/utils';
-
 /**
  * @description Throttles a function by the provided milliseconds.
- * @template T The function's type. Used to provide autocomplete for function arguments.
+ * @template A The function's argument types. Used to provide autocomplete for function arguments.
  * @param func The function to debounce.
  * @param ms The milliseconds to debounce the function by.
  * @return An instance of the function wrapped in a debounce timer.
  */
-function debounce<T extends Fn>(func: T, ms: number): (...args: Parameters<T>) => void {
+function debounce<A extends unknown[]>(
+	func: (...args: A) => void,
+	ms: number,
+): (...args: A) => void {
 	let timer;
 
-	return function (...args: Parameters<T>) {
+	return function (...args: A) {
 		clearTimeout(timer);
 		timer = setTimeout(() => func.apply(this, args), ms);
 	};

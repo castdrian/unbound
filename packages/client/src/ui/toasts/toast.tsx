@@ -32,7 +32,9 @@ type LayoutEvent = {
 function dismissAll() {
 	useToastStore.setState((prev) => {
 		const toasts = { ...prev.toasts };
+
 		for (const id in toasts) toasts[id] = { ...toasts[id], closing: true };
+
 		return { toasts };
 	});
 }
@@ -46,7 +48,7 @@ function Toast({ id }: ToastProps) {
 		closing,
 		leave,
 		properties: { scale, height, width, translateY },
-	} = useToastState(options ?? ({ id } as InternalToastOptions));
+	} = useToastState(options ?? { id });
 	const settings = useSettingsStore('unbound', ({ key }) => key?.startsWith('toasts'));
 	const styles = useStyles();
 
@@ -56,6 +58,7 @@ function Toast({ id }: ToastProps) {
 	const onGestureEvent = useCallback(
 		(event: GestureEvent<PanGestureHandlerEventPayload>) => {
 			if (event.nativeEvent.translationY > -40) return;
+
 			leave();
 		},
 		[leave],
@@ -64,6 +67,7 @@ function Toast({ id }: ToastProps) {
 	const onLayout = useCallback(
 		({ nativeEvent }: LayoutEvent) => {
 			if (closing || nativeEvent.layout.height === height.value) return;
+
 			height.value = animations
 				? withSpring(nativeEvent.layout.height, { damping: 11 })
 				: nativeEvent.layout.height;

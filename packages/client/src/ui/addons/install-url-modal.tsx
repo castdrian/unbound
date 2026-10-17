@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
+import type { ManagerKind } from '~/lib/constants';
 import { Discord } from '~/api/metro/components';
-import { ManagerKind } from '~/lib/constants';
 import { getManager } from '~/managers/utils';
 import { format } from '~/api/i18n';
 
@@ -21,6 +21,7 @@ function InstallUrlModal({ kind, onClose }: InstallUrlModalProps) {
 
 	function install() {
 		if (!url || busy) return;
+
 		setBusy(true);
 
 		Promise.resolve(manager.install(url)).finally(() => {

@@ -33,7 +33,9 @@ export type UnboundConfig = z.infer<typeof schema>;
 export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
 	const found = findConfigFile(cwd);
 
-	if (!found) return { config: schema.parse({}), dir: resolve(cwd), bare: true };
+	if (!found) {
+		return { config: schema.parse({}), dir: resolve(cwd), bare: true };
+	}
 
 	const raw = JSON.parse(readFileSync(found, 'utf8'));
 	const config = schema.parse(raw);
@@ -47,10 +49,15 @@ function findConfigFile(from: string): string | undefined {
 	while (true) {
 		const candidate = resolve(dir, CONFIG_FILENAME);
 
-		if (existsSync(candidate)) return candidate;
+		if (existsSync(candidate)) {
+			return candidate;
+		}
 
 		const parent = dirname(dir);
-		if (parent === dir) return void 0;
+
+		if (parent === dir) {
+			return void 0;
+		}
 
 		dir = parent;
 	}

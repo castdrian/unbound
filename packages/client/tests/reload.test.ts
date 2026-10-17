@@ -17,12 +17,12 @@ mock.module('~/api/fs', () => ({
 
 mock.module('~/api/storage', () => {
 	const store = {
-		get: (key: string, fallback: unknown) => (key === 'states' ? states : fallback),
+		get: <T>(key: string, fallback: T) => (key === 'states' ? states : fallback),
 		set: () => {},
 	};
 
 	return {
-		default: { getStore: () => store, get: (_s: string, _k: string, d: unknown) => d },
+		default: { getStore: () => store, get: <T>(_s: string, _k: string, d: T) => d },
 		getStore: () => store,
 	};
 });
@@ -38,6 +38,7 @@ import type { Addon, AddonManifest, PluginContext } from '@unbound-app/types';
 // the real react-native-backed fs/storage load before the stubs are registered.
 const { Manager, ManagerType } = await import('~/managers/base');
 const { Addons } = await import('~/managers/addons');
+const { createPluginContext } = await import('~/api/native-runtime');
 
 function makeManifest(id: string): AddonManifest {
 	return {
@@ -107,10 +108,7 @@ class FakeAddons extends Addons<Addon> {
 		this.contexts.push(state);
 
 		return {
-			manifest: makeManifest('test'),
-			id: 'test',
-			capabilities: [],
-			native: {} as any,
+			...createPluginContext(makeManifest('test')),
 			dispose: () => void (state.disposed = true),
 		};
 	}

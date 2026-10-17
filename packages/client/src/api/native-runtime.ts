@@ -1,5 +1,4 @@
 import type {
-	Fn,
 	NativeAssociationKey,
 	NativeFabricBridge,
 	NativeFabricSurface,
@@ -13,7 +12,6 @@ import type {
 	NativePluginBridge,
 	NativePluginCapability,
 	PluginContext,
-	PromiseFn,
 } from '@unbound-app/types';
 import { NativeModules, TurboModuleRegistry } from 'react-native';
 import type { AddonManifest } from '@unbound-app/types/addons';
@@ -52,13 +50,13 @@ export type {
 export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
 
 /** The constant directory paths exposed by the native `DCDFileManager`. */
-export interface DCDFileManagerConstants {
+export type DCDFileManagerConstants = {
 	CacheDirPath: string;
 	DocumentsDirPath: string;
-}
+};
 
 /** The native `DCDFileManager` module surface for reading, writing, and inspecting files. */
-export interface DCDFileManagerType extends DCDFileManagerConstants {
+export type DCDFileManagerType = {
 	readFile(path: string, encoding: DCDFileManagerEncoding): Promise<string>;
 	writeFile(
 		type: 'documents' | 'cache',
@@ -66,17 +64,20 @@ export interface DCDFileManagerType extends DCDFileManagerConstants {
 		data: string,
 		encoding: DCDFileManagerEncoding,
 	): Promise<string>;
-	removeFile(type: 'documents' | 'cache', path: string): Promise<any>;
-	readAsset(): Promise<unknown>;
-	getSize(): Promise<unknown>;
-	getVideoDimensions(): Promise<unknown>;
+	removeFile(type: 'documents' | 'cache', path: string): Promise<boolean>;
+	readAsset: UndocumentedNativeMethod;
+	getSize: UndocumentedNativeMethod;
+	getVideoDimensions: UndocumentedNativeMethod;
 	fileExists(path: string): Promise<boolean>;
-	saveFileToGallery(): Promise<unknown>;
+	saveFileToGallery: UndocumentedNativeMethod;
 	getConstants(): DCDFileManagerConstants;
-}
+} & DCDFileManagerConstants;
+
+// UNKNOWN: Discord does not document what these native methods resolve to.
+type UndocumentedNativeMethod = () => Promise<unknown>;
 
 /** Build and release metadata reported by the native client info module. */
-export interface BundleInfoType {
+export type BundleInfoType = {
 	Version: string;
 	ReleaseChannel: string;
 	Manifest: string;
@@ -87,10 +88,10 @@ export interface BundleInfoType {
 	SentryStaffDsn: string;
 	Identifier: string;
 	SentryAlphaBetaDsn: string;
-}
+};
 
 /** Hardware and OS details reported by the native device module. */
-export interface DeviceInfoType {
+export type DeviceInfoType = {
 	isTaskBarEnabled: boolean;
 	maxCpuFreq: string;
 	socName: string;
@@ -103,21 +104,21 @@ export interface DeviceInfoType {
 	deviceBrand: string;
 	ramSize: string;
 	device: string;
-}
+};
 
 /** The native `BundleUpdaterManager` module surface for OTA updates and reloading the bundle. */
-export interface DCDBundleManagerType {
-	getInitialBundleDownloaded: PromiseFn;
-	getInitialOtaUpdateChecked: PromiseFn;
-	checkForUpdateAndReload: Fn;
-	reload: Fn;
-	getOtaRootPath: PromiseFn;
-	getBuildOverrideCookieContents: PromiseFn;
-	setBuildOverrideCookieHeader: PromiseFn;
-	getManifestInfo: PromiseFn;
-	addListener: Fn;
-	removeListeners: Fn;
-}
+export type DCDBundleManagerType = {
+	getInitialBundleDownloaded: UndocumentedNativeMethod;
+	getInitialOtaUpdateChecked: UndocumentedNativeMethod;
+	checkForUpdateAndReload(): void;
+	reload(): void;
+	getOtaRootPath: UndocumentedNativeMethod;
+	getBuildOverrideCookieContents: UndocumentedNativeMethod;
+	setBuildOverrideCookieHeader: UndocumentedNativeMethod;
+	getManifestInfo: UndocumentedNativeMethod;
+	addListener(eventName: string): void;
+	removeListeners(count: number): void;
+};
 
 /**
  * @description Resolves the first available native module matching any of the given names, checking both `NativeModules` and the `TurboModuleRegistry`.
@@ -125,7 +126,7 @@ export interface DCDBundleManagerType {
  * @param names The candidate native module names to look up, in priority order.
  * @returns The first matching native module.
  */
-export function getNativeModule<T = any>(...names: string[]): T {
+export function getNativeModule<T>(...names: string[]): T {
 	return [
 		...names.map((n) => NativeModules[n]),
 		...names.map((n) => TurboModuleRegistry.get?.(n)),
@@ -148,6 +149,7 @@ export const DeviceInfo: DeviceInfoType = getNativeModule('NativeDeviceModule', 
  */
 export async function reload() {
 	const { persist } = await import('~/api/storage');
+
 	await persist();
 
 	BundleManager.reload();
@@ -155,15 +157,21 @@ export async function reload() {
 
 /**
  * @description Reads Hermes' runtime metadata, such as the bytecode version, GC, and build channel.
- * React Native types the global `HermesInternal` as `null | {}`, so this reads it via
- * `window.HermesInternal` where our own typing wins.
  * @returns The runtime property map, or an empty object when Hermes internals are unavailable.
  */
-export function getRuntimeProperties(): Record<string, any> {
-	return window.HermesInternal?.getRuntimeProperties() ?? {};
+export function getRuntimeProperties(): HermesRuntimeProperties {
+	const hermes = typeof HermesInternal === 'undefined' ? null : HermesInternal;
+
+	return isHermesInternal(hermes) ? hermes.getRuntimeProperties() : {};
 }
 
-type NativeMethod = (...args: any[]) => any;
+type HermesRuntimeProperties = ReturnType<HermesInternalObject['getRuntimeProperties']>;
+
+// React Native types the global `HermesInternal` as `null | {}`.
+function isHermesInternal(value: typeof HermesInternal): value is HermesInternalObject {
+	return value !== null && 'getRuntimeProperties' in value;
+}
+
 type NativePluginRuntimeGlobal = typeof globalThis & { NativePlugin?: NativePluginBridge };
 
 type AssociationBinding = {
@@ -244,8 +252,11 @@ export class NativePluginDisposedError extends Error {
 
 function requireNativePlugin(): NativePluginBridge {
 	const nativePlugin = getNativePlugin();
-	if (!nativePlugin)
+
+	if (!nativePlugin) {
 		throw new NativePluginUnavailableError('The native plugin bridge is unavailable.');
+	}
+
 	return nativePlugin;
 }
 
@@ -265,15 +276,19 @@ function requireCapability(
 	}
 }
 
-function scopedMethod(
-	method: NativeMethod,
+function scopedMethod<A extends unknown[], R>(
+	method: (...args: A) => R,
 	capabilities: readonly NativePluginCapability[],
 	capability: NativePluginCapability,
 	isActive: () => boolean = () => true,
-): NativeMethod {
-	return (...args: any[]) => {
-		if (!isActive()) throw new NativePluginDisposedError();
+): (...args: A) => R {
+	return (...args: A) => {
+		if (!isActive()) {
+			throw new NativePluginDisposedError();
+		}
+
 		requireCapability(capabilities, capability);
+
 		return method(...args);
 	};
 }
@@ -285,16 +300,20 @@ function compareVersions(left: string, right: string): number {
 
 	for (let index = 0; index < length; index++) {
 		const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
-		if (difference !== 0) return difference;
+
+		if (difference !== 0) {
+			return difference;
+		}
 	}
 
 	return 0;
 }
 
 function unavailableNativePlugin(): NativePluginBridge {
-	const unavailableMethod = () => {
+	function unavailableMethod(): never {
 		throw new NativePluginUnavailableError('The native plugin bridge is unavailable.');
-	};
+	}
+
 	const unavailableObjC = new Proxy({}, { get: () => unavailableMethod }) as NativeObjCBridge;
 	const unavailableFFI = new Proxy({}, { get: () => unavailableMethod }) as NativeFFIBridge;
 	const unavailableFabric = new Proxy({}, { get: () => unavailableMethod }) as NativeFabricBridge;
@@ -309,18 +328,27 @@ function unavailableNativePlugin(): NativePluginBridge {
 	};
 }
 
-function createScopedNativePlugin(capabilities: readonly NativePluginCapability[]): {
+type ScopedNativePlugin = {
 	bridge: NativePluginBridge;
 	dispose: () => void;
-} {
+};
+
+function createScopedNativePlugin(
+	capabilities: readonly NativePluginCapability[],
+): ScopedNativePlugin {
 	const bridge = getNativePlugin() ?? unavailableNativePlugin();
 	const fabricBridge = bridge.fabric ?? unavailableNativePlugin().fabric;
 	const tokens = new Set<NativeHookToken>();
 	const surfaces = new Set<NativeFabricSurface>();
 	const associations: AssociationBinding[] = [];
 	let disposed = false;
-	const scopeMethod = (method: NativeMethod, capability: NativePluginCapability): NativeMethod =>
-		scopedMethod(method, capabilities, capability, () => !disposed);
+
+	function scopeMethod<A extends unknown[], R>(
+		method: (...args: A) => R,
+		capability: NativePluginCapability,
+	) {
+		return scopedMethod(method, capabilities, capability, () => !disposed);
+	}
 
 	const objc: NativeObjCBridge = {
 		getClass: scopeMethod(
@@ -379,11 +407,18 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			const index = associations.findIndex(
 				(binding) => binding.handle === handle && binding.key === key,
 			);
+
 			if (value === null || value === undefined) {
-				if (index !== -1) associations.splice(index, 1);
+				if (index !== -1) {
+					associations.splice(index, 1);
+				}
+
 				return;
 			}
-			if (index === -1) associations.push({ handle, key });
+
+			if (index === -1) {
+				associations.push({ handle, key });
+			}
 		}) as NativeObjCBridge['setAssociatedObject'],
 		struct: scopeMethod(
 			bridge.objc.struct.bind(bridge.objc),
@@ -403,24 +438,38 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			handlers: NativeHookHandlers,
 			options?: NativeHookOptions,
 		) => {
-			if (disposed) throw new NativePluginDisposedError();
+			if (disposed) {
+				throw new NativePluginDisposedError();
+			}
+
 			requireCapability(capabilities, capabilityRequirements.hook);
 			const token = bridge.objc.hook(className, selector, handlers, options);
+
 			tokens.add(token);
+
 			return {
 				get active() {
 					return token.active;
 				},
 				setReturnValue(self, args, value) {
-					if (disposed) throw new NativePluginDisposedError();
+					if (disposed) {
+						throw new NativePluginDisposedError();
+					}
+
 					token.setReturnValue(self, args, value);
 				},
 				removeReturnValue(self, args) {
-					if (disposed) throw new NativePluginDisposedError();
+					if (disposed) {
+						throw new NativePluginDisposedError();
+					}
+
 					token.removeReturnValue(self, args);
 				},
 				clearReturnValues() {
-					if (disposed) throw new NativePluginDisposedError();
+					if (disposed) {
+						throw new NativePluginDisposedError();
+					}
+
 					token.clearReturnValues();
 				},
 				remove() {
@@ -444,10 +493,15 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 
 	const fabric: NativeFabricBridge = {
 		mount: ((container, moduleName, properties) => {
-			if (disposed) throw new NativePluginDisposedError();
+			if (disposed) {
+				throw new NativePluginDisposedError();
+			}
+
 			requireCapability(capabilities, capabilityRequirements.fabricMount);
 			const surface = fabricBridge.mount(container, moduleName, properties);
+
 			surfaces.add(surface);
+
 			return surface;
 		}) as NativeFabricBridge['mount'],
 		update: scopeMethod(
@@ -467,7 +521,10 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 			capabilityRequirements.fabricMeasure,
 		) as NativeFabricBridge['measure'],
 		unmount: ((surface) => {
-			if (disposed) throw new NativePluginDisposedError();
+			if (disposed) {
+				throw new NativePluginDisposedError();
+			}
+
 			requireCapability(capabilities, capabilityRequirements.fabricUnmount);
 			fabricBridge.unmount(surface);
 			surfaces.delete(surface);
@@ -485,39 +542,67 @@ function createScopedNativePlugin(capabilities: readonly NativePluginCapability[
 		},
 		dispose: () => {
 			if (disposed) return;
+
 			disposed = true;
+
 			for (const token of tokens) token.remove();
+
 			tokens.clear();
+
 			for (const surface of surfaces) fabricBridge.unmount(surface);
+
 			surfaces.clear();
+
 			for (const binding of associations) {
 				bridge.objc.setAssociatedObject(binding.handle, binding.key, null, 'assign');
 			}
+
 			associations.length = 0;
 		},
 	};
 }
 
+/**
+ * @description Throws unless the native plugin bridge grants every capability and meets the API version.
+ * @param capabilities The capabilities the plugin declares.
+ * @param minimumApi The lowest native plugin API version the plugin supports.
+ */
 export function validateNativePluginRequirements(
 	capabilities: readonly NativePluginCapability[] = [],
 	minimumApi?: string,
 ): void {
 	const nativePlugin = getNativePlugin();
-	if ((capabilities.length > 0 || minimumApi) && !nativePlugin) requireNativePlugin();
+
+	if ((capabilities.length > 0 || minimumApi) && !nativePlugin) {
+		requireNativePlugin();
+	}
+
 	if (!nativePlugin) return;
 
 	const unknown = capabilities.find(
 		(capability) => !nativePlugin.capabilities.includes(capability),
 	);
-	if (unknown) throw new NativePluginCapabilityError(unknown);
-	if (minimumApi && compareVersions(nativePlugin.apiVersion, minimumApi) < 0)
+
+	if (unknown) {
+		throw new NativePluginCapabilityError(unknown);
+	}
+
+	if (minimumApi && compareVersions(nativePlugin.apiVersion, minimumApi) < 0) {
 		throw new NativePluginVersionError(minimumApi, nativePlugin.apiVersion);
+	}
 }
 
+/**
+ * @description Builds a plugin's context, with a native bridge scoped to its declared capabilities.
+ * @param manifest The plugin's manifest.
+ * @returns The plugin context; call its `dispose` to release the plugin's native resources.
+ */
 export function createPluginContext(manifest: AddonManifest): PluginContext {
 	const capabilities = manifest.capabilities ?? [];
+
 	validateNativePluginRequirements(capabilities, manifest.minNativePluginApi);
 	const scoped = createScopedNativePlugin(capabilities);
+
 	return {
 		manifest,
 		id: manifest.id,

@@ -1,4 +1,6 @@
-import type { Addon, IconPack, IconPackManifest } from '@unbound-app/types';
+import type { Addon, IconPack, IconPackManifest, UnboundAsset } from '@unbound-app/types';
+import toError from '@unbound-app/utils/to-error';
+import type { ImageProps } from 'react-native';
 
 import { Assets, ReactNative as RN } from '~/api/metro/common';
 import { ManagerType } from '~/managers/base';
@@ -9,6 +11,11 @@ import fs from '~/api/fs';
 type GitTreeNode = {
 	path: string;
 	type: string;
+};
+
+/** The patch context of `Image.render`, whose props the icon pack rewrites in place. */
+type ImageRenderContext = {
+	this: { props: ImageProps };
 };
 
 /** The built-in pack: a no-op passthrough that renders Discord's own icons. */
@@ -55,14 +62,14 @@ export class Icons extends Addons<Addon> {
 			this.load(pack.bundle, pack.manifest);
 		}
 
-		this.applyPack(this.applied.manifest.id).catch((error: any) => {
+		this.applyPack(this.applied.manifest.id).catch((error) => {
 			this.logger.error('Failed to apply icon pack on init:', error);
 		});
 		this.initialized = true;
 	}
 
-	protected handleBundle(bundle: string): string {
-		return bundle;
+	protected handleBundle(): null {
+		return null;
 	}
 
 	isEnabled(id: string): boolean {
@@ -77,6 +84,7 @@ export class Icons extends Addons<Addon> {
 	 */
 	toggle(entity: string | Addon) {
 		const resolved = this.resolve(entity);
+
 		if (!resolved) return;
 
 		if (this.isEnabled(resolved.id)) {
@@ -90,25 +98,28 @@ export class Icons extends Addons<Addon> {
 
 	async enable(entity: string | Addon) {
 		const resolved = this.resolve(entity);
+
 		if (!resolved) return;
 
 		try {
 			const packs = this.settings.get<IconPack[]>('packs', [defaultPack]);
 			const pack = packs.find((p) => p.manifest.id === resolved.id) ?? defaultPack;
+
 			this.settings.set('applied', pack);
 
 			this.patcher.unpatchAll();
 			await this.applyPack(resolved.id);
 
 			this.emit('enabled', resolved);
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error(`Failed to enable icon pack ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
+			this.errors.set(resolved.id, toError(error));
 		}
 	}
 
 	disable(entity: string | Addon) {
 		const resolved = this.resolve(entity);
+
 		if (!resolved) return;
 
 		try {
@@ -116,20 +127,24 @@ export class Icons extends Addons<Addon> {
 			this.patcher.unpatchAll();
 
 			this.emit('disabled', resolved);
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error(`Failed to disable icon pack ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
+			this.errors.set(resolved.id, toError(error));
 		}
 	}
 
 	async delete(entity: string | Addon): Promise<void> {
 		const resolved = this.resolve(entity);
+
 		if (!resolved) return;
 
 		try {
-			if (this.applied.manifest.id === resolved.id) this.disable(resolved);
+			if (this.applied.manifest.id === resolved.id) {
+				this.disable(resolved);
+			}
 
 			const packs = this.settings.get<IconPack[]>('packs', [defaultPack]);
+
 			this.settings.set(
 				'packs',
 				packs.filter((p) => p.manifest.id !== resolved.id),
@@ -139,9 +154,9 @@ export class Icons extends Addons<Addon> {
 			await fs.rm(`Unbound/Icons/${resolved.id}`);
 
 			this.emit('deleted', resolved);
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error(`Failed to delete icon pack ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
+			this.errors.set(resolved.id, toError(error));
 		}
 	}
 
@@ -155,18 +170,26 @@ export class Icons extends Addons<Addon> {
 		if (id === 'default') return;
 
 		const stamps: Array<Promise<void>> = [];
+
 		for (let assetId = 1; ; assetId++) {
 			const asset = Assets.getAssetByID(assetId);
-			if (!asset) break;
+
+			if (!asset) {
+				break;
+			}
+
 			stamps.push(this.stampAsset(id, asset));
 		}
+
 		await Promise.all(stamps);
 
-		this.patcher.before(RN.Image.prototype, 'render', ({ this: self }: any) => {
+		this.patcher.before(RN.Image.prototype, 'render', ({ this: self }: ImageRenderContext) => {
 			const props = self.props;
+
 			if (typeof props?.source !== 'number') return;
 
 			const asset = Assets.getAssetByID(props.source);
+
 			if (asset?.iconPackPath && asset.iconPackScale) {
 				props.source = {
 					uri: `file://${asset.iconPackPath}`,
@@ -183,8 +206,8 @@ export class Icons extends Addons<Addon> {
 	 * @param id The pack id.
 	 * @param asset The registered asset to stamp.
 	 */
-	protected async stampAsset(id: string, asset: any) {
-		const scales = [...asset.scales].sort((a: number, b: number) => b - a);
+	protected async stampAsset(id: string, asset: UnboundAsset) {
+		const scales = [...asset.scales].sort((a, b) => b - a);
 
 		delete asset.iconPackPath;
 		delete asset.iconPackScale;
@@ -207,8 +230,9 @@ export class Icons extends Addons<Addon> {
 	 * @param scale The scale variant.
 	 * @returns The path relative to the pack folder.
 	 */
-	protected relativeAssetPath(asset: any, scale: number): string {
+	protected relativeAssetPath(asset: UnboundAsset, scale: number): string {
 		const dir = asset.httpServerLocation.replace(/\/assets\/(.*)/, '$1');
+
 		return `${dir}/${asset.name}${scale > 1 ? `@${scale}x` : ''}.${asset.type}`;
 	}
 
@@ -222,7 +246,10 @@ export class Icons extends Addons<Addon> {
 		try {
 			const manifest: IconPackManifest = await fetch(url, { cache: 'no-cache' }).then(
 				(res) => {
-					if (!res.ok) throw new Error(`Failed to fetch manifest (${res.status}).`);
+					if (!res.ok) {
+						throw new Error(`Failed to fetch manifest (${res.status}).`);
+					}
+
 					return res.json();
 				},
 			);
@@ -230,18 +257,22 @@ export class Icons extends Addons<Addon> {
 			this.validateManifest(manifest);
 
 			if (manifest.type && manifest.type !== this.entityType) {
-				throw new Error(`Expected a ${this.entityType} manifest, got ${manifest.type}.`);
+				// The fetched manifest is unvalidated, so its type can differ from the static one.
+				throw new Error(`Expected a icon-pack manifest, got ${String(manifest.type)}.`);
 			}
 
 			manifest.source ??= /^https?:\/\/(www\.)?github\.com/.test(manifest.main)
 				? 'github'
 				: 'other';
 
-			if (manifest.source !== 'github') return super.install(url);
+			if (manifest.source !== 'github') {
+				return super.install(url);
+			}
 
 			await this.downloadTree(manifest);
 
 			const packs = this.settings.get<IconPack[]>('packs', [defaultPack]);
+
 			this.settings.set('packs', [
 				...packs.filter((p) => p.manifest.id !== manifest.id),
 				{ bundle: manifest.name, manifest },
@@ -249,12 +280,16 @@ export class Icons extends Addons<Addon> {
 
 			this.load(manifest.name, manifest);
 			const entity = this.getEntity(manifest.id);
-			if (entity) this.emit('installed', entity);
+
+			if (entity) {
+				this.emit('installed', entity);
+			}
 
 			return entity;
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error('Failed to install icon pack:', error);
-			this.emit('install-error', error);
+			this.emit('install-error', toError(error));
+
 			return undefined;
 		}
 	}
@@ -267,7 +302,10 @@ export class Icons extends Addons<Addon> {
 		const match = manifest.main.match(
 			/https:\/\/github\.com\/([^/]+)\/([^/]+)(?:\/tree\/([^/]+))?\/?(.*)?/,
 		);
-		if (!match) throw new Error('Not a GitHub repo URL.');
+
+		if (!match) {
+			throw new Error('Not a GitHub repo URL.');
+		}
 
 		const [, user, repo, branch, path] = match;
 		const ref = branch ?? 'main';
@@ -284,12 +322,14 @@ export class Icons extends Addons<Addon> {
 
 		for (let i = 0; i < blobs.length; i += 50) {
 			const batch = blobs.slice(i, i + 50);
+
 			await Promise.all(
 				batch.map(async (node) => {
 					const raw = `https://raw.githubusercontent.com/${user}/${repo}/${ref}/${node.path}`;
 					const relative = sub ? node.path.slice(sub.length + 1) : node.path;
 					const buf = await fetch(raw).then((res) => res.arrayBuffer());
 					const data = Buffer.from(buf).toString('base64');
+
 					await fs.write(`Unbound/Icons/${manifest.id}/${relative}`, data, 'base64');
 				}),
 			);

@@ -17,12 +17,12 @@ const CurrentCacheInfo = {
 
 const storage = getStore('unbound::cache');
 
-interface CacheState {
+type CacheState = {
 	info: typeof CurrentCacheInfo;
 	modules: Record<string, number[]>;
 	moduleFlags: Record<number, number>;
 	assets: number[];
-}
+};
 
 export const state: CacheState = {
 	info: storage.get('info', CurrentCacheInfo),
@@ -70,7 +70,11 @@ export function addAssetToCache(moduleId: number) {
  */
 export function removeAssetFromCache(moduleId: number) {
 	const idx = state.assets.indexOf(moduleId);
-	if (~idx) state.assets.splice(idx, 1);
+
+	if (~idx) {
+		state.assets.splice(idx, 1);
+	}
+
 	save();
 }
 
@@ -87,6 +91,7 @@ export function getModuleCacheForKey(key: string) {
  * @description Records a module id under a cache key, persisting if it was not already present. Twin of {@link removeCachedIDForKey}.
  * @param key The cache key to add the id under.
  * @param item The module id to cache.
+ * @returns `true` if the id was already cached under the key, otherwise `undefined`.
  */
 export function addCachedIDForKey(key: string, item: number) {
 	state.modules[key] ??= [];
@@ -103,13 +108,20 @@ export function addCachedIDForKey(key: string, item: number) {
  * @description Removes a module id from a cache key, dropping the key entirely once empty, and persists. Twin of {@link addCachedIDForKey}.
  * @param key The cache key to remove the id from.
  * @param item The module id to uncache.
+ * @returns Always `true`.
  */
 export function removeCachedIDForKey(key: string, item: number) {
 	const store = state.modules[key];
-	if (!store) return true;
+
+	if (!store) {
+		return true;
+	}
 
 	const idx = store.indexOf(item);
-	if (~idx) store.splice(idx, 1);
+
+	if (~idx) {
+		store.splice(idx, 1);
+	}
 
 	if (!store.length) {
 		delete state.modules[key];
@@ -134,9 +146,12 @@ export function addModuleFlag(id: number, flag: ModuleFlags) {
  * @description Clears a {@link ModuleFlags} bit from a module and persists. Twin of {@link addModuleFlag}.
  * @param id The id of the module to unflag.
  * @param flag The flag bit to clear.
+ * @returns `true` if the module had no flags set, otherwise `undefined`.
  */
 export function removeModuleFlag(id: number, flag: ModuleFlags) {
-	if (!state.moduleFlags[id]) return true;
+	if (!state.moduleFlags[id]) {
+		return true;
+	}
 
 	state.moduleFlags[id] &= ~flag;
 	save();
@@ -149,7 +164,9 @@ export function removeModuleFlag(id: number, flag: ModuleFlags) {
  * @returns `true` if the flag is set on the module.
  */
 export function hasModuleFlag(id: number, flag: ModuleFlags) {
-	if (!state.moduleFlags[id]) return false;
+	if (!state.moduleFlags[id]) {
+		return false;
+	}
 
 	return Boolean(state.moduleFlags[id] & flag);
 }

@@ -20,6 +20,7 @@ type FontOverrideRowProps = {
  */
 function FontOverrideRow({ group, families }: FontOverrideRowProps) {
 	const fonts = getManager(ManagerKind.Fonts);
+
 	useSettingsStore('unbound', ({ key }) => key === 'font-states');
 	const overrides = fonts.getOverrides();
 	const current =

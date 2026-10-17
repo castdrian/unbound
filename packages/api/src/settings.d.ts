@@ -2,6 +2,7 @@
 
 export type { SettingsEntry } from './_internal';
 import type { SettingsEntry } from './_internal';
+import * as ReactModule from 'react';
 import { ComponentType } from 'react';
 
 declare const _default: {

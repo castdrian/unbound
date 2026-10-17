@@ -11,10 +11,8 @@ import { buildAddon } from '~/lib/build-addon';
 const DEBOUNCE_MS = 150;
 
 /**
- * Watches every discovered addon and rebuilds only the addon whose files changed, debounced per
- * addon. Directory creates and deletes under the workspace re-run discovery so addons added or
- * removed while the server runs are picked up. After each successful build the reload transport is
- * called; static addons skip the build step but still count as a successful build for reload.
+ * Watches every discovered addon and rebuilds (debounced) and reloads only the one that changed.
+ * Directory creates and deletes re-run discovery; static addons skip the build but still reload.
  */
 export class DevServer {
 	private watcher: FSWatcher | null = null;
@@ -45,6 +43,7 @@ export class DevServer {
 		this.watcher = null;
 
 		for (const timer of this.timers.values()) clearTimeout(timer);
+
 		this.timers.clear();
 	}
 
@@ -53,10 +52,12 @@ export class DevServer {
 
 		if (isManifestPath(changedPath)) {
 			void this.rediscover();
+
 			return;
 		}
 
 		const addon = this.findOwner(changedPath);
+
 		if (!addon) return;
 
 		if (!addon.static && isInside(changedPath, addon.output)) return;
@@ -66,7 +67,10 @@ export class DevServer {
 
 	private scheduleRebuild(addon: DiscoveredAddon) {
 		const existing = this.timers.get(addon.dir);
-		if (existing) clearTimeout(existing);
+
+		if (existing) {
+			clearTimeout(existing);
+		}
 
 		const timer = setTimeout(() => {
 			this.timers.delete(addon.dir);
@@ -77,16 +81,21 @@ export class DevServer {
 	}
 
 	private async rebuild(addon: DiscoveredAddon) {
-		if (!addon.static) process.stdout.write(`Building ${addon.id}…\n`);
+		if (!addon.static) {
+			process.stdout.write(`Building ${addon.id}…\n`);
+		}
 
 		const ok = await buildAddon(addon, this.resolved.config.build);
 
 		if (!ok) {
 			process.stderr.write(`Failed to build ${addon.id}.\n`);
+
 			return;
 		}
 
-		if (!addon.static) process.stdout.write(`Built ${addon.id}.\n`);
+		if (!addon.static) {
+			process.stdout.write(`Built ${addon.id}.\n`);
+		}
 
 		await this.transport.reload(toBuiltAddon(addon));
 	}
@@ -96,11 +105,15 @@ export class DevServer {
 		const next = new Map(discovered.map((addon) => [addon.dir, addon]));
 
 		for (const dir of this.addons.keys()) {
-			if (!next.has(dir)) process.stdout.write(`Addon at ${dir} removed.\n`);
+			if (!next.has(dir)) {
+				process.stdout.write(`Addon at ${dir} removed.\n`);
+			}
 		}
 
 		for (const [dir, addon] of next) {
-			if (!this.addons.has(dir)) process.stdout.write(`Discovered addon ${addon.id}.\n`);
+			if (!this.addons.has(dir)) {
+				process.stdout.write(`Discovered addon ${addon.id}.\n`);
+			}
 		}
 
 		this.addons = next;
@@ -108,7 +121,9 @@ export class DevServer {
 
 	private findOwner(changedPath: string): DiscoveredAddon | undefined {
 		for (const addon of this.addons.values()) {
-			if (isInside(changedPath, addon.dir)) return addon;
+			if (isInside(changedPath, addon.dir)) {
+				return addon;
+			}
 		}
 
 		return void 0;

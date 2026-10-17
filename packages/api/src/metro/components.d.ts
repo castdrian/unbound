@@ -2,9 +2,12 @@
 
 export type { DesignModule, SwitchProps } from '../_internal';
 import type { DesignModule, SwitchProps } from '../_internal';
+import * as ReactModule from 'react';
 import { ComponentType, ReactNode } from 'react';
 import {
+	AccessibilityState,
 	ImageStyle,
+	PressableProps,
 	StyleProp,
 	TextInputProps as RNTextInputProps,
 	TextStyle,
@@ -19,5 +22,5 @@ export declare const HelpMessage: any;
 export declare const Media: any;
 export declare const Portal: any;
 export declare const SafeArea: any;
-export declare const Switch: ComponentType<SwitchProps>;
+export declare const Switch: ReactModule.ComponentType<SwitchProps>;
 export {};

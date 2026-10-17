@@ -6,6 +6,7 @@ import { useReducer } from 'react';
  */
 function useForceUpdate(): () => void {
 	const [, forceUpdate] = useReducer((n: number) => n + 1, 0);
+
 	return forceUpdate;
 }
 

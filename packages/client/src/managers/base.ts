@@ -1,4 +1,5 @@
 import { createLogger } from '@unbound-app/logger';
+import type { DefaultEventMap } from 'tseep';
 import { createPatcher } from 'possess';
 import { EventEmitter } from 'tseep';
 
@@ -24,7 +25,7 @@ type BaseManagerEvents<T> = {
  * @template T The entity type the manager governs.
  * @template EventMap The subclass-specific event map, merged with `BaseManagerEvents<T>`.
  */
-export abstract class Manager<T, EventMap extends Record<string, any> = {}> extends EventEmitter<
+export abstract class Manager<T, EventMap extends DefaultEventMap = {}> extends EventEmitter<
 	EventMap & BaseManagerEvents<T>
 > {
 	/** The entities currently governed by this manager, keyed by id. */

@@ -1,4 +1,4 @@
-import type { PredicateResult, Widen } from '@unbound-app/types';
+import type { PredicateResult, SettingsObject, SettingsValue, Widen } from '@unbound-app/types';
 import debounce from '@unbound-app/utils/debounce';
 import isEmpty from '@unbound-app/utils/is-empty';
 import { useEffect, useState } from 'react';
@@ -7,16 +7,16 @@ import { EventEmitter } from 'tseep';
 import fs from '~/api/fs';
 
 /** Payload describing a settings change, passed to `changed` listeners and predicates. */
-export interface SettingsPayload {
+export type SettingsPayload = {
 	store: string;
 	key: string | null;
-	value: any;
-}
+	value: SettingsValue | undefined;
+};
 
-type SetPayload = { store: string; key: string; value: any };
+type SetPayload = { store: string; key: string; value: SettingsValue };
 type ClearedPayload = { store: string };
 type RemovedPayload = { store: string; key: string };
-type ToggledPayload = { store: string; key: string; prev: any; value: any };
+type ToggledPayload = { store: string; key: string; prev: boolean; value: boolean };
 
 type EventMap = {
 	set: (payload: SetPayload) => void;
@@ -30,7 +30,7 @@ const Events = new EventEmitter<EventMap>();
 const handlers = new Map<(payload: SettingsPayload) => void, (payload: SettingsPayload) => void>();
 
 /** @internal */
-export const settings = globalThis.UNBOUND_SETTINGS ?? {};
+export const settings: Record<string, SettingsObject> = globalThis.UNBOUND_SETTINGS ?? {};
 
 export const on = Events.on.bind(Events);
 export const off = Events.off.bind(Events);
@@ -63,6 +63,7 @@ export function addListener(
  */
 export function removeListener(callback: (payload: SettingsPayload) => void) {
 	const handler = handlers.get(callback);
+
 	if (!handler) return;
 
 	handlers.delete(callback);
@@ -78,19 +79,23 @@ export function removeListener(callback: (payload: SettingsPayload) => void) {
  * @returns The stored value, or `def` if the key path is not present.
  */
 export function get<T>(store: string, key: string, def: T): Widen<T> {
-	const keys = key.split('.');
-	const data = { result: settings[store] };
+	let result: SettingsValue | undefined = settings[store];
 
-	for (const key of keys) {
-		if (data.result === void 0 || data.result[key] === void 0) {
-			data.result = def;
-			break;
+	for (const segment of key.split('.')) {
+		const next = isSettingsObject(result) ? result[segment] : void 0;
+
+		if (next === void 0) {
+			return def as Widen<T>;
 		}
 
-		data.result = data.result[key];
+		result = next;
 	}
 
-	return data.result;
+	return result as Widen<T>;
+}
+
+function isSettingsObject(value: SettingsValue | undefined): value is SettingsObject {
+	return typeof value === 'object' && value !== null;
 }
 
 /**
@@ -99,19 +104,22 @@ export function get<T>(store: string, key: string, def: T): Widen<T> {
  * @param key The dot-separated key path within the store.
  * @param value The value to store.
  */
-export function set(store: string, key: string, value: any) {
+export function set(store: string, key: string, value: SettingsValue) {
 	const keys = key.split('.');
-	const data = { current: (settings[store] ??= {}), changed: false };
+	const last = keys.pop() ?? key;
+	let current = (settings[store] ??= {});
 
-	for (let i = 0; keys.length > i; i++) {
-		data.current[keys[i]] ??= {};
+	for (const segment of keys) {
+		const next = (current[segment] ??= {});
 
-		if (keys.length - 1 === i) {
-			data.current[keys[i]] = value;
-		} else {
-			data.current = data.current[keys[i]];
+		if (!isSettingsObject(next)) {
+			throw new TypeError(`Cannot set ${store}.${key}: ${segment} is not an object.`);
 		}
+
+		current = next;
 	}
+
+	current[last] = value;
 
 	Events.emit('changed', { store, key, value });
 	Events.emit('set', { store, key, value });
@@ -123,8 +131,9 @@ export function set(store: string, key: string, value: any) {
  * @param key The dot-separated key path within the store.
  * @param def The value to assume when the key is not yet set.
  */
-export function toggle(store: string, key: string, def: any) {
+export function toggle(store: string, key: string, def: boolean) {
 	const prev = get(store, key, def);
+
 	set(store, key, !prev);
 
 	Events.emit('toggled', { store, key, prev, value: !prev });
@@ -168,9 +177,9 @@ export function clear(store: string) {
  */
 export function getStore(store: string) {
 	return {
-		set: (key: string, value: any) => set(store, key, value),
+		set: (key: string, value: SettingsValue) => set(store, key, value),
 		get: <T>(key: string, def: T): Widen<T> => get(store, key, def) as Widen<T>,
-		toggle: (key: string, def: any) => toggle(store, key, def),
+		toggle: (key: string, def: boolean) => toggle(store, key, def),
 		remove: (key: string) => remove(store, key),
 		clear: () => clear(store),
 		useSettingsStore: (predicate?: (payload: SettingsPayload) => PredicateResult) =>
@@ -181,6 +190,7 @@ export function getStore(store: string) {
 		) => {
 			function handler(payload: SettingsPayload) {
 				if (payload.store !== store) return;
+
 				if (predicate(payload)) {
 					callback(payload);
 				}
@@ -220,9 +230,9 @@ export function useSettingsStore(
 	}, []);
 
 	return {
-		set: (key: string, value: any) => set(store, key, value),
+		set: (key: string, value: SettingsValue) => set(store, key, value),
 		get: <T>(key: string, def: T): Widen<T> => get(store, key, def) as Widen<T>,
-		toggle: (key: string, def: any) => toggle(store, key, def),
+		toggle: (key: string, def: boolean) => toggle(store, key, def),
 		remove: (key: string) => remove(store, key),
 	};
 }
@@ -233,6 +243,7 @@ export function useSettingsStore(
  */
 export async function persist() {
 	const payload = JSON.stringify(settings, null, 2);
+
 	await fs.write('Unbound/settings.json', payload);
 }
 

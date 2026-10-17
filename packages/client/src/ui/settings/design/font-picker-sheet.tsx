@@ -22,6 +22,7 @@ function FontPickerSheet({ family, onClose }: FontPickerSheetProps) {
 	const names = useMemo(() => {
 		const all = [...fonts.getFonts().map((font) => font.name), ...fonts.getAvailableFonts()];
 		const seen = new Set(all);
+
 		return [...seen].filter((name) => name.toLowerCase().includes(query.toLowerCase()));
 	}, [fonts, query]);
 

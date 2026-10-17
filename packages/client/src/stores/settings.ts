@@ -1,11 +1,11 @@
 import type { SettingsEntry } from '@unbound-app/types';
 import { create } from 'zustand';
 
-interface SettingsStore {
+type SettingsStore = {
 	sections: Record<string, SettingsEntry>;
 	registerSection: (entry: SettingsEntry) => void;
 	removeSection: (key: string) => void;
-}
+};
 
 const SettingsStore = create<SettingsStore>((set) => ({
 	sections: {},
@@ -14,7 +14,9 @@ const SettingsStore = create<SettingsStore>((set) => ({
 	removeSection: (key) =>
 		set((prev) => {
 			const sections = { ...prev.sections };
+
 			delete sections[key];
+
 			return { sections };
 		}),
 }));

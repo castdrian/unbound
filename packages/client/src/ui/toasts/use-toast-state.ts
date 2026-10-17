@@ -86,7 +86,9 @@ function useToastState(options: InternalToastOptions) {
 		if (leaving) {
 			useToastStore.setState((prev) => {
 				const toasts = { ...prev.toasts };
+
 				delete toasts[options.id];
+
 				return { toasts };
 			});
 		}

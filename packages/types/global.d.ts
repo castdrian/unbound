@@ -1,31 +1,30 @@
+import type * as ReactNativeModule from 'react-native';
+import type * as ReactModule from 'react';
+
 import type { NativePlatformBridge } from './typings/native';
+import type { SettingsObject } from './typings/settings';
 import type { AddonManifest } from './typings/addons';
-import type { Fn } from './typings/utils';
 
 declare global {
 	/**
-	 * The Metro `require` function: runs (and returns the exports of) a module by id.
+	 * React Native's message queue snapshot: module ids, method ids, call params and the call id.
 	 * @internal
 	 */
-	type MetroRequire = {
-		importAll: Fn;
-	} & ((id: number | string) => void);
-
-	/**
-	 * The Metro `define` function, registering a module factory by id.
-	 * @internal
-	 */
-	type MetroDefine = (...args: any[]) => void;
+	type FbBatchedBridgeQueue = [number[], number[], unknown[], number] | null;
 
 	/**
 	 * React Native's old-architecture bridge, used to dispatch native → JS calls.
 	 * @internal
 	 */
 	type FbBatchedBridge = {
-		flushedQueue(): unknown;
-		getCallableModule(name: string): unknown;
-		callFunctionReturnFlushedQueue(...args: any[]): unknown;
-		__callFunction(...args: any[]): unknown;
+		flushedQueue(): FbBatchedBridgeQueue;
+		getCallableModule(name: string): object | null;
+		callFunctionReturnFlushedQueue(
+			module: string,
+			method: string,
+			args: unknown[],
+		): FbBatchedBridgeQueue;
+		__callFunction(module: string, method: string, args: unknown[]): void;
 	};
 
 	/**
@@ -33,13 +32,22 @@ declare global {
 	 * @internal
 	 */
 	type RNAppRegistry = {
-		runApplication(...args: any[]): unknown;
+		runApplication(appKey: string, appParameters: RNAppParameters, displayMode?: number): void;
 	};
 
 	/**
-	 * Build-time token, replaced with a boolean literal by the build's `transform.define`. Folds at
-	 * the module-graph level so `if ($$DEV$$)` branches (and any imports inside them) are dead-code
-	 * eliminated from production bundles entirely. Use it (not a runtime check) to gate dev-only code.
+	 * The parameters React Native runs the root application with.
+	 * @internal
+	 */
+	type RNAppParameters = {
+		rootTag: number;
+		initialProps?: object;
+		fabric?: boolean;
+	};
+
+	/**
+	 * Build-time token replaced with a boolean literal, so `if ($$DEV$$)` branches (and their
+	 * imports) are eliminated from production bundles. Use it, not a runtime check, for dev-only code.
 	 */
 	var $$DEV$$: boolean;
 
@@ -49,78 +57,60 @@ declare global {
 	 * Hermes engine internals, exposing runtime metadata (bytecode version, GC, build).
 	 * @internal
 	 */
-	interface HermesInternalObject {
-		getRuntimeProperties(): Record<string, any>;
-	}
+	type HermesInternalObject = {
+		getRuntimeProperties(): Record<string, string | number | boolean>;
+	};
 
 	/** @internal */
-	var nativeLoggingHook: (message: string, level: any) => void;
-	var React: typeof import('react');
-	var ReactNative: typeof import('react-native');
+	var nativeLoggingHook: (message: string, level: number) => void;
+	var React: typeof ReactModule;
+	var ReactNative: typeof ReactNativeModule;
+
 	/** @internal */
-	var __r: MetroRequire;
+	var __fbBatchedBridge: FbBatchedBridge | undefined;
 	/** @internal */
-	var __d: MetroDefine;
+	var RN$AppRegistry: RNAppRegistry | undefined;
 
-	interface Window {
-		/** @internal */
-		modules: Map<number, any>;
+	/** @internal */
+	var UNBOUND_LOADER: UnboundLoaderInfo;
+	/** @internal */
+	var UNBOUND_SETTINGS: Record<string, SettingsObject> | undefined;
+	/** @internal */
+	var UNBOUND_PLUGINS: UnboundAddonBundle[];
+	/** @internal */
+	var UNBOUND_THEMES: UnboundAddonBundle[];
+	/** @internal */
+	var UNBOUND_FONTS: UnboundFontFile[];
+	/** @internal */
+	var UNBOUND_AVAILABLE_FONTS: string[];
+	/** @internal */
+	var UNBOUND_ICONS: UnboundAddonBundle[];
 
-		/**
-		 * Hermes engine internals; access via `window.HermesInternal` so our typing wins over RN's `null | {}`.
-		 * @internal
-		 */
-		HermesInternal: HermesInternalObject | null;
+	/**
+	 * The native loader's origin and version.
+	 * @internal
+	 */
+	type UnboundLoaderInfo = {
+		origin: string;
+		version: string;
+	};
 
-		/** @internal */
-		__r?: MetroRequire;
-		/** @internal */
-		__d?: MetroDefine;
-		/** @internal */
-		__c?: () => Map<number, any>;
-		/** @internal */
-		__fbBatchedBridge?: FbBatchedBridge;
-		/** @internal */
-		RN$AppRegistry?: RNAppRegistry;
+	/**
+	 * An installed addon's manifest and bundle source, as injected by the native loader.
+	 * @internal
+	 */
+	type UnboundAddonBundle = {
+		manifest: AddonManifest;
+		bundle: string;
+	};
 
-		/** @internal */
-		UNBOUND_LOADER: {
-			origin: string;
-			version: string;
-		};
-
-		/** @internal */
-		UNBOUND_SETTINGS: {
-			contents: string;
-			path: string;
-		}[];
-
-		/** @internal */
-		UNBOUND_PLUGINS: {
-			manifest: AddonManifest;
-			bundle: string;
-		}[];
-
-		/** @internal */
-		UNBOUND_THEMES: {
-			manifest: AddonManifest;
-			bundle: string;
-		}[];
-
-		/** @internal */
-		UNBOUND_FONTS: {
-			name: string;
-			file: string;
-			path: string;
-		}[];
-
-		/** @internal */
-		UNBOUND_AVAILABLE_FONTS: string[];
-
-		/** @internal */
-		UNBOUND_ICONS: {
-			manifest: AddonManifest;
-			bundle: string;
-		}[];
-	}
+	/**
+	 * A custom font file the native loader registered.
+	 * @internal
+	 */
+	type UnboundFontFile = {
+		name: string;
+		file: string;
+		path: string;
+	};
 }

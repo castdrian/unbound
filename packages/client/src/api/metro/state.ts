@@ -8,6 +8,6 @@ export const data = {
 	patchedNativeRequire: false,
 	patchedRTNProfiler: false,
 	patchedImportTracker: false,
-	origToString: Function.prototype.toString,
+	origToString: Object.getOwnPropertyDescriptor(Function.prototype, 'toString')?.value,
 	listeners: new Set<(mdl: any, id: number) => void>(),
 };

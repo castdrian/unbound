@@ -8,9 +8,8 @@ function lazy<T extends object>(initializer: () => T): T {
 	let isInitialized = false;
 	let lazyObject: T;
 
-	// Resolve on first trap of any kind. Bundler ESM/CommonJS interop helpers (e.g. `_interopRequireWildcard`)
-	// enumerate own keys to copy named exports, so `ownKeys`/`getOwnPropertyDescriptor`/`has` must forward to
-	// the real object (not just `get`), otherwise every named export is silently dropped.
+	// Interop helpers like `_interopRequireWildcard` enumerate own keys to copy named exports, so
+	// every trap must forward to the real object, not just `get`.
 	function resolve(): T {
 		if (!isInitialized) {
 			lazyObject = initializer();
@@ -20,7 +19,9 @@ function lazy<T extends object>(initializer: () => T): T {
 		return lazyObject;
 	}
 
-	const proxy = new Proxy({} as T, {
+	const target: T = Object.create(Object.prototype);
+
+	const proxy = new Proxy(target, {
 		get: (_, prop) => resolve()[prop as keyof T],
 		has: (_, prop) => prop in (resolve() as object),
 		set: (_, prop, value) => ((resolve()[prop as keyof T] = value), true),
@@ -29,9 +30,13 @@ function lazy<T extends object>(initializer: () => T): T {
 		getPrototypeOf: () => Reflect.getPrototypeOf(resolve() as object),
 		getOwnPropertyDescriptor: (_, prop) => {
 			const descriptor = Reflect.getOwnPropertyDescriptor(resolve() as object, prop);
+
 			// Proxy invariant: a non-configurable target prop can't be reported for a configurable one, so
 			// force `configurable` since the target is an empty, fully-configurable object.
-			if (descriptor) descriptor.configurable = true;
+			if (descriptor) {
+				descriptor.configurable = true;
+			}
+
 			return descriptor;
 		},
 	});

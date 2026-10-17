@@ -1,20 +1,19 @@
 import resolveMomentLocale from './resolve-moment-locale';
 
-type LocaleSetter = (...args: any[]) => any;
-
-function createMomentLocaleSetter<T extends LocaleSetter>(
-	original: T,
+function createMomentLocaleSetter<This, A extends unknown[], R>(
+	original: (this: This, ...args: A) => R,
 	getLocale: () => string,
 	getAvailableLocales: () => string[],
-): T {
-	return function (this: unknown, ...args: Parameters<T>) {
+): (this: This, ...args: A) => R {
+	return function (this: This, ...args: A) {
 		if (typeof args[0] !== 'string' && !Array.isArray(args[0])) {
 			return original.apply(this, args);
 		}
 
-		const locale = resolveMomentLocale(getLocale(), getAvailableLocales());
-		return original.apply(this, [locale, ...args.slice(1)] as Parameters<T>);
-	} as T;
+		args.splice(0, 1, resolveMomentLocale(getLocale(), getAvailableLocales()));
+
+		return original.apply(this, args);
+	};
 }
 
 export default createMomentLocaleSetter;

@@ -19,8 +19,13 @@ export function resolveSource(specifier: string, fromDir: string): string | unde
 		? join(ALIAS_ROOT, specifier.slice(2))
 		: resolve(fromDir, specifier);
 
-	if (existsSync(`${base}.ts`)) return `${base}.ts`;
-	if (existsSync(join(base, 'index.ts'))) return join(base, 'index.ts');
+	if (existsSync(`${base}.ts`)) {
+		return `${base}.ts`;
+	}
+
+	if (existsSync(join(base, 'index.ts'))) {
+		return join(base, 'index.ts');
+	}
 
 	return void 0;
 }
@@ -40,17 +45,32 @@ export function readNamespaceExports(barrel: string): { name: string; source: st
 
 	for (const declaration of sourceFile.getExportDeclarations()) {
 		const alias = declaration.getNamespaceExport();
-		if (!alias) continue;
-		if (isInternal(declaration)) continue;
+
+		if (!alias) {
+			continue;
+		}
+
+		if (isInternal(declaration)) {
+			continue;
+		}
 
 		const name = alias.getName();
-		if (!name) continue;
+
+		if (!name) {
+			continue;
+		}
 
 		const specifier = declaration.getModuleSpecifierValue();
-		if (!specifier) continue;
+
+		if (!specifier) {
+			continue;
+		}
 
 		const source = resolveSource(specifier, fromDir);
-		if (!source) continue;
+
+		if (!source) {
+			continue;
+		}
 
 		namespaces.push({ name, source });
 	}
@@ -79,12 +99,15 @@ export function buildEntries(): ModuleEntry[] {
 
 		entries.push({ name, source, out, topLevel });
 
-		if (isFolder) walk(source, name, false);
+		if (isFolder) {
+			walk(source, name, false);
+		}
 	}
 
 	function walk(barrel: string, prefix: string, topLevel: boolean) {
 		for (const { name, source } of readNamespaceExports(barrel)) {
 			const subpath = prefix ? `${prefix}/${name}` : name;
+
 			if (config.excludeSubpaths.includes(subpath)) {
 				unusedExcludes.delete(subpath);
 				continue;
@@ -103,6 +126,7 @@ export function buildEntries(): ModuleEntry[] {
 		}
 
 		const source = resolveSource(extra.source, dirname(BARREL));
+
 		if (!source) {
 			throw new Error(
 				`additionalSubpaths entry '${extra.name}' does not resolve: '${extra.source}'.`,

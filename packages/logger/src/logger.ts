@@ -2,11 +2,11 @@
 
 import colorize, { type Color } from './colorize';
 
-type InspectorFn = (primitive: any) => string;
+// UNKNOWN: the inspector renders whatever value a caller logs.
+type InspectorFn = (primitive: unknown) => string;
 
-// Hermes/RN consoles don't render ANSI codes and the debugger relays log lines raw, so only
-// colorize when writing to a real terminal. `process.stdout` is absent under React Native's
-// process polyfill, which makes this false in the client.
+// Hermes/RN consoles don't render ANSI and the debugger relays lines raw, so only colorize on a TTY.
+// RN's process polyfill has no `process.stdout`, which makes this false in the client.
 const supportsColor =
 	typeof process !== 'undefined' &&
 	Boolean(process.stdout?.isTTY) &&
@@ -32,6 +32,7 @@ class Logger {
 		if (typeof process !== 'undefined' && process.versions?.node) {
 			try {
 				const { inspect } = require('node:util');
+
 				Logger.inspector = inspect;
 			} catch {
 				// Not in Node environment, allow the user to set it through `Logger.setInspector()`.
@@ -55,8 +56,12 @@ class Logger {
 		Logger.inspector = inspector;
 	}
 
-	private _inspect(arg: any): string {
-		if (typeof arg === 'string') return arg;
+	// UNKNOWN: log arguments are arbitrary caller values.
+	private _inspect(arg: unknown): string {
+		if (typeof arg === 'string') {
+			return arg;
+		}
+
 		return Logger.inspector ? Logger.inspector(arg) : JSON.stringify(arg);
 	}
 
@@ -75,7 +80,7 @@ class Logger {
 	 * @description Logs args at the `log` level. Twin of the other level methods.
 	 * @param args The values to log.
 	 */
-	log(...args: any[]) {
+	log(...args: unknown[]) {
 		console.log(
 			'»',
 			this._getPrefix('log'),
@@ -87,7 +92,7 @@ class Logger {
 	 * @description Logs args at the `error` level. Twin of the other level methods.
 	 * @param args The values to log.
 	 */
-	error(...args: any[]) {
+	error(...args: unknown[]) {
 		console.error(
 			'»',
 			this._getPrefix('error'),
@@ -99,7 +104,7 @@ class Logger {
 	 * @description Logs args at the `success` level. Twin of the other level methods.
 	 * @param args The values to log.
 	 */
-	success(...args: any[]) {
+	success(...args: unknown[]) {
 		console.info(
 			'»',
 			this._getPrefix('success'),
@@ -111,7 +116,7 @@ class Logger {
 	 * @description Logs args at the `warn` level. Twin of the other level methods.
 	 * @param args The values to log.
 	 */
-	warn(...args: any[]) {
+	warn(...args: unknown[]) {
 		console.warn(
 			'»',
 			this._getPrefix('warn'),
@@ -123,7 +128,7 @@ class Logger {
 	 * @description Logs args at the `debug` level. Twin of the other level methods.
 	 * @param args The values to log.
 	 */
-	debug(...args: any[]) {
+	debug(...args: unknown[]) {
 		console.debug(
 			'»',
 			this._getPrefix('debug'),
@@ -135,7 +140,7 @@ class Logger {
 	 * @description Logs args at the `info` level. Twin of the other level methods.
 	 * @param args The values to log.
 	 */
-	info(...args: any[]) {
+	info(...args: unknown[]) {
 		console.info(
 			'»',
 			this._getPrefix('info'),

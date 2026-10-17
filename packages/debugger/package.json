@@ -29,7 +29,7 @@
 		"terminal-kit": "^3.1.2"
 	},
 	"devDependencies": {
-		"@types/bun": "latest",
+		"@types/bun": "catalog:",
 		"@types/terminal-kit": "^2.5.7",
 		"tsdown": "^0.22.9"
 	},

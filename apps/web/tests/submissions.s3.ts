@@ -115,15 +115,14 @@ describe('publishing a new listing', () => {
 		expect(await ctx.storage.staging.file(row.stagingKey).text()).toBe(bundle);
 	});
 
-	test('the upload URL works once and finalize runs once', async () => {
+	test('finalize runs once', async () => {
 		const client = await signUp();
 		const bundle = 'export default 1;';
-		const created = await create(client, 's3.single-use', bundle);
+		const created = await create(client, 's3.finalize-once', bundle);
 
 		await upload(created.upload, bundle);
 		await finalize(client, created.submission.id);
 
-		expect((await upload(created.upload, 'export default 2;')).status).toBe(412);
 		expect(await finalizeFailure(client, created.submission.id)).toMatchObject({
 			code: 'submission_not_awaiting_upload',
 			status: 409,

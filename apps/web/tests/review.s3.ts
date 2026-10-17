@@ -172,7 +172,7 @@ describe('approval', () => {
 		const moderator = await signUp('moderator');
 		const id = await publish(author, manifest('review.tampered'), 'original');
 
-		// Same size, different bytes: what a store ignoring the single-use precondition would allow.
+		// Same size, different bytes: what reusing the upload URL after finalize would leave staged.
 		await ctx.storage.staging.write(findRow(id).stagingKey, 'replaced');
 
 		expect(await failure(review(moderator, id, { decision: 'approved' }))).toEqual({

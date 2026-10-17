@@ -1,6 +1,7 @@
 import type { ControllerClient } from '@unbound-app/debugger-protocol/controller';
 import type { AddonManifest } from '@unbound-app/types';
 import { readFileSync, existsSync } from 'node:fs';
+import toError from '@unbound-app/utils/to-error';
 import { join } from 'node:path';
 
 import { getBundleName } from '~/lib/bundle-name';
@@ -27,8 +28,10 @@ export type ReloadTransport = {
 
 type ReadAddon = { manifest: AddonManifest; bundle: string };
 
-/** How long the watcher waits for a dropped device to reconnect before dropping a reload. */
-// Longer than a one-shot command's poll: a backgrounded app or slept device can take seconds to redial.
+/**
+ * How long the watcher waits for a dropped device to reconnect before dropping a reload. Longer than
+ * a one-shot command's poll, since a backgrounded app or slept device can take seconds to redial.
+ */
 const RECONNECT_WAIT_MS = 5_000;
 
 /**
@@ -87,9 +90,7 @@ export function createReloadTransport(
 				}
 			} catch (error) {
 				// A missing build output or unreadable manifest must not kill the watcher — report and drop.
-				const message = error instanceof Error ? error.message : String(error);
-
-				process.stderr.write(`Failed to reload ${addon.id}: ${message}\n`);
+				process.stderr.write(`Failed to reload ${addon.id}: ${toError(error).message}\n`);
 			}
 		},
 	};

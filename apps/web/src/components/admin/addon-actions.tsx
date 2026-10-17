@@ -7,17 +7,6 @@ import type { FormEvent } from 'react';
 import { toast } from 'sonner';
 
 import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from '~/components/ui/alert-dialog';
-import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -29,9 +18,10 @@ import {
 import { createBrowserClient } from '~/lib/api/browser-client';
 import getAuthErrorMessage from '~/lib/auth/error-message';
 import getApiErrorMessage from '~/lib/api/error-message';
+import ConfirmDialog from '~/components/confirm-dialog';
 import type { AdminAddon } from '~/lib/admin-addons';
+import UserAvatar from '~/components/user-avatar';
 import { Button } from '~/components/ui/button';
-import Avatar from '~/components/ui/avatar';
 import authClient from '~/lib/auth/client';
 import Input from '~/components/ui/input';
 import Text from '~/components/ui/text';
@@ -62,31 +52,18 @@ function DelistDialog({ addon, disabled, run }: AddonActionProps) {
 	}
 
 	return (
-		<AlertDialog>
-			<AlertDialogTrigger asChild>
+		<ConfirmDialog
+			trigger={
 				<Button variant='destructive' size='sm' disabled={disabled}>
 					<IconEyeOff />
 					Delist
 				</Button>
-			</AlertDialogTrigger>
-			<AlertDialogContent>
-				<AlertDialogHeader>
-					<AlertDialogTitle>Delist {addon.id}?</AlertDialogTitle>
-					<AlertDialogDescription>
-						It disappears from listings and update checks. Its published files stay up,
-						so existing installs keep working. You can relist it later.
-					</AlertDialogDescription>
-				</AlertDialogHeader>
-				<AlertDialogFooter>
-					<AlertDialogCancel>Cancel</AlertDialogCancel>
-					<AlertDialogAction asChild>
-						<Button className='text-white' variant='destructive' onClick={delist}>
-							Delist Addon
-						</Button>
-					</AlertDialogAction>
-				</AlertDialogFooter>
-			</AlertDialogContent>
-		</AlertDialog>
+			}
+			title={`Delist ${addon.id}?`}
+			description='It disappears from listings and update checks. Its published files stay up, so existing installs keep working. You can relist it later.'
+			confirmLabel='Delist Addon'
+			onConfirm={delist}
+		/>
 	);
 }
 
@@ -179,11 +156,7 @@ function TransferDialog({ addon, disabled, run }: AddonActionProps) {
 								selected?.id === user.id && 'bg-accent',
 							)}
 						>
-							<Avatar
-								src={user.image}
-								fallback={user.name.at(0)?.toUpperCase() ?? '?'}
-								size='xs'
-							/>
+							<UserAvatar src={user.image} name={user.name} size='xs' />
 							<Text as='span' variant='text-sm' className='flex-1 truncate'>
 								{user.name}
 							</Text>

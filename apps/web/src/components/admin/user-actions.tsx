@@ -4,17 +4,6 @@ import { useRouter } from '@tanstack/react-router';
 import { toast } from 'sonner';
 
 import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from '~/components/ui/alert-dialog';
-import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -22,6 +11,7 @@ import {
 } from '~/components/ui/dropdown-menu';
 import type { AuthClientError } from '~/lib/auth/error-message';
 import getAuthErrorMessage from '~/lib/auth/error-message';
+import ConfirmDialog from '~/components/confirm-dialog';
 import type { AdminUser } from '~/lib/admin-users';
 import { isRole, roles } from '~/lib/auth/access';
 import { Button } from '~/components/ui/button';
@@ -96,40 +86,28 @@ function BanDialog({ user, disabled, run }: UserActionProps) {
 	}
 
 	return (
-		<AlertDialog>
-			<AlertDialogTrigger asChild>
+		<ConfirmDialog
+			trigger={
 				<Button variant='destructive' size='sm' disabled={disabled}>
 					<IconBan />
 					Ban
 				</Button>
-			</AlertDialogTrigger>
-			<AlertDialogContent>
-				<AlertDialogHeader>
-					<AlertDialogTitle>Ban {user.name}?</AlertDialogTitle>
-					<AlertDialogDescription>
-						They are signed out everywhere, their API keys stop working, and their open
-						submissions are cancelled and their staged files deleted.
-					</AlertDialogDescription>
-				</AlertDialogHeader>
-				<div className='flex flex-col gap-2'>
-					<Label htmlFor={reasonId}>Reason (optional)</Label>
-					<Input
-						id={reasonId}
-						value={reason}
-						onChange={(event) => setReason(event.target.value)}
-						placeholder='Recorded with the ban, e.g. spam submissions'
-					/>
-				</div>
-				<AlertDialogFooter>
-					<AlertDialogCancel>Cancel</AlertDialogCancel>
-					<AlertDialogAction asChild>
-						<Button className='text-white' variant='destructive' onClick={ban}>
-							Ban User
-						</Button>
-					</AlertDialogAction>
-				</AlertDialogFooter>
-			</AlertDialogContent>
-		</AlertDialog>
+			}
+			title={`Ban ${user.name}?`}
+			description='They are signed out everywhere, their API keys stop working, and their open submissions are cancelled and their staged files deleted.'
+			confirmLabel='Ban User'
+			onConfirm={ban}
+		>
+			<div className='flex flex-col gap-2'>
+				<Label htmlFor={reasonId}>Reason (optional)</Label>
+				<Input
+					id={reasonId}
+					value={reason}
+					onChange={(event) => setReason(event.target.value)}
+					placeholder='Recorded with the ban, e.g. spam submissions'
+				/>
+			</div>
+		</ConfirmDialog>
 	);
 }
 

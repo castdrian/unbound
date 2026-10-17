@@ -1,6 +1,7 @@
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 
+import getAuthErrorMessage from '~/lib/auth/error-message';
 import DiscordIcon from '~/components/icons/discord';
 import { Button } from '~/components/ui/button';
 import authClient from '~/lib/auth/client';
@@ -24,7 +25,7 @@ function SignIn({
 			const { error } = await authClient.signIn.social({ provider: 'discord', callbackURL });
 
 			if (error) {
-				toast.error(error.message ?? 'Failed to sign in with Discord');
+				toast.error(getAuthErrorMessage(error));
 			}
 		});
 	}

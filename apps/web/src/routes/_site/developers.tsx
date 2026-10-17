@@ -1,17 +1,9 @@
-import {
-	IconChevronLeft,
-	IconChevronRight,
-	IconUsers,
-	IconX,
-	IconZoom,
-	IconZoomCancel,
-} from '@tabler/icons-react';
+import { IconUsers, IconX, IconZoom, IconZoomCancel } from '@tabler/icons-react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { createServerFn } from '@tanstack/react-start';
 import type { ChangeEvent, FormEvent } from 'react';
 import debounce from '@unbound-app/utils/debounce';
 import { useMemo, useState } from 'react';
-import { z } from 'zod';
 
 import {
 	Empty,
@@ -22,34 +14,24 @@ import {
 	EmptyTitle,
 } from '~/components/ui/empty';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '~/components/ui/input-group';
+import { pageSearchSchema, toPageSearch } from '~/lib/page-search';
 import DeveloperCard from '~/components/developer-card';
 import type { CssVariables } from '~/lib/css-variables';
 import { listDevelopers } from '~/lib/developers';
 import { Button } from '~/components/ui/button';
 import Text from '~/components/ui/text';
+import Pager from '~/components/pager';
 import app from '~/lib/app';
-
-type DevelopersSearch = z.infer<typeof developersSearchSchema>;
 
 const SEARCH_DEBOUNCE_MS = 300;
 
 const GRID_STYLE: CssVariables = { '--col-width': '300px' };
 
-const developersSearchSchema = z.object({
-	page: z.coerce.number().int().min(1).optional(),
-	search: z.string().max(100).optional(),
-});
-
 const fetchDevelopers = createServerFn({ method: 'GET' })
-	.validator(developersSearchSchema)
+	.validator(pageSearchSchema)
 	.handler(({ data }) =>
 		listDevelopers(app, { search: data.search ?? '', page: data.page ?? 1 }),
 	);
-
-// Defaults are left out of the URL so `/developers` stays the canonical first page.
-function toSearch(search: string, page: number): DevelopersSearch {
-	return { search: search || undefined, page: page > 1 ? page : undefined };
-}
 
 function DevelopersContent() {
 	const { developers, total, pageSize } = Route.useLoaderData();
@@ -57,13 +39,12 @@ function DevelopersContent() {
 	const navigate = useNavigate({ from: Route.fullPath });
 	const search = params.search ?? '';
 	const page = params.page ?? 1;
-	const totalPages = Math.ceil(total / pageSize);
 	const [searchInput, setSearchInput] = useState(search);
 
 	const navigateToSearch = useMemo(
 		() =>
 			debounce(
-				(value: string) => navigate({ search: toSearch(value, 1) }),
+				(value: string) => navigate({ search: toPageSearch(value, 1) }),
 				SEARCH_DEBOUNCE_MS,
 			),
 		[navigate],
@@ -71,7 +52,7 @@ function DevelopersContent() {
 
 	function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		navigate({ search: toSearch(searchInput, 1) });
+		navigate({ search: toPageSearch(searchInput, 1) });
 	}
 
 	function handleChange(event: ChangeEvent<HTMLInputElement>) {
@@ -81,11 +62,7 @@ function DevelopersContent() {
 
 	function clearSearch() {
 		setSearchInput('');
-		navigate({ search: toSearch('', 1) });
-	}
-
-	function goToPage(next: number) {
-		navigate({ search: toSearch(search, next) });
+		navigate({ search: toPageSearch('', 1) });
 	}
 
 	if (total === 0 && !search) {
@@ -146,37 +123,14 @@ function DevelopersContent() {
 						))}
 					</div>
 
-					{totalPages > 1 ? (
-						<div className='flex items-center justify-between border-t border-border pt-4'>
-							<Text variant='text-sm' color='muted'>
-								Showing {(page - 1) * pageSize + 1}–
-								{Math.min(page * pageSize, total)} of {total} developers
-							</Text>
-							<div className='flex items-center gap-2'>
-								<Button
-									variant='outline'
-									size='sm'
-									onClick={() => goToPage(page - 1)}
-									disabled={page <= 1}
-								>
-									<IconChevronLeft className='size-4' />
-									Previous
-								</Button>
-								<span className='text-sm text-muted-foreground px-2'>
-									Page {page} of {totalPages}
-								</span>
-								<Button
-									variant='outline'
-									size='sm'
-									onClick={() => goToPage(page + 1)}
-									disabled={page >= totalPages}
-								>
-									Next
-									<IconChevronRight className='size-4' />
-								</Button>
-							</div>
-						</div>
-					) : null}
+					<Pager
+						className='px-0 pt-4 pb-0'
+						page={page}
+						pageSize={pageSize}
+						total={total}
+						noun='developers'
+						onPageChange={(next) => navigate({ search: toPageSearch(search, next) })}
+					/>
 				</>
 			)}
 		</div>
@@ -199,7 +153,7 @@ function DevelopersPage() {
 
 export const Route = createFileRoute('/_site/developers')({
 	head: () => ({ meta: [{ title: 'Unbound | Developers' }] }),
-	validateSearch: developersSearchSchema,
+	validateSearch: pageSearchSchema,
 	loaderDeps: ({ search }) => search,
 	loader: ({ deps }) => fetchDevelopers({ data: deps }),
 	component: DevelopersPage,

@@ -47,7 +47,7 @@ function Header() {
 	const highlighted = hovered ?? pathname;
 
 	return (
-		<nav className='flex flex-col items-center'>
+		<header className='flex flex-col items-center'>
 			<div
 				id='header'
 				className='z-20 sticky flex justify-center items-center mx-auto my-6 px-2 md:px-0 h-18 pointer-events-none container'
@@ -69,9 +69,8 @@ function Header() {
 									<Link
 										key={route.path}
 										className={cn(
-											'relative px-4 py-2 rounded-lg font-semibold text-muted-foreground hover:text-slate-900 dark:hover:text-slate-100 text-base tracking-tight transition-colors duration-150 cursor-pointer',
-											route.path === pathname &&
-												'text-foreground dark:text-slate-100 bg-accent',
+											'relative px-4 py-2 rounded-lg font-semibold text-muted-foreground hover:text-foreground text-base tracking-tight transition-colors duration-150 cursor-pointer',
+											route.path === pathname && 'text-foreground bg-accent',
 										)}
 										onMouseEnter={() => setHovered(route.path)}
 										to={route.path}
@@ -97,6 +96,7 @@ function Header() {
 										variant='outline'
 										size='icon'
 										className='md:hidden flex'
+										aria-label='Open menu'
 									>
 										<IconMenu2 size={16} />
 									</Button>
@@ -125,7 +125,7 @@ function Header() {
 					</div>
 				</div>
 			</div>
-		</nav>
+		</header>
 	);
 }
 

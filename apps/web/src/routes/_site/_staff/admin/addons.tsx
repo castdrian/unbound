@@ -4,16 +4,16 @@ import { createServerFn } from '@tanstack/react-start';
 
 import { pageSearchSchema, toPageSearch } from '~/lib/page-search';
 import AddonActions from '~/components/admin/addon-actions';
+import AdminTable from '~/components/admin/admin-table';
 import SearchForm from '~/components/admin/search-form';
 import { STAFF_SECTIONS } from '~/lib/auth/staff-areas';
 import { listAdminAddons } from '~/lib/admin-addons';
 import { hasPermission } from '~/lib/auth/access';
 import { requireCaller } from '~/lib/api/caller';
-import Pager from '~/components/admin/pager';
 import Text from '~/components/ui/text';
 import app from '~/lib/app';
 
-const HEADER_CLASS = 'px-4 py-3 font-medium text-muted-foreground text-sm text-left';
+const COLUMNS = ['Addon', 'Latest', 'Owners', 'Status'];
 
 const fetchAddons = createServerFn({ method: 'GET' })
 	.validator(pageSearchSchema)
@@ -49,80 +49,48 @@ function AddonsPage() {
 				onSearch={(value) => navigate({ search: toPageSearch(value, 1) })}
 			/>
 
-			<div className='bg-card border border-border rounded-lg overflow-hidden'>
-				<div className='overflow-x-auto'>
-					<table className='w-full'>
-						<thead className='bg-muted/50 border-b border-border'>
-							<tr>
-								<th className={HEADER_CLASS}>Addon</th>
-								<th className={HEADER_CLASS}>Latest</th>
-								<th className={HEADER_CLASS}>Owners</th>
-								<th className={HEADER_CLASS}>Status</th>
-								<th className={HEADER_CLASS}>
-									<span className='sr-only'>Actions</span>
-								</th>
-							</tr>
-						</thead>
-						<tbody className='divide-y divide-border'>
-							{addons.length === 0 ? (
-								<tr>
-									<td
-										colSpan={5}
-										className='px-4 py-8 text-muted-foreground text-center'
-									>
-										No addons found.
-									</td>
-								</tr>
+			<AdminTable
+				columns={COLUMNS}
+				empty={addons.length === 0}
+				page={page}
+				pageSize={pageSize}
+				total={total}
+				noun='addons'
+				onPageChange={(next) => navigate({ search: toPageSearch(search, next) })}
+			>
+				{addons.map((addon) => (
+					<tr key={addon.id} className='hover:bg-muted/30'>
+						<td className='px-4 py-3'>
+							<div className='flex flex-col min-w-0'>
+								<span className='font-medium truncate'>{addon.name}</span>
+								<span className='font-mono text-muted-foreground text-xs'>
+									{addon.id}
+								</span>
+							</div>
+						</td>
+						<td className='px-4 py-3 text-muted-foreground text-sm'>
+							{addon.latestVersion ?? 'None'}
+						</td>
+						<td className='px-4 py-3 text-sm'>
+							{addon.owners.map((owner) => owner.name).join(', ')}
+						</td>
+						<td className='px-4 py-3 text-sm'>
+							{addon.delistedAt ? (
+								<span className='text-destructive'>Delisted</span>
 							) : (
-								addons.map((addon) => (
-									<tr key={addon.id} className='hover:bg-muted/30'>
-										<td className='px-4 py-3'>
-											<div className='flex flex-col min-w-0'>
-												<span className='font-medium truncate'>
-													{addon.name}
-												</span>
-												<span className='font-mono text-muted-foreground text-xs'>
-													{addon.id}
-												</span>
-											</div>
-										</td>
-										<td className='px-4 py-3 text-muted-foreground text-sm'>
-											{addon.latestVersion ?? 'None'}
-										</td>
-										<td className='px-4 py-3 text-sm'>
-											{addon.owners.map((owner) => owner.name).join(', ')}
-										</td>
-										<td className='px-4 py-3 text-sm'>
-											{addon.delistedAt ? (
-												<span className='text-destructive'>Delisted</span>
-											) : (
-												<span className='text-green-600 dark:text-green-500'>
-													Listed
-												</span>
-											)}
-										</td>
-										<td className='px-4 py-3 whitespace-nowrap'>
-											<AddonActions
-												addon={addon}
-												canDelist={canDelist}
-												canTransfer={canTransfer}
-											/>
-										</td>
-									</tr>
-								))
+								<span className='text-green-600 dark:text-green-500'>Listed</span>
 							)}
-						</tbody>
-					</table>
-				</div>
-
-				<Pager
-					page={page}
-					pageSize={pageSize}
-					total={total}
-					noun='addons'
-					onPageChange={(next) => navigate({ search: toPageSearch(search, next) })}
-				/>
-			</div>
+						</td>
+						<td className='px-4 py-3 whitespace-nowrap'>
+							<AddonActions
+								addon={addon}
+								canDelist={canDelist}
+								canTransfer={canTransfer}
+							/>
+						</td>
+					</tr>
+				))}
+			</AdminTable>
 		</div>
 	);
 }

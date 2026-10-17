@@ -5,17 +5,6 @@ import type { FormEvent } from 'react';
 import { toast } from 'sonner';
 
 import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from '~/components/ui/alert-dialog';
-import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -32,6 +21,7 @@ import {
 } from '~/components/ui/empty';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import getAuthErrorMessage from '~/lib/auth/error-message';
+import ConfirmDialog from '~/components/confirm-dialog';
 import type { AccountApiKey } from '~/lib/auth/account';
 import Separator from '~/components/ui/separator';
 import { Button } from '~/components/ui/button';
@@ -103,31 +93,18 @@ function ApiKeyRow({ apiKey }: ApiKeyRowProps) {
 				</div>
 			</div>
 
-			<AlertDialog>
-				<AlertDialogTrigger asChild>
+			<ConfirmDialog
+				trigger={
 					<Button variant='outline' size='sm' className='gap-2' disabled={isPending}>
 						<IconTrash size={14} />
 						Revoke
 					</Button>
-				</AlertDialogTrigger>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Revoke {label}?</AlertDialogTitle>
-						<AlertDialogDescription>
-							Anything still using this key, such as a CI workflow running ubd
-							publish, stops working immediately. This cannot be undone.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction asChild>
-							<Button className='text-white' variant='destructive' onClick={revoke}>
-								Revoke Key
-							</Button>
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+				}
+				title={`Revoke ${label}?`}
+				description='Anything still using this key, such as a CI workflow running ubd publish, stops working immediately. This cannot be undone.'
+				confirmLabel='Revoke Key'
+				onConfirm={revoke}
+			/>
 		</div>
 	);
 }

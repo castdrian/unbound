@@ -1,6 +1,6 @@
 import type { MaintainerRole } from '@unbound-app/contracts/addons';
 
-import Tag from '~/components/dashboard/tag';
+import Tag from '~/components/tag';
 
 type RoleTagProps = {
 	role: MaintainerRole;

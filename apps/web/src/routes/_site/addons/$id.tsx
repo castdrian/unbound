@@ -14,8 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import InstallAddonButton from '~/components/install-addon-button';
 import { fetchMarketplaceAddon } from '~/lib/marketplace';
 import Separator from '~/components/ui/separator';
+import UserAvatar from '~/components/user-avatar';
 import { Button } from '~/components/ui/button';
-import Avatar from '~/components/ui/avatar';
 import Text from '~/components/ui/text';
 
 type AddonProps = {
@@ -162,10 +162,10 @@ function AddonPage() {
 						<CardContent className='flex flex-col gap-3'>
 							{addon.maintainers.map((maintainer) => (
 								<div key={maintainer.id} className='flex items-center gap-3'>
-									<Avatar
+									<UserAvatar
 										className='rounded-lg size-8 object-cover'
 										src={maintainer.image}
-										fallback={maintainer.name.at(0)?.toUpperCase() ?? '?'}
+										name={maintainer.name}
 									/>
 									<Text variant='text-sm' className='flex-1 truncate'>
 										{maintainer.name}

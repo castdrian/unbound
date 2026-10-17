@@ -44,11 +44,16 @@ export type Endpoint<
 
 // UNKNOWN: the raw JSON body, validated by the endpoint's body schema next.
 async function readJson(request: Request): Promise<unknown> {
-	if (!request.body) return;
+	// Behind the TanStack Start server a bodiless POST still carries an empty body stream.
+	const text = await request.text();
 
-	return request.json().catch(() => {
+	if (!text) return;
+
+	try {
+		return JSON.parse(text);
+	} catch {
 		throw new ApiError('invalid_request', 'The request body must be JSON.');
-	});
+	}
 }
 
 // UNKNOWN: request input, validated by the endpoint's schema.

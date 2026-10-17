@@ -4,6 +4,7 @@ import { apiErrorResponseSchema } from '@unbound-app/contracts/errors';
 import { afterAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
+import finalizeSubmissionEndpoint from '~/endpoints/finalize-submission';
 import createSubmissionEndpoint from '~/endpoints/create-submission';
 import { addonMaintainer, submission, user } from '~/db/schema';
 import type { AppContext } from '~/lib/context';
@@ -219,6 +220,23 @@ describe('new listings', () => {
 		});
 
 		expect(await refused(response)).toEqual({ status: 400, code: 'invalid_request' });
+	});
+});
+
+describe('finalize', () => {
+	test('accepts the empty body stream a bodiless POST arrives with behind the app server', async () => {
+		const { headers } = await signUp();
+		const response = await finalizeSubmissionEndpoint.handle(
+			ctx,
+			new Request(new URL('/api/v1/submissions/missing/finalize', ctx.env.PUBLIC_URL), {
+				method: 'POST',
+				headers,
+				body: '',
+			}),
+			{ id: 'missing' },
+		);
+
+		expect(await refused(response)).toEqual({ status: 404, code: 'not_found' });
 	});
 });
 

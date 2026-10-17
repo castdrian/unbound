@@ -1,9 +1,10 @@
 import { View, ScrollView } from 'react-native';
+import type { ReactNode } from 'react';
 
 import { SafeArea } from '~/api/metro/components';
 
 type PageProps = {
-	children: any;
+	children: ReactNode;
 };
 
 /**

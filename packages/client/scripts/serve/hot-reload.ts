@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { DIST_DIR, BUNDLE_NAME, WATCH_DEBOUNCE } from './constants';
 
+type ReloadPayload = { etag: string };
+
 const logger = Logger.create('Serve');
 
 const encoder = new TextEncoder();
@@ -30,7 +32,7 @@ export function bundleEtag(): string {
  * @param data The payload object, serialised as the `data:` line.
  * @returns The encoded frame ready to enqueue.
  */
-function frame(event: string, data: unknown): Uint8Array {
+function frame(event: string, data: ReloadPayload): Uint8Array {
 	return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
@@ -105,10 +107,14 @@ export function watchBundle() {
 
 	return watch(DIST_DIR, (_event, filename) => {
 		if (filename !== BUNDLE_NAME) return;
-		if (watchTimer) clearTimeout(watchTimer);
+
+		if (watchTimer) {
+			clearTimeout(watchTimer);
+		}
 
 		watchTimer = setTimeout(() => {
 			const next = bundleEtag();
+
 			if (next === etag) return;
 
 			etag = next;

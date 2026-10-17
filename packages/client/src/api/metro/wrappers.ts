@@ -1,7 +1,9 @@
 import lazy from '@unbound-app/utils/lazy';
 
+import type { MetroStoreOptions } from '~/api/metro';
+
 /** A search term, or a trailing search-options bag accepted by the `findBy*` family. */
-type TermOrOptions = string | Record<string, any>;
+type TermOrOptions = string | MetroStoreOptions;
 
 /**
  * @description Lazily finds a module by its properties. The metro search is deferred until the

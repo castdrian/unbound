@@ -2,7 +2,7 @@ import type { Addon } from '@unbound-app/types';
 import { Pressable } from 'react-native';
 import { memo } from 'react';
 
-import { ManagerKind } from '~/lib/constants';
+import type { ManagerKind } from '~/lib/constants';
 import { getManager } from '~/managers/utils';
 import { TintedIcon } from '~/ui/components';
 import { useAddonState } from '~/ui/hooks';

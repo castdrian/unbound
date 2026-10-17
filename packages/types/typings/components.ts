@@ -1,5 +1,7 @@
 import type {
+	AccessibilityState,
 	ImageStyle,
+	PressableProps,
 	StyleProp,
 	TextInputProps as RNTextInputProps,
 	TextStyle,
@@ -8,17 +10,16 @@ import type {
 } from 'react-native';
 import type { ComponentType, ReactNode } from 'react';
 
-import type { Fn, LiteralUnion } from './utils';
+import type { LiteralUnion } from './utils';
+
+/** A function exported by a Discord module, whose signature Discord does not document. */
+export type DiscordFunction<T = any> = (...args: any[]) => T;
 
 /**
- * The Discord mobile design system. This is the single metro module keyed by
- * `createStyles` / `dismissAlerts` / `ContextMenu` (aliased `Design` on the v3 branch). It is
- * intentionally left open: every listed member is precisely typed, and the index signature keeps
- * the rest (and anything Discord adds in a future build) accessible as `any` without a change here.
- *
- * See `DESIGN.md` at the repo root for the full catalogue.
+ * The Discord mobile design system module (keyed by `createStyles` / `dismissAlerts` / `ContextMenu`).
+ * See `DESIGN.md` for the full catalogue.
  */
-export interface DesignModule {
+export type DesignModule = {
 	/* Styling */
 	createStyles: CreateStyles;
 	TextStyleSheet: Record<TextVariant, TextStyle>;
@@ -55,18 +56,25 @@ export interface DesignModule {
 	Slider: ComponentType<SliderProps>;
 	Checkbox: ComponentType<CheckboxProps>;
 	SegmentedControl: ComponentType<SegmentedControlProps>;
+	SegmentedControlPages: ComponentType<SegmentedControlPagesProps>;
+	useSegmentedControlState: (options: SegmentedControlStateOptions) => SegmentedControlState;
 
 	/* Layout & surfaces */
 	Stack: ComponentType<StackProps>;
 	Card: ComponentType<CardProps>;
 
-	/* Alerts & sheets */
-	openAlert: Fn<void>;
+	/* Alerts, sheets & menus */
+	AlertModal: ComponentType<AlertModalProps>;
+	AlertActionButton: ComponentType<AlertActionButtonProps>;
+	ActionSheet: ComponentType<ActionSheetProps>;
+	ActionSheetRow: ComponentType<ActionSheetRowProps>;
+	ContextMenu: ComponentType<ContextMenuProps>;
+	openAlert: DiscordFunction<void>;
 	dismissAlert: (key: string) => void;
-	dismissAlerts: Fn<void>;
-	showConfirmModal: Fn;
-	showSimpleActionSheet: Fn;
-	hideContextMenu: Fn<void>;
+	dismissAlerts: DiscordFunction<void>;
+	showConfirmModal: DiscordFunction;
+	showSimpleActionSheet: DiscordFunction;
+	hideContextMenu: DiscordFunction<void>;
 
 	/* Navigation */
 	useNavigation: <T = any>() => Navigation<T>;
@@ -81,16 +89,10 @@ export interface DesignModule {
 	TransitionStates: EnumLike<typeof TRANSITION_STATE_KEYS>;
 	ThemeContextFlags: EnumLike<typeof THEME_FLAG_KEYS>;
 	WCAGContrastRatios: Record<'NonText' | 'Text' | 'HighContrastText', number>;
-
-	/* Everything else Discord exposes on this module (Lotties, modals, menus, motion presets, …). */
-	[key: PropertyKey]: any;
-}
+};
 
 /** A stylesheet spec: each key maps to a view, text, or image style. */
-export type StyleSheetSpec = Record<
-	string,
-	ViewStyle | TextStyle | ImageStyle | Record<PropertyKey, any>
->;
+export type StyleSheetSpec = Record<string, ViewStyle | TextStyle | ImageStyle>;
 
 /** Resolves each key of a {@link StyleSheetSpec} to the concrete RN style type it produced. */
 export type ResolvedStyles<T extends StyleSheetSpec> = {
@@ -105,13 +107,12 @@ export type ResolvedStyles<T extends StyleSheetSpec> = {
 export type StyleSheetSpecOrFactory<T extends StyleSheetSpec> = T | ((...args: any[]) => T);
 
 /**
- * The style factory. Accepts a spec object (or a function returning one) and returns a hook. The
- * hook subscribes to the theme context and lazily resolves each key on access, so it must be called
+ * The style factory: turns a spec (or a function returning one) into a theme-aware hook, so call it
  * inside a component body: `const styles = useStyles();`.
  */
 export type CreateStyles = <T extends StyleSheetSpec>(
 	styles: StyleSheetSpecOrFactory<T>,
-) => Fn<ResolvedStyles<T>>;
+) => () => ResolvedStyles<T>;
 
 /* ------------------------------------------------------------------ *
  * Typography
@@ -138,7 +139,7 @@ export type TextVariant = LiteralUnion<
 /** The four common font weights used across typography variants. */
 export type TextWeight = 'normal' | 'medium' | 'semibold' | 'bold';
 
-export interface TextProps extends ViewProps {
+export type TextProps = {
 	children?: ReactNode;
 	variant?: TextVariant;
 	color?: LiteralUnion<'text-normal' | 'text-muted' | 'header-primary' | 'header-secondary'>;
@@ -149,13 +150,13 @@ export interface TextProps extends ViewProps {
 	animated?: boolean;
 	numberOfLines?: number;
 	allowFontScaling?: boolean;
-}
+} & ViewProps;
 
 /* ------------------------------------------------------------------ *
  * Tables & rows
  * ------------------------------------------------------------------ */
 
-export interface TableRowProps {
+export type TableRowProps = {
 	label?: ReactNode;
 	subLabel?: ReactNode;
 	icon?: ReactNode;
@@ -170,9 +171,9 @@ export interface TableRowProps {
 	subLabelLineClamp?: number;
 	variant?: LiteralUnion<'default' | 'danger'>;
 	draggable?: boolean;
-	onPress?: Fn<void>;
+	onPress?: DiscordFunction<void>;
 	children?: ReactNode;
-}
+};
 
 /** `TableRow` with its attached statics (`Icon`, `Arrow`, `TrailingText`). */
 export type TableRowComponent = ComponentType<TableRowProps> & {
@@ -181,11 +182,11 @@ export type TableRowComponent = ComponentType<TableRowProps> & {
 	TrailingText: ComponentType<TrailingTextProps>;
 };
 
-export interface TrailingTextProps {
+export type TrailingTextProps = {
 	text: string;
-}
+};
 
-export interface TableSwitchRowProps {
+export type TableSwitchRowProps = {
 	label?: ReactNode;
 	subLabel?: ReactNode;
 	icon?: ReactNode;
@@ -195,34 +196,34 @@ export interface TableSwitchRowProps {
 	accessibilityHint?: string;
 	variant?: LiteralUnion<'default'>;
 	onValueChange: (value: boolean) => void;
-}
+};
 
-export interface SwitchProps {
+export type SwitchProps = {
 	value: boolean;
 	disabled?: boolean;
 	accessibilityLabel?: string;
 	onValueChange: (value: boolean) => void;
-}
+};
 
-export interface TableCheckboxRowProps {
+export type TableCheckboxRowProps = {
 	label?: ReactNode;
 	subLabel?: ReactNode;
 	checked: boolean;
 	disabled?: boolean;
 	accessibilityHint?: string;
-	onPress: Fn<void>;
-}
+	onPress: DiscordFunction<void>;
+};
 
-export interface TableRadioRowProps {
+export type TableRadioRowProps = {
 	label?: ReactNode;
 	subLabel?: ReactNode;
 	value: any;
 	disabled?: boolean;
 	accessibilityHint?: string;
 	legacyCompat?: boolean;
-}
+};
 
-export interface TableRowGroupProps {
+export type TableRowGroupProps = {
 	title?: string;
 	description?: string;
 	helperText?: string;
@@ -231,26 +232,26 @@ export interface TableRowGroupProps {
 	accessibilityRole?: string;
 	accessibilityLabel?: string;
 	children?: ReactNode;
-}
+};
 
-export interface TableRowGroupTitleProps {
+export type TableRowGroupTitleProps = {
 	title: string;
-}
+};
 
-export interface TableRowIconProps {
+export type TableRowIconProps = {
 	source?: number;
 	IconComponent?: ComponentType<any>;
 	variant?: LiteralUnion<'default' | 'danger' | 'blurple'>;
-}
+};
 
-export interface RowButtonProps {
+export type RowButtonProps = {
 	label?: ReactNode;
 	icon?: ReactNode;
 	arrow?: boolean;
 	disabled?: boolean;
 	variant?: LiteralUnion<'primary' | 'secondary'>;
-	onPress?: Fn<void>;
-}
+	onPress?: DiscordFunction<void>;
+};
 
 /* ------------------------------------------------------------------ *
  * Buttons
@@ -261,7 +262,7 @@ export type ButtonVariant = LiteralUnion<
 >;
 export type ButtonSize = LiteralUnion<'sm' | 'md' | 'lg'>;
 
-export interface ButtonProps {
+export type ButtonProps = {
 	text?: string;
 	textElement?: ReactNode;
 	variant?: ButtonVariant;
@@ -276,17 +277,17 @@ export interface ButtonProps {
 	textVariant?: TextVariant;
 	style?: StyleProp<ViewStyle>;
 	accessibilityLabel?: string;
-	onPress?: Fn<void>;
-	onPressIn?: Fn<void>;
-	onPressOut?: Fn<void>;
-}
+	onPress?: DiscordFunction<void>;
+	onPressIn?: DiscordFunction<void>;
+	onPressOut?: DiscordFunction<void>;
+};
 
 /** `Button` with its attached `Icon` static. */
 export type ButtonComponent = ComponentType<ButtonProps> & {
 	Icon: ComponentType<TableRowIconProps>;
 };
 
-export interface IconButtonProps {
+export type IconButtonProps = {
 	icon?: ReactNode | number;
 	variant?: ButtonVariant;
 	size?: ButtonSize;
@@ -295,15 +296,15 @@ export interface IconButtonProps {
 	label?: string;
 	accessibilityLabel?: string;
 	style?: StyleProp<ViewStyle>;
-	onPress?: Fn<void>;
-}
+	onPress?: DiscordFunction<void>;
+};
 
 /** `FloatingActionButton`: a single-icon FAB, typically pinned to a screen corner. */
-export interface FloatingActionButtonProps {
+export type FloatingActionButtonProps = {
 	icon?: ReactNode | number;
 	style?: StyleProp<ViewStyle>;
-	onPress?: Fn<void>;
-}
+	onPress?: DiscordFunction<void>;
+};
 
 /* ------------------------------------------------------------------ *
  * Inputs
@@ -314,15 +315,13 @@ export type InputSize = LiteralUnion<'sm' | 'md' | 'lg'>;
 /** Input status. `focused` is an internal state and is not user-settable. */
 export type InputStatus = LiteralUnion<'default' | 'error'>;
 /** Icon slot: a rendered node, a component, or a render function. */
-export type IconSlot = ReactNode | ComponentType<any> | Fn<ReactNode>;
+export type IconSlot = ReactNode | ComponentType<any> | DiscordFunction<ReactNode>;
 
 /**
- * Discord's own form-style `TextInput` (`TextInput.native`), not React Native's. Its `onChange`
- * receives the raw string value, not an event. These are the props it reads verbatim off its props
- * object; every other prop is collected and spread onto the underlying native input via
- * {@link TextInputPassthrough}.
+ * Discord's form-style `TextInput` (`TextInput.native`), whose `onChange` receives the string value.
+ * Props it does not read are spread onto the native input via {@link TextInputPassthrough}.
  */
-export interface TextInputProps extends TextInputPassthrough {
+export type TextInputProps = {
 	value?: string;
 	/** @default '' */
 	placeholder?: string;
@@ -358,12 +357,11 @@ export interface TextInputProps extends TextInputPassthrough {
 	/** Switches between the legacy and redesign render paths. @default true */
 	allowRedesignTextInput?: boolean;
 	onChange?: (value: string) => void;
-}
+} & TextInputPassthrough;
 
 /**
- * Native `TextInput` props forwarded through `TextInput`. Everything the DS component does not read
- * itself (`maxLength`, `selectionColor`, `onFocus`, …) is spread onto the underlying native input,
- * so it accepts the RN surface too, minus the members `TextInput` overrides with its own semantics.
+ * Native `TextInput` props forwarded through `TextInput` (`maxLength`, `selectionColor`, `onFocus`, …),
+ * minus the members `TextInput` overrides with its own semantics.
  */
 export type TextInputPassthrough = Omit<
 	RNTextInputProps,
@@ -382,11 +380,10 @@ export type TextInputPassthrough = Omit<
 >;
 
 /**
- * The redesign `TextField` and its siblings (`TextArea`, `SearchField`, `GhostInput`,
- * `SplitTextInput`). This is where the `size` / `status` / `isClearable` / `leadingIcon` chrome
- * actually lives, unlike {@link TextInputProps}. `onChange` receives the string value.
+ * The redesign `TextField` family (`TextArea`, `SearchField`, `GhostInput`, `SplitTextInput`), which
+ * owns the `size` / `status` / `leadingIcon` chrome. `onChange` receives the string value.
  */
-export interface TextFieldProps {
+export type TextFieldProps = {
 	value?: string;
 	defaultValue?: string;
 	placeholder?: string;
@@ -402,8 +399,8 @@ export interface TextFieldProps {
 	trailingIcon?: IconSlot;
 	leadingText?: string;
 	trailingText?: string;
-	leadingPressableProps?: Record<string, any>;
-	trailingPressableProps?: Record<string, any>;
+	leadingPressableProps?: PressableProps;
+	trailingPressableProps?: PressableProps;
 	secureTextEntry?: boolean;
 	keyboardType?: RNTextInputProps['keyboardType'];
 	autoComplete?: RNTextInputProps['autoComplete'];
@@ -414,34 +411,34 @@ export interface TextFieldProps {
 	inputStyle?: StyleProp<TextStyle>;
 	children?: ReactNode;
 	onChange?: (value: string) => void;
-	onClear?: Fn<void>;
+	onClear?: DiscordFunction<void>;
 	onFocus?: RNTextInputProps['onFocus'];
 	onBlur?: RNTextInputProps['onBlur'];
-}
+};
 
 /** `TextArea` extends the field family with a character limit. */
-export interface TextAreaProps extends TextFieldProps {
+export type TextAreaProps = {
 	maxLength?: number;
-}
+} & TextFieldProps;
 
 /** `GhostInput`: a borderless field bridging to the `useTextField` hook. */
-export interface GhostInputProps extends TextFieldProps {
+export type GhostInputProps = {
 	isCentered?: boolean;
 	containerStyle?: StyleProp<ViewStyle>;
-}
+} & TextFieldProps;
 
 /** `SplitTextInput` / `SplitTextField`: a segmented input (e.g. verification codes). */
-export interface SplitTextInputProps extends TextFieldProps {
+export type SplitTextInputProps = {
 	isRound?: boolean;
 	leadingText?: string;
-	leadingPressableProps?: Record<string, any>;
-}
+	leadingPressableProps?: PressableProps;
+} & TextFieldProps;
 
 /**
  * The DS `Slider`. It reads only `startIcon` / `endIcon` / `style` / `onValueChange` / `step`; the
  * remaining slider props (`value`, bounds, tint colours) are spread onto the underlying RN slider.
  */
-export interface SliderProps {
+export type SliderProps = {
 	value?: number;
 	defaultValue?: number;
 	minimumValue?: number;
@@ -461,46 +458,66 @@ export interface SliderProps {
 	onValueChange?: (value: number) => void;
 	onSlidingStart?: (value: number) => void;
 	onSlidingComplete?: (value: number) => void;
-}
+};
 
-export interface CheckboxProps {
+export type CheckboxProps = {
 	label?: ReactNode;
 	description?: ReactNode;
 	checked: boolean;
 	required?: boolean;
 	accessibilityRole?: string;
-	accessibilityState?: Record<string, any>;
-	onToggle: Fn<void>;
-}
+	accessibilityState?: AccessibilityState;
+	onToggle: DiscordFunction<void>;
+};
 
-export interface SegmentedControlProps {
+export type SegmentedControlProps = {
 	/** The controller returned by `useSegmentedControlState`. */
 	state: SegmentedControlState;
 	/** @default 'default' */
 	variant?: LiteralUnion<'default'>;
 	keyboardShouldPersistTaps?: boolean | 'always' | 'never' | 'handled';
-}
+};
 
 /** The state controller a `SegmentedControl` is driven by. */
-export interface SegmentedControlState {
+export type SegmentedControlState = {
 	activeIndex: number;
-	items: any[];
+	items: SegmentedControlItem[];
 	setActiveIndex: (index: number) => void;
-}
+};
+
+/** A tab of a segmented control, with the page it shows. */
+export type SegmentedControlItem = {
+	id: string;
+	label: string;
+	page?: ReactNode;
+};
+
+/** The options `useSegmentedControlState` builds a {@link SegmentedControlState} from. */
+export type SegmentedControlStateOptions = {
+	items: SegmentedControlItem[];
+	pageWidth: number;
+	defaultIndex?: number;
+	onPageChange?: (index: number) => void;
+};
+
+/** `SegmentedControlPages`: the swipeable pages driven by a segmented control's state. */
+export type SegmentedControlPagesProps = {
+	state: SegmentedControlState;
+};
 
 /* ------------------------------------------------------------------ *
  * Layout & surfaces
  * ------------------------------------------------------------------ */
 
-export interface StackProps extends ViewProps {
+export type StackProps = {
 	spacing?: number;
 	direction?: 'horizontal' | 'vertical';
 	align?: 'start' | 'center' | 'end' | 'stretch';
 	justify?: 'start' | 'center' | 'end' | 'between' | 'around';
 	children?: ReactNode;
-}
+} & ViewProps;
 
-export interface CardProps extends ViewProps {
+export type CardProps = {
 	variant?: LiteralUnion<'primary' | 'secondary' | 'muted' | 'transparent'>;
 	border?: LiteralUnion<'none' | 'subtle' | 'strong'>;
 	shadow?: LiteralUnion<'none' | 'low' | 'medium' | 'high' | 'border'>;
@@ -508,24 +525,75 @@ export interface CardProps extends ViewProps {
 	start?: boolean;
 	end?: boolean;
 	children?: ReactNode;
-}
+} & ViewProps;
+
+/* ------------------------------------------------------------------ *
+ * Alerts, sheets & menus
+ * ------------------------------------------------------------------ */
+
+export type AlertModalProps = {
+	title?: ReactNode;
+	content?: ReactNode;
+	extraContent?: ReactNode;
+	actions?: ReactNode;
+};
+
+export type AlertActionButtonProps = {
+	text: string;
+	variant?: ButtonVariant;
+	loading?: boolean;
+	disabled?: boolean;
+	onPress?: DiscordFunction<void>;
+};
+
+export type ActionSheetProps = {
+	children?: ReactNode;
+};
+
+export type ActionSheetRowProps = {
+	label: ReactNode;
+	subLabel?: ReactNode;
+	icon?: ReactNode;
+	onPress?: DiscordFunction<void>;
+};
+
+/** An entry of a `ContextMenu`. */
+export type ContextMenuItem = {
+	label: string;
+	action: DiscordFunction<void>;
+	variant?: LiteralUnion<'default' | 'destructive'>;
+	iconSource?: number;
+};
+
+/** `ContextMenu`: an anchored popover whose `children` render the trigger from the props it passes. */
+export type ContextMenuProps = {
+	title?: string;
+	items: ContextMenuItem[];
+	triggerOnTap?: boolean;
+	children: (props: PressableProps) => ReactNode;
+};
 
 /* ------------------------------------------------------------------ *
  * Navigation
  * ------------------------------------------------------------------ */
 
-export interface Navigation<T = any> {
+export type Navigation<T = any> = {
 	push: (route: string, params?: T) => void;
 	pop: () => void;
 	navigate: (route: string, params?: T) => void;
 	goBack: () => void;
-	setOptions: (options: Record<string, any>) => void;
-	addListener: (event: string, callback: Fn) => Fn<void>;
-	[key: string]: any;
-}
+	setOptions: (options: NavigationOptions) => void;
+	addListener: (event: string, callback: DiscordFunction) => DiscordFunction<void>;
+};
+
+/** The screen options accepted by {@link Navigation.setOptions}. */
+export type NavigationOptions = {
+	title?: string;
+	headerRight?: DiscordFunction<ReactNode>;
+};
 
 /* ------------------------------------------------------------------ *
- * Runtime enums (bidirectional key<->value objects Discord ships)
+ * Runtime enums
  * ------------------------------------------------------------------ */
 
 /** Discord ships numeric enums as bidirectional maps; this models both directions. */

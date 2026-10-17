@@ -2,6 +2,10 @@ import { expect, test } from 'bun:test';
 
 import createMomentLocaleSetter from './create-moment-locale-setter';
 
+type MomentInstance = {
+	calls: string[];
+};
+
 test('maps future locale writes to the active Discord locale', () => {
 	let activeLocale = 'en-US';
 	let momentLocale = 'hi';
@@ -23,8 +27,10 @@ test('maps future locale writes to the active Discord locale', () => {
 
 test('passes locale reads and non-string calls through unchanged', () => {
 	const calls: unknown[][] = [];
+
 	function setLocale(...args: unknown[]) {
 		calls.push(args);
+
 		return args[0] ?? 'current';
 	}
 	const wrapped = createMomentLocaleSetter(
@@ -40,15 +46,16 @@ test('passes locale reads and non-string calls through unchanged', () => {
 
 test('maps instance locale overrides to the active Discord locale', () => {
 	let activeLocale = 'en-US';
-	const calls: string[] = [];
-	const instance = {
-		locale(locale: string) {
-			calls.push(locale);
-			return this;
-		},
-	};
+
+	function setInstanceLocale(this: MomentInstance, locale: string) {
+		this.calls.push(locale);
+
+		return this;
+	}
+
+	const instance: MomentInstance = { calls: [] };
 	const wrapped = createMomentLocaleSetter(
-		instance.locale,
+		setInstanceLocale,
 		() => activeLocale,
 		() => ['en', 'en-us', 'de', 'de-de', 'ar'],
 	);
@@ -57,7 +64,7 @@ test('maps instance locale overrides to the active Discord locale', () => {
 	activeLocale = 'de-DE';
 	wrapped.call(instance, 'ar');
 
-	expect(calls).toEqual(['en-us', 'de-de']);
+	expect(instance.calls).toEqual(['en-us', 'de-de']);
 });
 
 test('maps locale preference lists to the active Discord locale', () => {

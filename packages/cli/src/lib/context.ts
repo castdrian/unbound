@@ -9,9 +9,8 @@ const DEVICE_WAIT_TIMEOUT_MS = 2_000;
 const DEVICE_WAIT_POLL_MS = 50;
 
 /**
- * A {@link CommandContext} whose controller is dialed lazily: commands that never touch the bridge
- * (`build`, `dev`) trigger no connection, so they run with no bridge present. `close` tears the
- * client down only if it was ever created.
+ * A {@link CommandContext} whose controller is dialed lazily, so commands that never touch the bridge
+ * (`build`, `dev`) run with no bridge present. `close` tears the client down only if it was created.
  */
 export type LazyContext = CommandContext & {
 	/** Whether the controller was ever dialed, i.e. the command actually used the bridge. */
@@ -33,7 +32,9 @@ export function createContext(port: number): LazyContext {
 
 	return {
 		get client(): ControllerClient {
-			if (client) return client;
+			if (client) {
+				return client;
+			}
 
 			client = new ControllerClient(url);
 			client.connect();
@@ -62,7 +63,9 @@ export function waitForDevice(
 	timeoutMs: number = DEVICE_WAIT_TIMEOUT_MS,
 ): Promise<boolean> {
 	return new Promise((resolve) => {
-		if (client.isDeviceConnected) return resolve(true);
+		if (client.isDeviceConnected) {
+			return resolve(true);
+		}
 
 		const deadline = Date.now() + timeoutMs;
 

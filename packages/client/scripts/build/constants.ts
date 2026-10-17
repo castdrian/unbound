@@ -17,10 +17,8 @@ export const PROD_I18N_BASE_URL =
 
 export const IS_DEV_BUILD = process.env.UNBOUND_DEV === '1' || process.argv.includes('--dev');
 
-// The `serve` script's origin, baked into the bundle so the device can fetch
-// locale tables and the hot-reload stream. Resolved from `--host <ip>`, then
-// `DEV_HOST`/`DEV_SERVER_URL`, then the auto-detected LAN IP - a physical device
-// can't reach `localhost` (that's the phone itself), so the LAN IP is the default.
+// The `serve` script's origin, baked in for locale tables and hot reload. Defaults to the LAN IP, as
+// a physical device can't reach `localhost` (that's the phone itself).
 export const DEV_SERVER_URL = IS_DEV_BUILD ? resolveDevServerUrl() : '';
 export const I18N_BASE_URL = IS_DEV_BUILD
 	? process.env.I18N_DEV_URL || `${DEV_SERVER_URL}/i18n`

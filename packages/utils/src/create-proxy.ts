@@ -6,15 +6,19 @@
  * @param options.fallback Function called when getter returns undefined, receives the property key.
  * @returns A Proxy object with the specified getter and fallback behavior.
  */
-function createProxy<T extends object>(options: {
-	getter: (prop: PropertyKey) => any;
-	fallback: (prop: PropertyKey) => any;
-}): T {
-	const { getter, fallback } = options;
+type ProxyOptions<T extends object> = {
+	getter: (prop: PropertyKey) => T[keyof T] | undefined;
+	fallback: (prop: PropertyKey) => T[keyof T];
+};
 
-	const proxy = new Proxy({} as T, {
+function createProxy<T extends object>(options: ProxyOptions<T>): T {
+	const { getter, fallback } = options;
+	const target: T = Object.create(Object.prototype);
+
+	const proxy = new Proxy(target, {
 		get(_, prop) {
 			const value = getter(prop);
+
 			return value !== undefined ? value : fallback(prop);
 		},
 	});

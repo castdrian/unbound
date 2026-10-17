@@ -11,7 +11,9 @@ import type { DiscoveredAddon } from '~/lib/discovery';
  * @returns Whether the build succeeded (always `true` for static addons).
  */
 export function buildAddon(addon: DiscoveredAddon, buildCommand: string): Promise<boolean> {
-	if (addon.static) return Promise.resolve(true);
+	if (addon.static) {
+		return Promise.resolve(true);
+	}
 
 	return new Promise((resolve) => {
 		const child = spawn(buildCommand, {

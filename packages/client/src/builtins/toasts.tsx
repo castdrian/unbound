@@ -11,19 +11,23 @@ const Patcher = createPatcher('unbound::toasts');
 const Logger = createLogger('Toasts');
 const Settings = storage.getStore('unbound');
 
+/** Replaces Discord's toast container and toast API with Unbound's toasts. */
 export function start() {
 	patchToastContainer();
 	patchToastAPI();
 }
 
+/** Restores Discord's toast container and toast API. */
 export function stop() {
 	Patcher.unpatchAll();
 }
 
 function patchToastContainer() {
 	const Components = findByProps('ToastContainer');
+
 	if (!Components) {
 		Logger.error('Failed to find ToastContainer component');
+
 		return;
 	}
 
@@ -40,8 +44,10 @@ function patchToastContainer() {
 
 function patchToastAPI() {
 	const Toasts = find((x) => x.open && x.close && Object.keys(x).length === 2, { lazy: true });
+
 	if (!Toasts?.open) {
 		Logger.error('Failed to find Toaster API');
+
 		return;
 	}
 

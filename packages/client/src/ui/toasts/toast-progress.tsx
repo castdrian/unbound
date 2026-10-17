@@ -9,6 +9,7 @@ type ToastProgressProps = {
 
 function ToastProgress({ width }: ToastProgressProps) {
 	const styles = useStyles();
+
 	return <Animated.View style={[styles.progressBar, { width }, styles.bar]} />;
 }
 

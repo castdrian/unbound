@@ -2,11 +2,15 @@
 
 export type {
 	ADDON_TYPES,
+	ActionSheetProps,
+	ActionSheetRowProps,
 	Addon,
 	AddonAuthor,
 	AddonManifest,
 	AddonResolveable,
 	AddonType,
+	AlertActionButtonProps,
+	AlertModalProps,
 	AssetsModule,
 	ButtonComponent,
 	ButtonProps,
@@ -14,9 +18,12 @@ export type {
 	ButtonVariant,
 	CardProps,
 	CheckboxProps,
+	ContextMenuItem,
+	ContextMenuProps,
 	CreateStyles,
 	DesignModule,
 	DiscordAsset,
+	DiscordFunction,
 	EnumLike,
 	FloatingActionButtonProps,
 	FontDescriptor,
@@ -63,15 +70,21 @@ export type {
 	NativeStructFields,
 	NativeThreadPolicy,
 	Navigation,
+	NavigationOptions,
 	Plugin,
 	PluginContext,
 	PluginEntity,
 	ResolvedStyles,
 	RowButtonProps,
+	SegmentedControlItem,
+	SegmentedControlPagesProps,
 	SegmentedControlProps,
 	SegmentedControlState,
+	SegmentedControlStateOptions,
 	SettingsEntry,
+	SettingsObject,
 	SettingsScreen,
+	SettingsValue,
 	SliderProps,
 	SplitTextInputProps,
 	StackProps,
@@ -105,18 +118,18 @@ export type {
 	UnboundAsset,
 } from './_internal';
 import type { NativePlatformBridge } from './_internal';
+import * as ReactModule from 'react';
+import * as ReactNativeModule from 'react-native';
+
 declare global {
 	/**
-	 * Build-time token, replaced with a boolean literal by the build's `transform.define`. Folds at
-	 * the module-graph level so `if ($$DEV$$)` branches (and any imports inside them) are dead-code
-	 * eliminated from production bundles entirely. Use it (not a runtime check) to gate dev-only code.
+	 * Build-time token replaced with a boolean literal, so `if ($$DEV$$)` branches (and their
+	 * imports) are eliminated from production bundles. Use it, not a runtime check, for dev-only code.
 	 */
 	var $$DEV$$: boolean;
 	var NativePlatform: NativePlatformBridge | undefined;
-	var React: typeof import('react');
-	var ReactNative: typeof import('react-native');
-
-	interface Window {}
+	var React: typeof ReactModule;
+	var ReactNative: typeof ReactNativeModule;
 }
 
 export interface UnboundGlobal {

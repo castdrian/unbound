@@ -7,26 +7,34 @@ import { findByProps } from '~/api/metro';
 const Patcher = createPatcher('unbound::tracking');
 const Logger = createLogger('Tracking');
 
+/** Disables Discord's analytics trackers. */
 export function start() {
 	patchMetadataTrackers();
 	patchActionHandlers();
 	patchSuperProperties();
 }
 
+/** Restores Discord's analytics trackers. */
 export function stop() {
 	Patcher.unpatchAll();
 }
 
 function patchMetadataTrackers() {
 	const Metadata = findByProps('trackWithMetadata');
-	if (!Metadata) return Logger.error('Failed to find metadata trackers.');
+
+	if (!Metadata) {
+		return Logger.error('Failed to find metadata trackers.');
+	}
 
 	Patcher.instead(Metadata, 'trackWithMetadata', noop);
 }
 
 function patchActionHandlers() {
 	const Handlers = findByProps('AnalyticsActionHandlers');
-	if (!Handlers) return Logger.error('Failed to find action handlers.');
+
+	if (!Handlers) {
+		return Logger.error('Failed to find action handlers.');
+	}
 
 	Patcher.instead(Handlers.AnalyticsActionHandlers, 'handleConnectionClosed', noop);
 	Patcher.instead(Handlers.AnalyticsActionHandlers, 'handleConnectionOpen', noop);
@@ -36,7 +44,10 @@ function patchActionHandlers() {
 
 function patchSuperProperties() {
 	const Properties = findByProps('track', 'encodeProperties');
-	if (!Properties) return Logger.error('Failed to find super properties.');
+
+	if (!Properties) {
+		return Logger.error('Failed to find super properties.');
+	}
 
 	Patcher.instead(Properties, 'track', noop);
 }

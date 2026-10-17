@@ -14,7 +14,7 @@ export type MetroFilter = ((mdl: any, id: number | string) => PredicateResult) &
  * @returns A {@link MetroFilter} matching modules that expose every given property.
  */
 export function byProps(...props: string[]): MetroFilter {
-	const filter = (mdl: any) => {
+	const filter: MetroFilter = (mdl) => {
 		if (props.length === 1) {
 			return mdl[props[0]] !== void 0;
 		}
@@ -38,7 +38,7 @@ export function byProps(...props: string[]): MetroFilter {
  * @param path The file path the module must have been imported from.
  * @returns A {@link MetroFilter} matching the module loaded from that file path.
  */
-export function byFilePath(path: string[]): MetroFilter {
+export function byFilePath(path: string): MetroFilter {
 	const filter = (mdl: any) => mdl.__filePath === path;
 
 	filter[CACHE_KEY] = `byFilePath::${path}`;
@@ -53,8 +53,10 @@ export function byFilePath(path: string[]): MetroFilter {
  * @returns A {@link MetroFilter} matching modules whose prototype exposes every given method.
  */
 export function byPrototypes(...prototypes: string[]): MetroFilter {
-	const filter = (mdl: any) => {
-		if (!mdl.prototype) return false;
+	const filter: MetroFilter = (mdl) => {
+		if (!mdl.prototype) {
+			return false;
+		}
 
 		for (let i = 0, len = prototypes.length; i < len; i++) {
 			if (mdl.prototype[prototypes[i]] === void 0) {

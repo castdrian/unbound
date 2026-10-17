@@ -16,14 +16,14 @@ type AddonSettingsProps = {
  */
 function AddonSettings({ addon, disabled }: AddonSettingsProps) {
 	const navigation = Discord.useNavigation();
-	const getSettingsPanel = addon.instance?.getSettingsPanel;
+	const { instance } = addon;
 
 	function handlePress() {
-		if (!getSettingsPanel) return;
+		if (!instance?.getSettingsPanel) return;
 
 		navigation.push(Screens.Custom, {
 			title: addon.data.name,
-			render: () => getSettingsPanel.call(addon.instance),
+			render: () => instance.getSettingsPanel?.(),
 		});
 	}
 
@@ -32,7 +32,7 @@ function AddonSettings({ addon, disabled }: AddonSettingsProps) {
 			icon={Icons['SettingsIcon'] ?? 0}
 			variant='tertiary'
 			size='sm'
-			disabled={disabled || !getSettingsPanel}
+			disabled={disabled || !instance?.getSettingsPanel}
 			accessibilityLabel={`${addon.data.name} settings`}
 			onPress={handlePress}
 		/>

@@ -15,9 +15,8 @@ export const DEV: boolean = $$DEV$$;
 export const I18N_BASE_URL = '$$I18N_BASE_URL$$';
 
 /**
- * `host:port` of the REPL/MCP debugger server (`@unbound-app/debugger`). Replaced at build time
- * with the dev host (so it tracks the same machine as the dev server). Empty in production.
- * Override the host with `DEV_HOST` / `--host`, or the whole value with `DEBUGGER_ADDRESS`.
+ * `host:port` of the REPL/MCP debugger server, replaced at build time with the dev host. Empty in
+ * production. Override the host with `DEV_HOST` / `--host`, or the whole value with `DEBUGGER_ADDRESS`.
  */
 export const DEBUGGER_ADDRESS = '$$DEBUGGER_ADDRESS$$';
 

@@ -30,12 +30,15 @@ export const mcpCommand: Command = command(
 		const server = new McpServer({ name: 'ubd', version: '1.0.0' });
 
 		for (const definition of commands) {
-			if (!definition.surfaces.mcp) continue;
+			if (!definition.surfaces.mcp) {
+				continue;
+			}
 
 			toMcpTool(server, definition, context);
 		}
 
 		const transport = new StdioServerTransport();
+
 		await server.connect(transport);
 	},
 );

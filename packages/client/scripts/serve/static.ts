@@ -13,7 +13,9 @@ const logger = Logger.create('Serve');
  * @returns The formatted size, e.g. `1.50 KB`.
  */
 function formatBytes(bytes: number): string {
-	if (bytes === 0) return '0 B';
+	if (bytes === 0) {
+		return '0 B';
+	}
 
 	const k = 1024;
 	const sizes = ['B', 'KB', 'MB', 'GB'];
@@ -36,6 +38,7 @@ export async function serveStatic(pathname: string): Promise<Response> {
 
 		if (!filePath.startsWith(DIST_DIR)) {
 			logger.error(`GET ${pathname} - Path traversal attempt blocked`);
+
 			return new Response('Forbidden', { status: 403 });
 		}
 
@@ -44,6 +47,7 @@ export async function serveStatic(pathname: string): Promise<Response> {
 
 		if (!exists) {
 			logger.warn(`GET ${pathname} - File not found`);
+
 			return new Response('Not Found', { status: 404 });
 		}
 
@@ -66,9 +70,12 @@ export async function serveStatic(pathname: string): Promise<Response> {
 		}
 
 		return new Response(file, { headers });
-	} catch (error: any) {
+	} catch (error) {
 		const duration = (performance.now() - startTime).toFixed(2);
-		logger.error(`GET ${pathname} - Error after ${duration}ms:`, error.message);
+		const message = error instanceof Error ? error.message : error;
+
+		logger.error(`GET ${pathname} - Error after ${duration}ms:`, message);
+
 		return new Response('Internal Server Error', { status: 500 });
 	}
 }

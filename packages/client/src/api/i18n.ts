@@ -13,7 +13,7 @@ import enUS from '../../../../i18n/en-US.json';
 
 type LocaleStrings = Record<string, string>;
 type StringStore = Record<string, LocaleStrings>;
-type FormatVars = Record<string, unknown>;
+type FormatVars = Record<string, string | number | boolean | Date>;
 type I18nLoadSuccess = { locale: string };
 
 type Localizations = {
@@ -21,20 +21,29 @@ type Localizations = {
 	format: (key: string, vars?: FormatVars) => string;
 };
 
+type MessageFormatInstance = {
+	format: (vars?: FormatVars) => string;
+};
+
+type MessageFormatConstructor = new (message: string) => MessageFormatInstance;
+
+// UNKNOWN: Moment comes untyped from Discord's bundle.
+type MomentMethod = (this: unknown, ...args: unknown[]) => unknown;
+
 let currentLocale: string | null = null;
 
 const strings: StringStore = { 'en-US': enUS };
 const storage = getStore('unbound::i18n');
 const logger = createLogger('i18n');
 let previousMomentLocale: string | null = null;
-let originalMomentLocaleSetter: ((...args: any[]) => any) | null = null;
-let wrappedMomentLocaleSetter: ((...args: any[]) => any) | null = null;
-let originalMomentInstanceLocaleSetter: ((...args: any[]) => any) | null = null;
-let wrappedMomentInstanceLocaleSetter: ((...args: any[]) => any) | null = null;
-let originalMomentCalendar: ((...args: any[]) => any) | null = null;
-let wrappedMomentCalendar: ((...args: any[]) => any) | null = null;
+let originalMomentLocaleSetter: MomentMethod | null = null;
+let wrappedMomentLocaleSetter: MomentMethod | null = null;
+let originalMomentInstanceLocaleSetter: MomentMethod | null = null;
+let wrappedMomentInstanceLocaleSetter: MomentMethod | null = null;
+let originalMomentCalendar: MomentMethod | null = null;
+let wrappedMomentCalendar: MomentMethod | null = null;
 
-let MessageFormat: any;
+let MessageFormat: MessageFormatConstructor | undefined;
 
 /**
  * @description Resolves and memoises the `MessageFormat` constructor. Uses `findByName` (which unwraps
@@ -43,6 +52,7 @@ let MessageFormat: any;
  */
 function getMessageFormat() {
 	MessageFormat ??= findByName('MessageFormat');
+
 	return MessageFormat;
 }
 
@@ -53,6 +63,7 @@ function syncMomentLocale(locale: string): void {
 
 	if (!originalMomentLocaleSetter) {
 		const localeSetter = Moment.locale;
+
 		originalMomentLocaleSetter = localeSetter;
 		wrappedMomentLocaleSetter = createMomentLocaleSetter(
 			localeSetter,
@@ -63,6 +74,7 @@ function syncMomentLocale(locale: string): void {
 
 		if (typeof Moment.prototype?.locale === 'function') {
 			const instanceLocaleSetter = Moment.prototype.locale;
+
 			originalMomentInstanceLocaleSetter = instanceLocaleSetter;
 			wrappedMomentInstanceLocaleSetter = createMomentLocaleSetter(
 				instanceLocaleSetter,
@@ -74,6 +86,7 @@ function syncMomentLocale(locale: string): void {
 
 		const calendar = Moment.prototype?.calendar;
 		const instanceLocale = Moment.prototype?.locale;
+
 		if (typeof calendar === 'function' && typeof instanceLocale === 'function') {
 			originalMomentCalendar = calendar;
 			wrappedMomentCalendar = createMomentCalendarLocale(
@@ -123,6 +136,7 @@ async function ensureLocale(locale: string): Promise<void> {
 	if (DEV) {
 		try {
 			const res = await fetch(`${I18N_BASE_URL}/${locale}.json`);
+
 			if (!res.ok) return;
 
 			strings[locale] = await res.json();
@@ -154,15 +168,20 @@ async function ensureLocale(locale: string): Promise<void> {
 		const res = await fetch(`${I18N_BASE_URL}/${locale}.json`, { headers });
 
 		if (res.status === 304) return;
+
 		if (!res.ok) return;
 
 		const text = await res.text();
+
 		strings[locale] = JSON.parse(text);
 
 		await fs.write(path, text);
 
 		const etag = res.headers.get('etag');
-		if (etag) storage.set('etags', { ...etags, [locale]: etag });
+
+		if (etag) {
+			storage.set('etags', { ...etags, [locale]: etag });
+		}
 	} catch (error) {
 		logger.error(`Failed to fetch locale ${locale}:`, error);
 	}
@@ -179,7 +198,10 @@ export const Messages = createMessages(strings, () => currentLocale);
  */
 export function format(key: string, vars?: FormatVars): string {
 	const MessageFormat = getMessageFormat();
-	if (!MessageFormat) return Messages[key];
+
+	if (!MessageFormat) {
+		return Messages[key];
+	}
 
 	return new MessageFormat(Messages[key]).format(vars);
 }
@@ -194,7 +216,10 @@ export function defineLocalizations(table: StringStore): Localizations {
 
 	function format(key: string, vars?: FormatVars): string {
 		const MessageFormat = getMessageFormat();
-		if (!MessageFormat) return Messages[key];
+
+		if (!MessageFormat) {
+			return Messages[key];
+		}
 
 		return new MessageFormat(Messages[key]).format(vars);
 	}
@@ -209,6 +234,7 @@ export function defineLocalizations(table: StringStore): Localizations {
 export async function init(): Promise<void> {
 	const locale = Discord.intl?.currentLocale ?? Discord.getSystemLocale?.() ?? null;
 	const initialLocale = locale ?? 'en-US';
+
 	currentLocale = initialLocale;
 	syncMomentLocale(initialLocale);
 
@@ -216,6 +242,7 @@ export async function init(): Promise<void> {
 		if (!locale) return;
 
 		const activeLocale = Discord.intl?.currentLocale ?? locale;
+
 		currentLocale = activeLocale;
 		syncMomentLocale(activeLocale);
 		await ensureLocale(activeLocale);
@@ -227,7 +254,10 @@ export async function init(): Promise<void> {
 	await ensureLocale('en-US');
 
 	const activeLocale = Discord.intl?.currentLocale ?? currentLocale ?? 'en-US';
-	if (activeLocale !== 'en-US') await ensureLocale(activeLocale);
+
+	if (activeLocale !== 'en-US') {
+		await ensureLocale(activeLocale);
+	}
 
 	currentLocale = activeLocale;
 	syncMomentLocale(activeLocale);
@@ -238,6 +268,7 @@ export async function init(): Promise<void> {
  */
 export function destroy() {
 	subscriptions.splice(0).map((unsubscribe) => unsubscribe());
+
 	if (
 		originalMomentLocaleSetter &&
 		wrappedMomentLocaleSetter &&
@@ -245,6 +276,7 @@ export function destroy() {
 	) {
 		Moment.locale = originalMomentLocaleSetter;
 	}
+
 	if (
 		originalMomentInstanceLocaleSetter &&
 		wrappedMomentInstanceLocaleSetter &&
@@ -252,6 +284,7 @@ export function destroy() {
 	) {
 		Moment.prototype.locale = originalMomentInstanceLocaleSetter;
 	}
+
 	if (
 		originalMomentCalendar &&
 		wrappedMomentCalendar &&
@@ -259,9 +292,11 @@ export function destroy() {
 	) {
 		Moment.prototype.calendar = originalMomentCalendar;
 	}
+
 	if (previousMomentLocale && originalMomentLocaleSetter) {
 		Reflect.apply(originalMomentLocaleSetter, Moment, [previousMomentLocale]);
 	}
+
 	previousMomentLocale = null;
 	originalMomentLocaleSetter = null;
 	wrappedMomentLocaleSetter = null;

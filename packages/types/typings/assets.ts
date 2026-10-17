@@ -1,15 +1,14 @@
 /** An asset registered with Discord's packager (its metadata and dimensions). */
-export interface DiscordAsset {
+export type DiscordAsset = {
 	__packager_asset?: boolean;
 	name: string;
-	httpServerLocation?: string;
+	httpServerLocation: string;
 	width: number;
 	height: number;
 	scales: number[];
 	hash: string;
 	type: string;
-	[key: PropertyKey]: any;
-}
+};
 
 /** A {@link DiscordAsset} extended with Unbound's icon-pack overrides. */
 export type UnboundAsset = DiscordAsset & {
@@ -18,8 +17,7 @@ export type UnboundAsset = DiscordAsset & {
 };
 
 /** The native module used to register and resolve {@link DiscordAsset}s by id. */
-export interface AssetsModule {
+export type AssetsModule = {
 	registerAsset: (asset: DiscordAsset) => number;
 	getAssetByID: (id: number) => DiscordAsset | null;
-	[key: PropertyKey]: any;
-}
+};

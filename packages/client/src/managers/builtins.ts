@@ -5,11 +5,11 @@ import * as allBuiltIns from '~/builtins';
 const Logger = createLogger('BuiltIns');
 
 /** A built-in feature exposing optional `start`/`stop` lifecycle hooks. */
-export interface BuiltIn {
+export type BuiltIn = {
 	start?: () => void;
 	stop?: () => void;
 	shouldStart?: () => boolean;
-}
+};
 
 /**
  * @description Registers, starts, and stops the framework's built-in features, tracking which are currently active.
@@ -27,6 +27,7 @@ class BuiltInsManager {
 	register(name: string, builtin: BuiltIn) {
 		if (this.active.has(name)) {
 			Logger.warn(`Built-in ${name} already registered`);
+
 			return;
 		}
 
@@ -45,6 +46,7 @@ class BuiltInsManager {
 	 */
 	unregister(name: string) {
 		const builtin = this.active.get(name);
+
 		if (!builtin) return;
 
 		try {
@@ -63,11 +65,14 @@ class BuiltInsManager {
 	initialize() {
 		if (this.initialized) {
 			Logger.warn('Built-ins already initialized');
+
 			return;
 		}
 
 		for (const [name, builtin] of Object.entries<BuiltIn>(allBuiltIns)) {
-			if (typeof builtin.shouldStart === 'function' && !builtin.shouldStart()) continue;
+			if (typeof builtin.shouldStart === 'function' && !builtin.shouldStart()) {
+				continue;
+			}
 
 			this.register(name, builtin);
 		}

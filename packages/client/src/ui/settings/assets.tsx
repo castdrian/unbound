@@ -89,10 +89,15 @@ function AssetsPage() {
 		const indexed: IndexedAsset[] = [];
 
 		for (const asset of getAll()) {
-			if (asset.type !== 'png') continue;
+			if (asset.type !== 'png') {
+				continue;
+			}
 
 			const id = getIDByName(asset.name);
-			if (!id) continue;
+
+			if (!id) {
+				continue;
+			}
 
 			indexed.push({ asset, id, query: asset.name.toLowerCase() });
 		}
@@ -101,9 +106,12 @@ function AssetsPage() {
 	}, []);
 
 	const filtered = useMemo(() => {
-		if (!search) return assets;
+		if (!search) {
+			return assets;
+		}
 
 		const query = search.toLowerCase();
+
 		return assets.filter((entry) => entry.query.includes(query));
 	}, [assets, search]);
 

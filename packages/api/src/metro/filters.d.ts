@@ -21,7 +21,7 @@ export declare function byDisplayName(name: string): MetroFilter;
  * @param path The file path the module must have been imported from.
  * @returns A {@link MetroFilter} matching the module loaded from that file path.
  */
-export declare function byFilePath(path: string[]): MetroFilter;
+export declare function byFilePath(path: string): MetroFilter;
 /**
  * @description Builds a filter matching a module whose `name` equals the given name.
  * @param name The `name` the module must have.

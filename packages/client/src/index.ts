@@ -8,14 +8,17 @@ import { BuiltIns, Plugins, Themes, Icons, Fonts } from '~/managers';
 import storage from '~/api/storage';
 import * as api from '~/api';
 
-/** Shape of the global `unbound` object: the public API surface plus the lifecycle entry points. */
-export interface UnboundWindowObject extends Omit<typeof api, 'default'> {
+/** The lifecycle entry points, all the global `unbound` object keeps after {@link shutdown}. */
+type UnboundLifecycle = {
 	initialize: typeof initialize;
 	shutdown: typeof shutdown;
-}
+};
+
+/** Shape of the global `unbound` object: the public API surface plus the lifecycle entry points. */
+export type UnboundWindowObject = UnboundLifecycle & Omit<typeof api, 'default'>;
 
 declare global {
-	var unbound: UnboundWindowObject;
+	var unbound: UnboundWindowObject | UnboundLifecycle;
 }
 
 const Logger = createLogger('Core');
@@ -29,6 +32,7 @@ let initialized = false;
 export function initialize() {
 	if (initialized) {
 		Logger.warn('Unbound already initialized');
+
 		return;
 	}
 
@@ -52,6 +56,7 @@ export function initialize() {
 export async function shutdown() {
 	if (!initialized) {
 		Logger.warn('Unbound not initialized');
+
 		return;
 	}
 
@@ -70,7 +75,7 @@ export async function shutdown() {
 	window.unbound = {
 		initialize,
 		shutdown,
-	} as UnboundWindowObject;
+	};
 
 	Logger.info('Unbound shutdown complete');
 }

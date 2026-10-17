@@ -11,9 +11,15 @@ const Settings = storage.getStore('unbound');
 
 let unsubscribe: (() => void) | null = null;
 
+/** Makes the developer experiment store report staff status from the `staff-mode` setting. */
 export function start() {
 	const Store = findStore('DeveloperExperiment');
-	if (!Store) return Logger.error('Failed to find DeveloperExperimentStore.');
+
+	if (!Store) {
+		Logger.error('Failed to find DeveloperExperimentStore.');
+
+		return;
+	}
 
 	Patcher.instead(Store, 'initialize', ({ this: self }) => {
 		self.waitFor(Users, Guilds);
@@ -33,6 +39,7 @@ export function start() {
 	);
 }
 
+/** Stops following the `staff-mode` setting and restores the developer experiment store. */
 export function stop() {
 	unsubscribe?.();
 	unsubscribe = null;

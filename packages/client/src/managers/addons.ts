@@ -1,4 +1,5 @@
 import type { Addon, AddonManifest, PluginContext } from '@unbound-app/types';
+import toError from '@unbound-app/utils/to-error';
 import noop from '@unbound-app/utils/noop';
 
 import { validateNativePluginRequirements } from '~/api/native-runtime';
@@ -44,7 +45,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 * @param bundle The addon's bundle source.
 	 * @returns The addon's instance.
 	 */
-	protected abstract handleBundle(bundle: string): any;
+	protected abstract handleBundle(bundle: string): T['instance'];
 
 	/** The manifest `type` value this manager installs; used to reject mismatched installs. */
 	protected abstract get entityType(): NonNullable<AddonManifest['type']>;
@@ -83,9 +84,9 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			}
 
 			this.emit('loaded', entity as T);
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error(`Failed to load addon ${manifest.id}:`, error);
-			this.errors.set(manifest.id, error);
+			this.errors.set(manifest.id, toError(error));
 		}
 	}
 
@@ -107,9 +108,9 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			this.errors.delete(resolved.id);
 
 			this.emit('unloaded', resolved);
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error(`Failed to unload addon ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
+			this.errors.set(resolved.id, toError(error));
 		}
 	}
 
@@ -133,10 +134,8 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	): Promise<ReloadResult> {
 		const resolved = this.resolve(entity);
 
-		// The target id and the manifest's id must agree: everything past here keys off `manifest.id`
-		// (persist, load, getEntity), so a mismatch would install a second addon under the new id and
-		// leave the old one running. Renaming an addon's id is out of scope for a hot swap — it changes
-		// the persisted state, on-disk folder, and settings key.
+		// Everything past here keys off `manifest.id`, so a mismatch would install a second addon under
+		// the new id and leave the old one running. A hot swap can't rename an addon.
 		const targetId = typeof entity === 'string' ? entity : entity.id;
 
 		if (targetId !== manifest.id) {
@@ -173,11 +172,13 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 				this.emit('reloaded', loaded);
 
 				return { ok: true };
-			} catch (error: any) {
-				this.logger.error(`Failed to reload addon ${manifest.id}:`, error);
-				this.errors.set(manifest.id, error);
+			} catch (error) {
+				const failure = toError(error);
 
-				return { ok: false, error };
+				this.logger.error(`Failed to reload addon ${manifest.id}:`, failure);
+				this.errors.set(manifest.id, failure);
+
+				return { ok: false, error: failure };
 			}
 		}
 
@@ -196,9 +197,8 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 				this.stop(resolved);
 			}
 
-			// A throwing stop() leaves `started`/`instance` untouched (stop() bails before clearing them),
-			// which would wedge start()'s `already started` guard. Force a stopped state so the new bundle
-			// always starts, and clear any recorded stop error so start()'s own failure is detected cleanly.
+			// A throwing stop() leaves `started`/`instance` set, wedging start()'s guard. Force a stopped
+			// state and clear the stop error so start()'s own failure is detected cleanly.
 			resolved.started = false;
 			resolved.instance = null;
 
@@ -224,12 +224,14 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			this.emit('reloaded', resolved);
 
 			return { ok: true };
-		} catch (error: any) {
-			this.logger.error(`Failed to reload addon ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
-			this.emit('reload-error', resolved, error);
+		} catch (error) {
+			const failure = toError(error);
 
-			return { ok: false, error };
+			this.logger.error(`Failed to reload addon ${resolved.id}:`, failure);
+			this.errors.set(resolved.id, failure);
+			this.emit('reload-error', resolved, failure);
+
+			return { ok: false, error: failure };
 		}
 	}
 
@@ -275,9 +277,9 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			}
 
 			return entity;
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error('Failed to install addon:', error);
-			this.emit('install-error', error);
+			this.emit('install-error', toError(error));
 
 			return undefined;
 		}
@@ -296,9 +298,9 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			this.unload(resolved);
 			await fs.rm(`Unbound/${ManagerType[this.type]}/${resolved.id}`);
 			this.emit('deleted', resolved);
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error(`Failed to delete addon ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
+			this.errors.set(resolved.id, toError(error));
 		}
 	}
 
@@ -327,11 +329,11 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			resolved.started = true;
 
 			this.emit('started', resolved);
-		} catch (error: any) {
+		} catch (error) {
 			resolved.context?.dispose();
 			resolved.context = undefined;
 			this.logger.error(`Failed to start addon ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
+			this.errors.set(resolved.id, toError(error));
 			resolved.failed = true;
 		}
 	}
@@ -353,11 +355,11 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			resolved.started = false;
 
 			this.emit('stopped', resolved);
-		} catch (error: any) {
+		} catch (error) {
 			resolved.context?.dispose();
 			resolved.context = undefined;
 			this.logger.error(`Failed to stop addon ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
+			this.errors.set(resolved.id, toError(error));
 		}
 	}
 
@@ -381,9 +383,9 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			}
 
 			this.emit('enabled', resolved);
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error(`Failed to enable addon ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
+			this.errors.set(resolved.id, toError(error));
 		}
 	}
 
@@ -407,9 +409,9 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			}
 
 			this.emit('disabled', resolved);
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error(`Failed to disable addon ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
+			this.errors.set(resolved.id, toError(error));
 		}
 	}
 

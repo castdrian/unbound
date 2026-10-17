@@ -82,6 +82,10 @@ function hasReanimatedImport(code: string): boolean {
 	return REANIMATED_IMPORT.test(code);
 }
 
+/**
+ * @description Compiles Reanimated worklets in source files that use them.
+ * @returns A rolldown plugin running the worklets transform.
+ */
 export default function worklets(): Plugin {
 	return {
 		name: 'worklets',
@@ -105,6 +109,7 @@ export default function worklets(): Plugin {
 				}
 
 				const filename = id.split('/').pop();
+
 				logger.log(`Transforming ${filename}`);
 
 				const result = await transformAsync(code, {

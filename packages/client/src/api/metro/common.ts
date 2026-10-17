@@ -1,7 +1,7 @@
 import { findByPropsLazy } from '~/api/metro/wrappers';
 
-export const ReactNative: typeof import('react-native') = window.ReactNative;
-export const React: typeof import('react') = window.React;
+export const ReactNative = window.ReactNative;
+export const React = window.React;
 
 export const Reanimated = findByPropsLazy('useAnimatedStyle', 'useSharedValue');
 export const Gestures = findByPropsLazy('PanGestureHandler');

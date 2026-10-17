@@ -20,17 +20,20 @@ export function lanCandidates(): Candidate[] {
 
 	for (const [name, addresses] of Object.entries(networkInterfaces())) {
 		for (const address of addresses ?? []) {
-			if (address.family !== 'IPv4' || address.internal) continue;
-			if (address.address.startsWith('169.254.')) continue;
+			if (address.family !== 'IPv4' || address.internal) {
+				continue;
+			}
+
+			if (address.address.startsWith('169.254.')) {
+				continue;
+			}
 
 			candidates.push({ name, address: address.address });
 		}
 	}
 
-	// Lower is better. `192.168.*` is the typical home/office Wi-Fi range, so it
-	// wins; `10.*` and `172.16-31.*` are valid private ranges but rarer on a
-	// home LAN. A virtual adapter (WSL/Hyper-V/VPN) is heavily penalised - a
-	// phone on your Wi-Fi can't route to it even if the IP looks private.
+	// Lower is better: `192.168.*` is the usual home Wi-Fi range. Virtual adapters (WSL/Hyper-V/VPN)
+	// are penalised, as a phone on your Wi-Fi can't route to them even if the IP looks private.
 	function rank({ name, address }: Candidate): number {
 		const virtualPenalty = VIRTUAL.test(name) ? 100 : 0;
 
@@ -69,11 +72,14 @@ export function detectLanIp(): string {
  */
 export function resolveDevHost(): string {
 	const flagIndex = process.argv.indexOf('--host');
+
 	if (~flagIndex && process.argv[flagIndex + 1]) {
 		return process.argv[flagIndex + 1];
 	}
 
-	if (process.env.DEV_HOST) return process.env.DEV_HOST;
+	if (process.env.DEV_HOST) {
+		return process.env.DEV_HOST;
+	}
 
 	return detectLanIp();
 }

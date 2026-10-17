@@ -5,7 +5,7 @@ import {
 	createSubmissionResponseSchema,
 	finalizeSubmissionResponseSchema,
 } from '../src/publish';
-import { UPDATES_BATCH_LIMIT, updatesRequestSchema, updatesResponseSchema } from '../src/updates';
+import { updatesRequestSchema, updatesResponseSchema } from '../src/updates';
 import { addonManifestSchema, semverSchema } from '../src/manifest';
 import { reviewSubmissionRequestSchema } from '../src/review';
 import { apiErrorResponseSchema } from '../src/errors';
@@ -122,8 +122,8 @@ describe('updatesRequestSchema', () => {
 		).toBe(false);
 	});
 
-	test('caps the batch at UPDATES_BATCH_LIMIT', () => {
-		const addons = Array.from({ length: UPDATES_BATCH_LIMIT + 1 }, (_, index) => ({
+	test('caps the batch at 500 addons', () => {
+		const addons = Array.from({ length: 501 }, (_, index) => ({
 			id: `addon-${index}`,
 			version: '1.0.0',
 		}));
@@ -134,7 +134,7 @@ describe('updatesRequestSchema', () => {
 		expect(
 			updatesRequestSchema.safeParse({
 				clientVersion: '1.0.0',
-				addons: addons.slice(0, UPDATES_BATCH_LIMIT),
+				addons: addons.slice(0, 500),
 			}).success,
 		).toBe(true);
 	});

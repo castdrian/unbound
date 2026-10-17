@@ -5,9 +5,10 @@ import ReviewDecisionDialog from '~/components/review/review-decision-dialog';
 import ManifestDiffTable from '~/components/review/manifest-diff-table';
 import type { ReviewEntry } from '~/lib/review-entry';
 import GitHubIcon from '~/components/icons/github';
+import UserAvatar from '~/components/user-avatar';
 import { Button } from '~/components/ui/button';
-import Avatar from '~/components/ui/avatar';
 import Text from '~/components/ui/text';
+import Tag from '~/components/tag';
 
 type ReviewItemProps = {
 	entry: ReviewEntry;
@@ -20,35 +21,27 @@ const DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
 	timeZone: 'UTC',
 });
 
-const BADGE_CLASS = 'px-1.5 py-0.5 rounded font-medium text-[10px] uppercase shrink-0';
-
 function ReviewItem({ entry }: ReviewItemProps) {
 	const { submission, submitter } = entry;
 
 	return (
 		<Card className='gap-4'>
 			<CardHeader className='flex flex-row items-start gap-3'>
-				<Avatar
-					src={submitter.image}
-					fallback={submitter.name.at(0)?.toUpperCase() ?? '?'}
-					size='md'
-				/>
+				<UserAvatar src={submitter.image} name={submitter.name} size='md' />
 				<div className='flex flex-col flex-1 gap-1 min-w-0'>
 					<div className='flex flex-wrap items-center gap-2'>
 						<CardTitle className='truncate'>{entry.name}</CardTitle>
 						<Text as='span' variant='text-sm' color='muted'>
 							{submission.addonId} {submission.version}
 						</Text>
-						<span className={`${BADGE_CLASS} bg-muted text-muted-foreground`}>
+						<Tag className='uppercase'>
 							{submission.kind === 'listing' ? 'New listing' : 'Update'}
-						</span>
+						</Tag>
 						{submission.unverifiedSource ? (
-							<span
-								className={`${BADGE_CLASS} inline-flex items-center gap-1 bg-amber-500/15 text-amber-600 dark:text-amber-400`}
-							>
+							<Tag variant='warning' className='gap-1 uppercase'>
 								<IconAlertTriangle size={12} />
 								Unverified source
-							</span>
+							</Tag>
 						) : null}
 					</div>
 					<Text variant='text-xs' color='muted'>

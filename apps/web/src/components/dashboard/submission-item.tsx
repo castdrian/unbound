@@ -15,8 +15,8 @@ import {
 } from '~/components/ui/dialog';
 import SubmitForm from '~/components/submit/submit-form';
 import { Button } from '~/components/ui/button';
-import Tag from '~/components/dashboard/tag';
 import Text from '~/components/ui/text';
+import Tag from '~/components/tag';
 
 type SubmissionItemProps = {
 	submission: Submission;

@@ -23,6 +23,7 @@ import {
 } from '~/components/ui/empty';
 import type { MarketplaceAddon, MarketplacePage, MarketplaceSearch } from '~/lib/marketplace';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '~/components/ui/input-group';
+import type { SortOption } from '~/components/sort-controls';
 import { fetchMarketplacePage } from '~/lib/marketplace';
 import type { CssVariables } from '~/lib/css-variables';
 import SortControls from '~/components/sort-controls';
@@ -77,7 +78,7 @@ const COPY: Record<ListingType, ListingCopy> = {
 	},
 };
 
-const SORT_OPTIONS: { value: AddonSort; label: string }[] = [
+const SORT_OPTIONS: SortOption<AddonSort>[] = [
 	{ value: 'name', label: 'Name' },
 	{ value: 'created', label: 'Date' },
 	{ value: 'updated', label: 'Last Updated' },

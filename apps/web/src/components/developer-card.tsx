@@ -2,7 +2,7 @@ import type { Caller } from '@unbound-app/contracts/account';
 import type { ComponentProps } from 'react';
 
 import { Card, CardContent } from '~/components/ui/card';
-import Avatar from '~/components/ui/avatar';
+import UserAvatar from '~/components/user-avatar';
 import Text from '~/components/ui/text';
 import cn from '~/lib/cn';
 
@@ -20,10 +20,10 @@ function DeveloperCard({ developer, className, ...props }: DeveloperCardProps) {
 			{...props}
 		>
 			<div className='flex items-center justify-center size-10 shrink-0 rounded-lg bg-accent m-4 mr-0 overflow-hidden'>
-				<Avatar
+				<UserAvatar
 					className='size-full rounded-lg object-cover'
 					src={developer.image}
-					fallback={developer.name.at(0)?.toUpperCase() ?? '?'}
+					name={developer.name}
 				/>
 			</div>
 			<CardContent className='flex flex-col gap-0.5 p-4 min-w-0'>

@@ -94,4 +94,6 @@ function SortControls<T extends string>({ options, value, order, onChange }: Sor
 	);
 }
 
+export type { SortOption };
+
 export default SortControls;

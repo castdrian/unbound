@@ -2,6 +2,7 @@ import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 
 import { Button } from '~/components/ui/button';
 import Text from '~/components/ui/text';
+import cn from '~/lib/cn';
 
 type PagerProps = {
 	page: number;
@@ -10,15 +11,21 @@ type PagerProps = {
 	/** The plural noun the count is shown in, e.g. `users`. */
 	noun: string;
 	onPageChange: (page: number) => void;
+	className?: string;
 };
 
-function Pager({ page, pageSize, total, noun, onPageChange }: PagerProps) {
+function Pager({ page, pageSize, total, noun, onPageChange, className }: PagerProps) {
 	const totalPages = Math.ceil(total / pageSize);
 
 	if (totalPages <= 1) return null;
 
 	return (
-		<div className='flex justify-between items-center px-4 py-3 border-t border-border'>
+		<div
+			className={cn(
+				'flex justify-between items-center px-4 py-3 border-t border-border',
+				className,
+			)}
+		>
 			<Text variant='text-sm' color='muted'>
 				Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, total)} of {total}{' '}
 				{noun}
@@ -49,5 +56,7 @@ function Pager({ page, pageSize, total, noun, onPageChange }: PagerProps) {
 		</div>
 	);
 }
+
+export type { PagerProps };
 
 export default Pager;

@@ -12,6 +12,7 @@ const tagVariants = cva(
 				default: 'bg-muted text-muted-foreground',
 				primary: 'bg-primary/15 text-primary',
 				destructive: 'bg-destructive/15 text-destructive',
+				warning: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
 			},
 		},
 		defaultVariants: {

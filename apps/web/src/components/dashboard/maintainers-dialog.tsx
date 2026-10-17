@@ -18,9 +18,9 @@ import { createBrowserClient } from '~/lib/api/browser-client';
 import getApiErrorMessage from '~/lib/api/error-message';
 import RoleTag from '~/components/dashboard/role-tag';
 import Separator from '~/components/ui/separator';
+import UserAvatar from '~/components/user-avatar';
 import { Button } from '~/components/ui/button';
 import Spinner from '~/components/ui/spinner';
-import Avatar from '~/components/ui/avatar';
 import Input from '~/components/ui/input';
 import Text from '~/components/ui/text';
 
@@ -40,11 +40,7 @@ function MaintainerRow({ maintainer, disabled, onRemove }: MaintainerRowProps) {
 	return (
 		<div className='flex justify-between items-center gap-4'>
 			<div className='flex items-center gap-3 min-w-0'>
-				<Avatar
-					src={maintainer.image}
-					fallback={maintainer.name.at(0)?.toUpperCase() ?? '?'}
-					size='sm'
-				/>
+				<UserAvatar src={maintainer.image} name={maintainer.name} size='sm' />
 				<div className='flex flex-col min-w-0'>
 					<div className='flex items-center gap-2'>
 						<Text variant='text-sm' className='font-medium truncate'>

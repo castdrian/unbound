@@ -7,6 +7,7 @@ import {
 	IconUser,
 } from '@tabler/icons-react';
 import { Link, useRouteContext, useRouter } from '@tanstack/react-router';
+import { toast } from 'sonner';
 
 import {
 	DropdownMenu,
@@ -15,9 +16,10 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu';
+import getAuthErrorMessage from '~/lib/auth/error-message';
 import { getStaffAreas } from '~/lib/auth/staff-areas';
+import UserAvatar from '~/components/user-avatar';
 import { Button } from '~/components/ui/button';
-import Avatar from '~/components/ui/avatar';
 import authClient from '~/lib/auth/client';
 
 function AccountMenu() {
@@ -38,7 +40,14 @@ function AccountMenu() {
 	const { user } = session;
 
 	async function signOut() {
-		await authClient.signOut();
+		const { error } = await authClient.signOut();
+
+		if (error) {
+			toast.error(getAuthErrorMessage(error));
+
+			return;
+		}
+
 		await router.invalidate();
 	}
 
@@ -46,11 +55,7 @@ function AccountMenu() {
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button variant='ghost' className='group/account border-none rounded-md h-10'>
-					<Avatar
-						src={user.image}
-						fallback={user.name.at(0)?.toUpperCase() ?? '?'}
-						size='xs'
-					/>
+					<UserAvatar src={user.image} name={user.name} size='xs' />
 					{user.name}
 					<IconChevronDown className='group-data-[state=open]/account:rotate-180! transition-transform' />
 				</Button>

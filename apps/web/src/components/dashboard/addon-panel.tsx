@@ -15,8 +15,8 @@ import type { DashboardAddon } from '~/lib/publishing';
 import RoleTag from '~/components/dashboard/role-tag';
 import Separator from '~/components/ui/separator';
 import { Button } from '~/components/ui/button';
-import Tag from '~/components/dashboard/tag';
 import Text from '~/components/ui/text';
+import Tag from '~/components/tag';
 
 type AddonPanelProps = {
 	addon: DashboardAddon;

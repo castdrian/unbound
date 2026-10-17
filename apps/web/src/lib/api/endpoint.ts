@@ -89,8 +89,9 @@ export function endpoint<
 	return {
 		schemas,
 		async handle(ctx, request, params = {}) {
+			const { pathname, searchParams } = new URL(request.url);
+
 			try {
-				const { searchParams } = new URL(request.url);
 				const body = parseInput(schemas.body, await readJson(request));
 				const query = parseInput(
 					schemas.query,
@@ -104,10 +105,7 @@ export function endpoint<
 					return error.toResponse();
 				}
 
-				logger.error(
-					`Failed to handle ${request.method} ${new URL(request.url).pathname}:`,
-					error,
-				);
+				logger.error(`Failed to handle ${request.method} ${pathname}:`, error);
 
 				return new ApiError('internal_error', 'Something went wrong.').toResponse();
 			}

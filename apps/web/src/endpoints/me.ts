@@ -1,8 +1,7 @@
 import { meResponseSchema } from '@unbound-app/contracts/account';
 import { z } from 'zod';
 
-import { requireCaller } from '~/lib/api/caller';
-import { DEFAULT_ROLE } from '~/lib/auth/access';
+import { requireCaller, toCallerProfile } from '~/lib/api/caller';
 import endpoint from '~/lib/api/endpoint';
 
 const me = endpoint(
@@ -10,14 +9,7 @@ const me = endpoint(
 	async ({ ctx, request }) => {
 		const { user } = await requireCaller(ctx, request.headers);
 
-		return {
-			user: {
-				id: user.id,
-				name: user.name,
-				image: user.image ?? null,
-				role: user.role ?? DEFAULT_ROLE,
-			},
-		};
+		return { user: toCallerProfile(user) };
 	},
 );
 

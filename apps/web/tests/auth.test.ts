@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test';
+import { eq } from 'drizzle-orm';
 
 import { API_KEY_HEADER, CLI_CLIENT_ID } from '~/api/client';
-import { rateLimit } from '~/db/schema';
+import { rateLimit, user } from '~/db/schema';
 import me from '~/endpoints/me';
 
 import { authRequest, createTestContext, signInWithDiscord } from './helpers/context';
@@ -137,6 +138,36 @@ describe('API keys', () => {
 			image: null,
 			role: 'user',
 		});
+	});
+
+	test("a banned owner's key is unauthorized until the ban expires", async () => {
+		const { userId, headers } = await signInWithDiscord(ctx, {
+			id: '80351110224678916',
+			name: 'Banned',
+			email: 'banned@example.com',
+		});
+
+		const created = await authRequest(ctx, '/api-key/create', {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({ name: 'ci' }),
+		});
+		const { key } = await created.json();
+		const banExpires = new Date(Date.UTC(2026, 9, 20));
+
+		await ctx.db.update(user).set({ banned: true, banExpires }).where(eq(user.id, userId));
+
+		function meAt(now: Date) {
+			const target = { ...ctx, now: () => now };
+			const request = new Request(new URL('/api/v1/me', ctx.env.PUBLIC_URL), {
+				headers: { [API_KEY_HEADER]: key },
+			});
+
+			return me.handle(target, request);
+		}
+
+		expect((await meAt(new Date(Date.UTC(2026, 9, 19)))).status).toBe(401);
+		expect((await meAt(new Date(Date.UTC(2026, 9, 21)))).status).toBe(200);
 	});
 
 	test('an invalid key is unauthorized', async () => {

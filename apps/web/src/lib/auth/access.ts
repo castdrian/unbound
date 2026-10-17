@@ -33,11 +33,7 @@ export const moderator = ac.newRole({
 	session: ['list', 'revoke'],
 });
 
-export const admin = ac.newRole({
-	...statements,
-	user: [...statements.user],
-	session: [...statements.session],
-});
+export const admin = ac.newRole(statements);
 
 export const roles = { user, developer, moderator, admin };
 

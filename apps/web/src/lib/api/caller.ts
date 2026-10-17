@@ -1,5 +1,7 @@
+import type { Caller as CallerProfile } from '@unbound-app/contracts/account';
+
+import { DEFAULT_ROLE, hasPermission } from '~/lib/auth/access';
 import type { Permissions } from '~/lib/auth/access';
-import { hasPermission } from '~/lib/auth/access';
 import type { AppContext } from '~/lib/context';
 import type { Session } from '~/lib/auth/auth';
 import { API_KEY_HEADER } from '~/api/client';
@@ -13,12 +15,12 @@ export type Caller = {
 	via: 'session' | 'api-key';
 };
 
-function isBanned(target: CallerUser): boolean {
+function isBanned(target: CallerUser, now: Date): boolean {
 	if (!target.banned) {
 		return false;
 	}
 
-	return !target.banExpires || target.banExpires.getTime() > Date.now();
+	return !target.banExpires || target.banExpires > now;
 }
 
 async function resolveApiKey(ctx: AppContext, key: string): Promise<Caller | undefined> {
@@ -28,7 +30,7 @@ async function resolveApiKey(ctx: AppContext, key: string): Promise<Caller | und
 
 	const owner = await ctx.db.query.user.findFirst({ where: { id: result.key.referenceId } });
 
-	if (!owner || isBanned(owner)) return;
+	if (!owner || isBanned(owner, ctx.now())) return;
 
 	return { user: owner, via: 'api-key' };
 }
@@ -85,4 +87,13 @@ export function requirePermission(caller: Caller, permissions: Permissions) {
 	throw new ApiError('forbidden', 'You do not have permission to do this.');
 }
 
-export default { resolveCaller, requireCaller, requirePermission };
+/**
+ * @description Shapes an authenticated user as the `caller` contract describes them.
+ * @param user The authenticated user.
+ * @returns The id, name, image and role, with an unset role read as the default role.
+ */
+export function toCallerProfile({ id, name, image, role }: CallerUser): CallerProfile {
+	return { id, name, image: image ?? null, role: role ?? DEFAULT_ROLE };
+}
+
+export default { resolveCaller, requireCaller, requirePermission, toCallerProfile };

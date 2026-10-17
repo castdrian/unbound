@@ -9,6 +9,7 @@ import { betterAuth } from 'better-auth';
 
 import { API_KEY_HEADER, CLI_CLIENT_ID } from '~/api/client';
 import { DEFAULT_ROLE, ac, roles } from '~/lib/auth/access';
+import type { FileRoutesByTo } from '~/routeTree.gen';
 import { purgeUserSubmissions } from '~/lib/staging';
 import type { Database } from '~/db/database';
 import type { Storage } from '~/lib/storage';
@@ -17,7 +18,7 @@ import type { Env } from '~/lib/env';
 
 const logger = createLogger('Web', 'Auth');
 
-export const DEVICE_VERIFICATION_PATH = '/device';
+const DEVICE_VERIFICATION_PATH = '/device' satisfies keyof FileRoutesByTo;
 
 const adminOptions = {
 	ac,
@@ -138,4 +139,4 @@ export function createAuth(db: Database, env: Env, storage: Storage): Auth {
 	return betterAuth(options);
 }
 
-export default { DEVICE_VERIFICATION_PATH, createAuth };
+export default { createAuth };

@@ -1,6 +1,6 @@
 import type { ApiErrorCode, ApiErrorResponse } from '@unbound-app/contracts/errors';
 
-export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
+const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
 	invalid_request: 400,
 	invalid_manifest: 400,
 	unauthorized: 401,
@@ -48,4 +48,4 @@ export class ApiError extends Error {
 	}
 }
 
-export default { API_ERROR_STATUS, ApiError };
+export default { ApiError };

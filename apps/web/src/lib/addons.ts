@@ -17,11 +17,11 @@ import { z } from 'zod';
 import { OPEN_SUBMISSION_STATUSES, toSubmission } from '~/lib/submissions';
 import { addon, addonMaintainer, addonVersion } from '~/db/schema';
 import { requirePermission } from '~/lib/api/caller';
+import { likeContains } from '~/lib/like-contains';
 import type { Transaction } from '~/db/database';
 import { toAddonVersion } from '~/lib/artifacts';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
-import { escapeLike } from '~/lib/escape-like';
 import { ApiError } from '~/lib/api/errors';
 
 export type AddonRow = typeof addon.$inferSelect;
@@ -133,14 +133,12 @@ export function refreshAddonSummary(tx: Transaction, addonId: string) {
 		.run();
 }
 
-async function requireAddon(ctx: AppContext, id: string): Promise<AddonRow> {
-	const row = await ctx.db.query.addon.findFirst({ where: { id } });
+async function requireAddon(ctx: AppContext, id: string) {
+	const row = await ctx.db.query.addon.findFirst({ where: { id }, columns: { id: true } });
 
 	if (!row) {
 		throw new ApiError('not_found', `Addon ${id} does not exist.`);
 	}
-
-	return row;
 }
 
 async function requireUser(ctx: AppContext, userId: string) {
@@ -155,14 +153,14 @@ async function requireUser(ctx: AppContext, userId: string) {
 }
 
 async function requireOwner(ctx: AppContext, caller: Caller, addonId: string) {
-	await requireAddon(ctx, addonId);
-
 	const membership = await ctx.db.query.addonMaintainer.findFirst({
 		where: { addonId, userId: caller.user.id },
 		columns: { role: true },
 	});
 
 	if (!membership) {
+		await requireAddon(ctx, addonId);
+
 		throw new ApiError('not_maintainer', `You are not a maintainer of ${addonId}.`);
 	}
 
@@ -393,7 +391,6 @@ export function queryListedAddons(ctx: AppContext, query: ListAddonsQuery = {}) 
 	const { type, q, sort = 'name', order = 'asc', cursor } = query;
 	const column = SORT_COLUMNS[sort];
 	const after = cursor ? decodeCursor(cursor, sort) : undefined;
-	const pattern = q ? `%${escapeLike(q)}%` : undefined;
 
 	return ctx.db.query.addon.findMany({
 		where: {
@@ -401,11 +398,8 @@ export function queryListedAddons(ctx: AppContext, query: ListAddonsQuery = {}) 
 			type,
 			RAW: (table) =>
 				and(
-					pattern
-						? or(
-								sql`${table.name} like ${pattern} escape '\\'`,
-								sql`${table.description} like ${pattern} escape '\\'`,
-							)
+					q
+						? or(likeContains(table.name, q), likeContains(table.description, q))
 						: undefined,
 					after
 						? sql`(${table[column]}, ${table.id}) ${order === 'asc' ? sql`>` : sql`<`} (${after[0]}, ${after[1]})`

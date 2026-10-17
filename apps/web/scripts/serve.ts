@@ -1,7 +1,7 @@
 import { createLogger } from '@unbound-app/logger';
 import { join } from 'node:path';
 
-import { parseEnv } from '../src/lib/env';
+import { parseEnv } from '~/lib/env';
 
 const logger = createLogger('Web', 'Serve');
 const env = parseEnv();

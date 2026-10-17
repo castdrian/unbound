@@ -9,8 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as SiteRouteRouteImport } from './routes/_site/route'
 import { Route as DeviceRouteImport } from './routes/device'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as SiteIndexRouteImport } from './routes/_site/index'
+import { Route as SiteAccountRouteImport } from './routes/_site/account'
+import { Route as SiteDevelopersRouteImport } from './routes/_site/developers'
+import { Route as SiteFaqRouteImport } from './routes/_site/faq'
+import { Route as SiteLicenseRouteImport } from './routes/_site/license'
+import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
+import { Route as SiteTermsRouteImport } from './routes/_site/terms'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiV1AddonsRouteImport } from './routes/api/v1/addons'
 import { Route as ApiV1MeRouteImport } from './routes/api/v1/me'
@@ -26,15 +34,54 @@ import { Route as ApiV1SubmissionsIdFinalizeRouteImport } from './routes/api/v1/
 import { Route as ApiV1SubmissionsIdReviewRouteImport } from './routes/api/v1/submissions/$id/review'
 import { Route as ApiV1AddonsIdMaintainersUserIdRouteImport } from './routes/api/v1/addons/$id/maintainers/$userId'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const SiteRouteRoute = SiteRouteRouteImport.update({
+  id: '/_site',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeviceRoute = DeviceRouteImport.update({
   id: '/device',
   path: '/device',
   getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SiteIndexRoute = SiteIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
+const SiteAccountRoute = SiteAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
+const SiteDevelopersRoute = SiteDevelopersRouteImport.update({
+  id: '/developers',
+  path: '/developers',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
+const SiteFaqRoute = SiteFaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
+const SiteLicenseRoute = SiteLicenseRouteImport.update({
+  id: '/license',
+  path: '/license',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
+const SitePrivacyRoute = SitePrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
+const SiteTermsRoute = SiteTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => SiteRouteRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -112,8 +159,15 @@ const ApiV1AddonsIdMaintainersUserIdRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof SiteIndexRoute
   '/device': typeof DeviceRoute
+  '/login': typeof LoginRoute
+  '/account': typeof SiteAccountRoute
+  '/developers': typeof SiteDevelopersRoute
+  '/faq': typeof SiteFaqRoute
+  '/license': typeof SiteLicenseRoute
+  '/privacy': typeof SitePrivacyRoute
+  '/terms': typeof SiteTermsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRouteWithChildren
@@ -130,8 +184,15 @@ export interface FileRoutesByFullPath {
   '/api/v1/addons/$id/maintainers/$userId': typeof ApiV1AddonsIdMaintainersUserIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/device': typeof DeviceRoute
+  '/login': typeof LoginRoute
+  '/account': typeof SiteAccountRoute
+  '/developers': typeof SiteDevelopersRoute
+  '/faq': typeof SiteFaqRoute
+  '/license': typeof SiteLicenseRoute
+  '/privacy': typeof SitePrivacyRoute
+  '/terms': typeof SiteTermsRoute
+  '/': typeof SiteIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRouteWithChildren
@@ -149,8 +210,16 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_site': typeof SiteRouteRouteWithChildren
   '/device': typeof DeviceRoute
+  '/login': typeof LoginRoute
+  '/_site/account': typeof SiteAccountRoute
+  '/_site/developers': typeof SiteDevelopersRoute
+  '/_site/faq': typeof SiteFaqRoute
+  '/_site/license': typeof SiteLicenseRoute
+  '/_site/privacy': typeof SitePrivacyRoute
+  '/_site/terms': typeof SiteTermsRoute
+  '/_site/': typeof SiteIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRouteWithChildren
@@ -171,6 +240,13 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/device'
+    | '/login'
+    | '/account'
+    | '/developers'
+    | '/faq'
+    | '/license'
+    | '/privacy'
+    | '/terms'
     | '/api/auth/$'
     | '/api/v1/addons'
     | '/api/v1/me'
@@ -187,8 +263,15 @@ export interface FileRouteTypes {
     | '/api/v1/addons/$id/maintainers/$userId'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/device'
+    | '/login'
+    | '/account'
+    | '/developers'
+    | '/faq'
+    | '/license'
+    | '/privacy'
+    | '/terms'
+    | '/'
     | '/api/auth/$'
     | '/api/v1/addons'
     | '/api/v1/me'
@@ -205,8 +288,16 @@ export interface FileRouteTypes {
     | '/api/v1/addons/$id/maintainers/$userId'
   id:
     | '__root__'
-    | '/'
+    | '/_site'
     | '/device'
+    | '/login'
+    | '/_site/account'
+    | '/_site/developers'
+    | '/_site/faq'
+    | '/_site/license'
+    | '/_site/privacy'
+    | '/_site/terms'
+    | '/_site/'
     | '/api/auth/$'
     | '/api/v1/addons'
     | '/api/v1/me'
@@ -224,8 +315,9 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  SiteRouteRoute: typeof SiteRouteRouteWithChildren
   DeviceRoute: typeof DeviceRoute
+  LoginRoute: typeof LoginRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiV1AddonsRoute: typeof ApiV1AddonsRouteWithChildren
   ApiV1MeRoute: typeof ApiV1MeRouteWithChildren
@@ -236,11 +328,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
+    '/_site': {
+      id: '/_site'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof SiteRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/device': {
@@ -249,6 +341,62 @@ declare module '@tanstack/react-router' {
       fullPath: '/device'
       preLoaderRoute: typeof DeviceRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_site/': {
+      id: '/_site/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof SiteIndexRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
+    '/_site/account': {
+      id: '/_site/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof SiteAccountRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
+    '/_site/developers': {
+      id: '/_site/developers'
+      path: '/developers'
+      fullPath: '/developers'
+      preLoaderRoute: typeof SiteDevelopersRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
+    '/_site/faq': {
+      id: '/_site/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof SiteFaqRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
+    '/_site/license': {
+      id: '/_site/license'
+      path: '/license'
+      fullPath: '/license'
+      preLoaderRoute: typeof SiteLicenseRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
+    '/_site/privacy': {
+      id: '/_site/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof SitePrivacyRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
+    '/_site/terms': {
+      id: '/_site/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof SiteTermsRouteImport
+      parentRoute: typeof SiteRouteRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -351,6 +499,30 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface SiteRouteRouteChildren {
+  SiteAccountRoute: typeof SiteAccountRoute
+  SiteDevelopersRoute: typeof SiteDevelopersRoute
+  SiteFaqRoute: typeof SiteFaqRoute
+  SiteLicenseRoute: typeof SiteLicenseRoute
+  SitePrivacyRoute: typeof SitePrivacyRoute
+  SiteTermsRoute: typeof SiteTermsRoute
+  SiteIndexRoute: typeof SiteIndexRoute
+}
+
+const SiteRouteRouteChildren: SiteRouteRouteChildren = {
+  SiteAccountRoute: SiteAccountRoute,
+  SiteDevelopersRoute: SiteDevelopersRoute,
+  SiteFaqRoute: SiteFaqRoute,
+  SiteLicenseRoute: SiteLicenseRoute,
+  SitePrivacyRoute: SitePrivacyRoute,
+  SiteTermsRoute: SiteTermsRoute,
+  SiteIndexRoute: SiteIndexRoute,
+}
+
+const SiteRouteRouteWithChildren = SiteRouteRoute._addFileChildren(
+  SiteRouteRouteChildren,
+)
+
 interface ApiV1AddonsIdMaintainersRouteChildren {
   ApiV1AddonsIdMaintainersUserIdRoute: typeof ApiV1AddonsIdMaintainersUserIdRoute
 }
@@ -408,8 +580,9 @@ const ApiV1SubmissionsRouteWithChildren =
   ApiV1SubmissionsRoute._addFileChildren(ApiV1SubmissionsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  SiteRouteRoute: SiteRouteRouteWithChildren,
   DeviceRoute: DeviceRoute,
+  LoginRoute: LoginRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiV1AddonsRoute: ApiV1AddonsRouteWithChildren,
   ApiV1MeRoute: ApiV1MeRouteWithChildren,

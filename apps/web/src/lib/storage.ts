@@ -53,10 +53,11 @@ function encodeRfc3986(value: string): string {
 }
 
 /**
- * @description Presigns a single-use PUT of exactly `size` bytes to the staging bucket (AWS SigV4 query
- * signing). `Bun.S3Client.presign` signs only the host, so it can pin neither the length nor
- * single use: here `content-length` and `if-none-match: *` are signed, the store rejects any other
- * length, and once the object exists every further PUT with the URL fails its precondition.
+ * @description Presigns a PUT of exactly `size` bytes to the staging bucket (AWS SigV4 query
+ * signing). `Bun.S3Client.presign` signs only the host, so it cannot pin the length: here
+ * `content-length` is signed and the store rejects any other length. The URL stays reusable until it
+ * expires (B2 rejects `if-none-match` on PUT), so review re-checks the bundle against the SHA-256
+ * recorded on finalize.
  * @param env The validated environment.
  * @param options The object key, exact size, signing time and lifetime in seconds.
  * @returns The URL and the headers the upload must carry.
@@ -68,7 +69,7 @@ export function presignStagingUpload(env: Env, options: StagingUploadOptions): P
 	const scope = `${timestamp.slice(0, 8)}/${env.S3_REGION}/s3/aws4_request`;
 	const segments = [env.S3_STAGING_BUCKET, ...key.split('/')].map(encodeRfc3986);
 	const path = `${endpoint.pathname.replace(/\/$/, '')}/${segments.join('/')}`;
-	const headers = { 'content-length': String(size), 'if-none-match': '*' };
+	const headers = { 'content-length': String(size) };
 	const signed = Object.entries({ ...headers, host: endpoint.host }).sort(([a], [b]) =>
 		a.localeCompare(b),
 	);

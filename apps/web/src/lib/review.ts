@@ -178,7 +178,7 @@ async function requirePendingReview(
 }
 
 // Re-checks the staged bundle against the size limit and the size and SHA-256 recorded on finalize
-// (the store may not honour the single-use upload), then publishes it and its manifest.
+// (the upload URL stays reusable until it expires), then publishes it and its manifest.
 async function publishArtifact(ctx: AppContext, row: SubmissionRow): Promise<string> {
 	const staged = ctx.storage.staging.file(row.stagingKey);
 

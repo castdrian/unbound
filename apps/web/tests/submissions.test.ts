@@ -126,7 +126,7 @@ describe('authentication', () => {
 });
 
 describe('new listings', () => {
-	test('claims the addon id and reserves a single-use upload of the declared size', async () => {
+	test('claims the addon id and reserves an upload of the declared size', async () => {
 		const { userId, headers } = await signUp();
 		const result = await accepted(
 			await submit(headers, { manifest: manifest('listing.claim') }),
@@ -144,7 +144,7 @@ describe('new listings', () => {
 		});
 
 		expect(result.upload.method).toBe('PUT');
-		expect(result.upload.headers).toEqual({ 'content-length': '1024', 'if-none-match': '*' });
+		expect(result.upload.headers).toEqual({ 'content-length': '1024' });
 		expect(result.upload.expiresAt).toBe(
 			new Date(NOW.getTime() + ctx.env.SUBMISSION_UPLOAD_TTL_SECONDS * 1000).toISOString(),
 		);

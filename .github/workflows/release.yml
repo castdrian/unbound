@@ -1,48 +1,64 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-    inputs:
-      dry-run:
-        description: Run semantic-release without publishing
-        type: boolean
-        default: true
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+        inputs:
+            dry-run:
+                description: Run semantic-release without publishing
+                type: boolean
+                default: true
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  id-token: write
+    contents: write
+    issues: write
+    pull-requests: write
+    id-token: write
 
 concurrency:
-  group: release
-  cancel-in-progress: false
+    group: release
+    cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    release:
+        runs-on: ubuntu-latest
+        outputs:
+            version: ${{ steps.published.outputs.version }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+
+            # bun.lock is lockfileVersion 2, which stable bun cannot parse until 1.4 releases.
+            # canary's frozen-lockfile check fails on a self-generated lockfile (round-trip bug),
+            # so install without it until stable 1.4 lands.
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: canary
+
+            - run: bun install
+
+            # Publishing uses npm trusted publishing (OIDC), which needs npm >= 11.5.1; the runner's
+            # preinstalled npm is older.
+            - run: npm install --global npm@latest
+
+            - run: bun run release ${{ inputs.dry-run == true && '--dry-run' || '' }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # semantic-release tags the release commit it creates; no tag means nothing was released.
+            - id: published
+              run: |
+                  tag="$(git tag --points-at HEAD --list 'v*')"
+                  echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+    bundle:
+        needs: release
+        if: needs.release.outputs.version != ''
+        uses: ./.github/workflows/build-bundle.yml
         with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      # bun.lock is lockfileVersion 2, which stable bun cannot parse until 1.4 releases.
-      # canary's frozen-lockfile check fails on a self-generated lockfile (round-trip bug),
-      # so install without it until stable 1.4 lands.
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: canary
-
-      - run: bun install
-
-      # Publishing uses npm trusted publishing (OIDC), which needs npm >= 11.5.1; the runner's
-      # preinstalled npm is older.
-      - run: npm install --global npm@latest
-
-      - run: bun run release ${{ inputs.dry-run == true && '--dry-run' || '' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            version: ${{ needs.release.outputs.version }}
+        secrets: inherit

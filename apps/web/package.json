@@ -1,0 +1,42 @@
+{
+	"name": "@unbound-app/web",
+	"version": "0.6.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./api": "./src/api/index.ts",
+		"./client": "./src/api/client.ts"
+	},
+	"scripts": {
+		"dev": "bun scripts/migrate.ts && bun --bun vite dev",
+		"build": "bun --bun vite build",
+		"start": "bun scripts/migrate.ts && bun scripts/serve.ts",
+		"typecheck": "tsc --noEmit -p .",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "bun scripts/migrate.ts"
+	},
+	"dependencies": {
+		"@better-auth/api-key": "1.7.10",
+		"@better-auth/drizzle-adapter": "1.7.10",
+		"@tanstack/react-router": "1.170.45",
+		"@tanstack/react-start": "1.169.3",
+		"@unbound-app/contracts": "workspace:*",
+		"@unbound-app/logger": "workspace:*",
+		"better-auth": "1.7.10",
+		"drizzle-orm": "1.0.0-rc.4",
+		"react": "catalog:react",
+		"react-dom": "catalog:react",
+		"zod": "^4.0.0"
+	},
+	"devDependencies": {
+		"@types/bun": "catalog:",
+		"@types/react": "catalog:react",
+		"@types/react-dom": "catalog:react",
+		"@vitejs/plugin-react": "^6.1.2",
+		"drizzle-kit": "1.0.0-rc.4",
+		"vite": "^8.3.4"
+	},
+	"peerDependencies": {
+		"typescript": "catalog:"
+	}
+}

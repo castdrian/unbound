@@ -40,3 +40,5 @@ export type Localizations = {
 export type StringStore = Record<string, LocaleStrings>;
 
 export { _default as default };
+
+export {};

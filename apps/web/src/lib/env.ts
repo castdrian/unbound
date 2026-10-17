@@ -45,6 +45,7 @@ export const envSchema = z.object({
 	UPDATES_RATE_LIMIT_MAX: positiveInt.default(30),
 	ADDON_LIST_PAGE_SIZE: positiveInt.default(50),
 	DEVELOPER_LIST_PAGE_SIZE: positiveInt.default(24),
+	USER_LIST_PAGE_SIZE: positiveInt.default(25),
 });
 
 export type Env = z.infer<typeof envSchema>;

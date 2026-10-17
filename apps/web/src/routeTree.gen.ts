@@ -13,17 +13,27 @@ import { Route as SiteRouteRouteImport } from './routes/_site/route'
 import { Route as DeviceRouteImport } from './routes/device'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SiteIndexRouteImport } from './routes/_site/index'
+import { Route as SiteStaffRouteRouteImport } from './routes/_site/_staff/route'
 import { Route as SiteAccountRouteImport } from './routes/_site/account'
+import { Route as SiteDashboardRouteImport } from './routes/_site/dashboard'
 import { Route as SiteDevelopersRouteImport } from './routes/_site/developers'
 import { Route as SiteFaqRouteImport } from './routes/_site/faq'
 import { Route as SiteLicenseRouteImport } from './routes/_site/license'
+import { Route as SitePluginsRouteImport } from './routes/_site/plugins'
 import { Route as SitePrivacyRouteImport } from './routes/_site/privacy'
+import { Route as SiteSubmitRouteImport } from './routes/_site/submit'
 import { Route as SiteTermsRouteImport } from './routes/_site/terms'
+import { Route as SiteThemesRouteImport } from './routes/_site/themes'
+import { Route as SiteStaffReviewRouteImport } from './routes/_site/_staff/review'
+import { Route as SiteAddonsIdRouteImport } from './routes/_site/addons/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiV1AddonsRouteImport } from './routes/api/v1/addons'
 import { Route as ApiV1MeRouteImport } from './routes/api/v1/me'
 import { Route as ApiV1SubmissionsRouteImport } from './routes/api/v1/submissions'
 import { Route as ApiV1UpdatesRouteImport } from './routes/api/v1/updates'
+import { Route as SiteStaffAdminIndexRouteImport } from './routes/_site/_staff/admin/index'
+import { Route as SiteStaffAdminAddonsRouteImport } from './routes/_site/_staff/admin/addons'
+import { Route as SiteStaffAdminUsersRouteImport } from './routes/_site/_staff/admin/users'
 import { Route as ApiV1MeAddonsRouteImport } from './routes/api/v1/me/addons'
 import { Route as ApiV1ReviewQueueRouteImport } from './routes/api/v1/review/queue'
 import { Route as ApiV1AddonsIdDelistRouteImport } from './routes/api/v1/addons/$id/delist'
@@ -53,9 +63,18 @@ const SiteIndexRoute = SiteIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SiteRouteRoute,
 } as any)
+const SiteStaffRouteRoute = SiteStaffRouteRouteImport.update({
+  id: '/_staff',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
 const SiteAccountRoute = SiteAccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
+const SiteDashboardRoute = SiteDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => SiteRouteRoute,
 } as any)
 const SiteDevelopersRoute = SiteDevelopersRouteImport.update({
@@ -73,14 +92,39 @@ const SiteLicenseRoute = SiteLicenseRouteImport.update({
   path: '/license',
   getParentRoute: () => SiteRouteRoute,
 } as any)
+const SitePluginsRoute = SitePluginsRouteImport.update({
+  id: '/plugins',
+  path: '/plugins',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
 const SitePrivacyRoute = SitePrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
   getParentRoute: () => SiteRouteRoute,
 } as any)
+const SiteSubmitRoute = SiteSubmitRouteImport.update({
+  id: '/submit',
+  path: '/submit',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
 const SiteTermsRoute = SiteTermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
+const SiteThemesRoute = SiteThemesRouteImport.update({
+  id: '/themes',
+  path: '/themes',
+  getParentRoute: () => SiteRouteRoute,
+} as any)
+const SiteStaffReviewRoute = SiteStaffReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => SiteStaffRouteRoute,
+} as any)
+const SiteAddonsIdRoute = SiteAddonsIdRouteImport.update({
+  id: '/addons/$id',
+  path: '/addons/$id',
   getParentRoute: () => SiteRouteRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -107,6 +151,21 @@ const ApiV1UpdatesRoute = ApiV1UpdatesRouteImport.update({
   id: '/api/v1/updates',
   path: '/api/v1/updates',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SiteStaffAdminIndexRoute = SiteStaffAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => SiteStaffRouteRoute,
+} as any)
+const SiteStaffAdminAddonsRoute = SiteStaffAdminAddonsRouteImport.update({
+  id: '/admin/addons',
+  path: '/admin/addons',
+  getParentRoute: () => SiteStaffRouteRoute,
+} as any)
+const SiteStaffAdminUsersRoute = SiteStaffAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => SiteStaffRouteRoute,
 } as any)
 const ApiV1MeAddonsRoute = ApiV1MeAddonsRouteImport.update({
   id: '/addons',
@@ -163,18 +222,27 @@ export interface FileRoutesByFullPath {
   '/device': typeof DeviceRoute
   '/login': typeof LoginRoute
   '/account': typeof SiteAccountRoute
+  '/dashboard': typeof SiteDashboardRoute
   '/developers': typeof SiteDevelopersRoute
   '/faq': typeof SiteFaqRoute
   '/license': typeof SiteLicenseRoute
+  '/plugins': typeof SitePluginsRoute
   '/privacy': typeof SitePrivacyRoute
+  '/submit': typeof SiteSubmitRoute
   '/terms': typeof SiteTermsRoute
+  '/themes': typeof SiteThemesRoute
+  '/review': typeof SiteStaffReviewRoute
+  '/addons/$id': typeof SiteAddonsIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRouteWithChildren
   '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
   '/api/v1/updates': typeof ApiV1UpdatesRoute
+  '/admin/addons': typeof SiteStaffAdminAddonsRoute
+  '/admin/users': typeof SiteStaffAdminUsersRoute
   '/api/v1/me/addons': typeof ApiV1MeAddonsRoute
   '/api/v1/review/queue': typeof ApiV1ReviewQueueRoute
+  '/admin/': typeof SiteStaffAdminIndexRoute
   '/api/v1/addons/$id/delist': typeof ApiV1AddonsIdDelistRoute
   '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
   '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
@@ -186,20 +254,29 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/device': typeof DeviceRoute
   '/login': typeof LoginRoute
+  '/': typeof SiteIndexRoute
   '/account': typeof SiteAccountRoute
+  '/dashboard': typeof SiteDashboardRoute
   '/developers': typeof SiteDevelopersRoute
   '/faq': typeof SiteFaqRoute
   '/license': typeof SiteLicenseRoute
+  '/plugins': typeof SitePluginsRoute
   '/privacy': typeof SitePrivacyRoute
+  '/submit': typeof SiteSubmitRoute
   '/terms': typeof SiteTermsRoute
-  '/': typeof SiteIndexRoute
+  '/themes': typeof SiteThemesRoute
+  '/review': typeof SiteStaffReviewRoute
+  '/addons/$id': typeof SiteAddonsIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRouteWithChildren
   '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
   '/api/v1/updates': typeof ApiV1UpdatesRoute
+  '/admin/addons': typeof SiteStaffAdminAddonsRoute
+  '/admin/users': typeof SiteStaffAdminUsersRoute
   '/api/v1/me/addons': typeof ApiV1MeAddonsRoute
   '/api/v1/review/queue': typeof ApiV1ReviewQueueRoute
+  '/admin': typeof SiteStaffAdminIndexRoute
   '/api/v1/addons/$id/delist': typeof ApiV1AddonsIdDelistRoute
   '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
   '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
@@ -213,20 +290,30 @@ export interface FileRoutesById {
   '/_site': typeof SiteRouteRouteWithChildren
   '/device': typeof DeviceRoute
   '/login': typeof LoginRoute
+  '/_site/_staff': typeof SiteStaffRouteRouteWithChildren
   '/_site/account': typeof SiteAccountRoute
+  '/_site/dashboard': typeof SiteDashboardRoute
   '/_site/developers': typeof SiteDevelopersRoute
   '/_site/faq': typeof SiteFaqRoute
   '/_site/license': typeof SiteLicenseRoute
+  '/_site/plugins': typeof SitePluginsRoute
   '/_site/privacy': typeof SitePrivacyRoute
+  '/_site/submit': typeof SiteSubmitRoute
   '/_site/terms': typeof SiteTermsRoute
+  '/_site/themes': typeof SiteThemesRoute
   '/_site/': typeof SiteIndexRoute
+  '/_site/_staff/review': typeof SiteStaffReviewRoute
+  '/_site/addons/$id': typeof SiteAddonsIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
   '/api/v1/me': typeof ApiV1MeRouteWithChildren
   '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
   '/api/v1/updates': typeof ApiV1UpdatesRoute
+  '/_site/_staff/admin/addons': typeof SiteStaffAdminAddonsRoute
+  '/_site/_staff/admin/users': typeof SiteStaffAdminUsersRoute
   '/api/v1/me/addons': typeof ApiV1MeAddonsRoute
   '/api/v1/review/queue': typeof ApiV1ReviewQueueRoute
+  '/_site/_staff/admin/': typeof SiteStaffAdminIndexRoute
   '/api/v1/addons/$id/delist': typeof ApiV1AddonsIdDelistRoute
   '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
   '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
@@ -242,18 +329,27 @@ export interface FileRouteTypes {
     | '/device'
     | '/login'
     | '/account'
+    | '/dashboard'
     | '/developers'
     | '/faq'
     | '/license'
+    | '/plugins'
     | '/privacy'
+    | '/submit'
     | '/terms'
+    | '/themes'
+    | '/review'
+    | '/addons/$id'
     | '/api/auth/$'
     | '/api/v1/addons'
     | '/api/v1/me'
     | '/api/v1/submissions'
     | '/api/v1/updates'
+    | '/admin/addons'
+    | '/admin/users'
     | '/api/v1/me/addons'
     | '/api/v1/review/queue'
+    | '/admin/'
     | '/api/v1/addons/$id/delist'
     | '/api/v1/addons/$id/maintainers'
     | '/api/v1/addons/$id/relist'
@@ -265,20 +361,29 @@ export interface FileRouteTypes {
   to:
     | '/device'
     | '/login'
+    | '/'
     | '/account'
+    | '/dashboard'
     | '/developers'
     | '/faq'
     | '/license'
+    | '/plugins'
     | '/privacy'
+    | '/submit'
     | '/terms'
-    | '/'
+    | '/themes'
+    | '/review'
+    | '/addons/$id'
     | '/api/auth/$'
     | '/api/v1/addons'
     | '/api/v1/me'
     | '/api/v1/submissions'
     | '/api/v1/updates'
+    | '/admin/addons'
+    | '/admin/users'
     | '/api/v1/me/addons'
     | '/api/v1/review/queue'
+    | '/admin'
     | '/api/v1/addons/$id/delist'
     | '/api/v1/addons/$id/maintainers'
     | '/api/v1/addons/$id/relist'
@@ -291,20 +396,30 @@ export interface FileRouteTypes {
     | '/_site'
     | '/device'
     | '/login'
+    | '/_site/_staff'
     | '/_site/account'
+    | '/_site/dashboard'
     | '/_site/developers'
     | '/_site/faq'
     | '/_site/license'
+    | '/_site/plugins'
     | '/_site/privacy'
+    | '/_site/submit'
     | '/_site/terms'
+    | '/_site/themes'
     | '/_site/'
+    | '/_site/_staff/review'
+    | '/_site/addons/$id'
     | '/api/auth/$'
     | '/api/v1/addons'
     | '/api/v1/me'
     | '/api/v1/submissions'
     | '/api/v1/updates'
+    | '/_site/_staff/admin/addons'
+    | '/_site/_staff/admin/users'
     | '/api/v1/me/addons'
     | '/api/v1/review/queue'
+    | '/_site/_staff/admin/'
     | '/api/v1/addons/$id/delist'
     | '/api/v1/addons/$id/maintainers'
     | '/api/v1/addons/$id/relist'
@@ -356,11 +471,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SiteIndexRouteImport
       parentRoute: typeof SiteRouteRoute
     }
+    '/_site/_staff': {
+      id: '/_site/_staff'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof SiteStaffRouteRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
     '/_site/account': {
       id: '/_site/account'
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof SiteAccountRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
+    '/_site/dashboard': {
+      id: '/_site/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof SiteDashboardRouteImport
       parentRoute: typeof SiteRouteRoute
     }
     '/_site/developers': {
@@ -384,6 +513,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SiteLicenseRouteImport
       parentRoute: typeof SiteRouteRoute
     }
+    '/_site/plugins': {
+      id: '/_site/plugins'
+      path: '/plugins'
+      fullPath: '/plugins'
+      preLoaderRoute: typeof SitePluginsRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
     '/_site/privacy': {
       id: '/_site/privacy'
       path: '/privacy'
@@ -391,11 +527,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitePrivacyRouteImport
       parentRoute: typeof SiteRouteRoute
     }
+    '/_site/submit': {
+      id: '/_site/submit'
+      path: '/submit'
+      fullPath: '/submit'
+      preLoaderRoute: typeof SiteSubmitRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
     '/_site/terms': {
       id: '/_site/terms'
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof SiteTermsRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
+    '/_site/themes': {
+      id: '/_site/themes'
+      path: '/themes'
+      fullPath: '/themes'
+      preLoaderRoute: typeof SiteThemesRouteImport
+      parentRoute: typeof SiteRouteRoute
+    }
+    '/_site/_staff/review': {
+      id: '/_site/_staff/review'
+      path: '/review'
+      fullPath: '/review'
+      preLoaderRoute: typeof SiteStaffReviewRouteImport
+      parentRoute: typeof SiteStaffRouteRoute
+    }
+    '/_site/addons/$id': {
+      id: '/_site/addons/$id'
+      path: '/addons/$id'
+      fullPath: '/addons/$id'
+      preLoaderRoute: typeof SiteAddonsIdRouteImport
       parentRoute: typeof SiteRouteRoute
     }
     '/api/auth/$': {
@@ -432,6 +596,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/v1/updates'
       preLoaderRoute: typeof ApiV1UpdatesRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_site/_staff/admin/': {
+      id: '/_site/_staff/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof SiteStaffAdminIndexRouteImport
+      parentRoute: typeof SiteStaffRouteRoute
+    }
+    '/_site/_staff/admin/addons': {
+      id: '/_site/_staff/admin/addons'
+      path: '/admin/addons'
+      fullPath: '/admin/addons'
+      preLoaderRoute: typeof SiteStaffAdminAddonsRouteImport
+      parentRoute: typeof SiteStaffRouteRoute
+    }
+    '/_site/_staff/admin/users': {
+      id: '/_site/_staff/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof SiteStaffAdminUsersRouteImport
+      parentRoute: typeof SiteStaffRouteRoute
     }
     '/api/v1/me/addons': {
       id: '/api/v1/me/addons'
@@ -499,24 +684,54 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface SiteStaffRouteRouteChildren {
+  SiteStaffReviewRoute: typeof SiteStaffReviewRoute
+  SiteStaffAdminAddonsRoute: typeof SiteStaffAdminAddonsRoute
+  SiteStaffAdminUsersRoute: typeof SiteStaffAdminUsersRoute
+  SiteStaffAdminIndexRoute: typeof SiteStaffAdminIndexRoute
+}
+
+const SiteStaffRouteRouteChildren: SiteStaffRouteRouteChildren = {
+  SiteStaffReviewRoute: SiteStaffReviewRoute,
+  SiteStaffAdminAddonsRoute: SiteStaffAdminAddonsRoute,
+  SiteStaffAdminUsersRoute: SiteStaffAdminUsersRoute,
+  SiteStaffAdminIndexRoute: SiteStaffAdminIndexRoute,
+}
+
+const SiteStaffRouteRouteWithChildren = SiteStaffRouteRoute._addFileChildren(
+  SiteStaffRouteRouteChildren,
+)
+
 interface SiteRouteRouteChildren {
+  SiteStaffRouteRoute: typeof SiteStaffRouteRouteWithChildren
   SiteAccountRoute: typeof SiteAccountRoute
+  SiteDashboardRoute: typeof SiteDashboardRoute
   SiteDevelopersRoute: typeof SiteDevelopersRoute
   SiteFaqRoute: typeof SiteFaqRoute
   SiteLicenseRoute: typeof SiteLicenseRoute
+  SitePluginsRoute: typeof SitePluginsRoute
   SitePrivacyRoute: typeof SitePrivacyRoute
+  SiteSubmitRoute: typeof SiteSubmitRoute
   SiteTermsRoute: typeof SiteTermsRoute
+  SiteThemesRoute: typeof SiteThemesRoute
   SiteIndexRoute: typeof SiteIndexRoute
+  SiteAddonsIdRoute: typeof SiteAddonsIdRoute
 }
 
 const SiteRouteRouteChildren: SiteRouteRouteChildren = {
+  SiteStaffRouteRoute: SiteStaffRouteRouteWithChildren,
   SiteAccountRoute: SiteAccountRoute,
+  SiteDashboardRoute: SiteDashboardRoute,
   SiteDevelopersRoute: SiteDevelopersRoute,
   SiteFaqRoute: SiteFaqRoute,
   SiteLicenseRoute: SiteLicenseRoute,
+  SitePluginsRoute: SitePluginsRoute,
   SitePrivacyRoute: SitePrivacyRoute,
+  SiteSubmitRoute: SiteSubmitRoute,
   SiteTermsRoute: SiteTermsRoute,
+  SiteThemesRoute: SiteThemesRoute,
   SiteIndexRoute: SiteIndexRoute,
+  SiteAddonsIdRoute: SiteAddonsIdRoute,
 }
 
 const SiteRouteRouteWithChildren = SiteRouteRoute._addFileChildren(

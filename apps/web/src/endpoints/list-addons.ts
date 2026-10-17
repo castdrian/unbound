@@ -6,7 +6,7 @@ import endpoint from '~/lib/api/endpoint';
 
 const listAddonsEndpoint = endpoint(
 	{ body: z.undefined(), query: listAddonsQuerySchema, response: listAddonsResponseSchema },
-	async ({ ctx, query }) => listAddons(ctx, query?.cursor),
+	async ({ ctx, query }) => listAddons(ctx, query),
 );
 
 export default listAddonsEndpoint;

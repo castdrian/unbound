@@ -1,0 +1,10 @@
+[
+	{
+		"corsRuleName": "browser-submission-upload",
+		"allowedOrigins": ["*"],
+		"allowedOperations": ["s3_put"],
+		"allowedHeaders": ["if-none-match", "content-type"],
+		"exposeHeaders": ["etag"],
+		"maxAgeSeconds": 3600
+	}
+]

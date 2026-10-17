@@ -11,9 +11,9 @@ import type {
 	SubmissionKind,
 	SubmissionStatus,
 } from '@unbound-app/contracts/publish';
+import type { AddonType, MaintainerRole } from '@unbound-app/contracts/addons';
 import { openSubmissionStatusSchema } from '@unbound-app/contracts/publish';
 import type { PublishedManifest } from '@unbound-app/contracts/manifest';
-import type { MaintainerRole } from '@unbound-app/contracts/addons';
 import { defineRelationsPart, sql } from 'drizzle-orm';
 
 import { user } from './auth';
@@ -21,14 +21,34 @@ import { user } from './auth';
 // Index predicates are stored in the schema verbatim, so the statuses are inlined rather than bound.
 const OPEN_STATUSES = `(${openSubmissionStatusSchema.options.map((status) => `'${status}'`).join(', ')})`;
 
+const LISTING_SORTS = ['name', 'createdAt', 'updatedAt'] as const;
+
 /** An approved addon. The row is created when its first listing is approved; until then a pending listing submission holds the id. */
-export const addon = sqliteTable('addon', {
-	id: text('id').primaryKey(),
-	createdAt: integer('created_at', { mode: 'timestamp_ms' })
-		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-		.notNull(),
-	delistedAt: integer('delisted_at', { mode: 'timestamp_ms' }),
-});
+export const addon = sqliteTable(
+	'addon',
+	{
+		id: text('id').primaryKey(),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		delistedAt: integer('delisted_at', { mode: 'timestamp_ms' }),
+		// The newest version's type, name, description and approval time, copied here on approval so
+		// listings filter, search and sort on one table.
+		type: text('type').$type<AddonType>().notNull(),
+		name: text('name').notNull(),
+		description: text('description').notNull(),
+		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+	},
+	(table) =>
+		LISTING_SORTS.flatMap((key) => [
+			index(`addon_listed_${key}_idx`)
+				.on(table[key], table.id)
+				.where(sql`${table.delistedAt} is null`),
+			index(`addon_listed_type_${key}_idx`)
+				.on(table.type, table[key], table.id)
+				.where(sql`${table.delistedAt} is null`),
+		]),
+);
 
 export const addonMaintainer = sqliteTable(
 	'addon_maintainer',

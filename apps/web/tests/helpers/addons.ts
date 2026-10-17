@@ -2,6 +2,7 @@ import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import { eq } from 'drizzle-orm';
 
 import { addon, addonMaintainer, addonVersion, submission, user } from '~/db/schema';
+import { refreshAddonSummary, toAddonSummary } from '~/lib/addons';
 import type { SubmissionRow } from '~/lib/submissions';
 import type { AppContext } from '~/lib/context';
 import { toVersionRow } from '~/lib/review';
@@ -93,7 +94,12 @@ export async function seedVersion(
 ): Promise<SubmissionRow> {
 	const row = await seedSubmission(ctx, authorId, published, { status: 'approved', sha256 });
 
-	await ctx.db.insert(addonVersion).values(toVersionRow(row, sha256, ctx.now()));
+	ctx.db.transaction((tx) => {
+		tx.insert(addonVersion)
+			.values(toVersionRow(row, sha256, ctx.now()))
+			.run();
+		refreshAddonSummary(tx, published.id);
+	});
 
 	return row;
 }
@@ -111,7 +117,11 @@ export async function seedApprovedAddon(
 	ownerId: string,
 	published: PublishedManifest,
 ): Promise<SubmissionRow> {
-	await ctx.db.insert(addon).values({ id: published.id });
+	await ctx.db.insert(addon).values({
+		id: published.id,
+		createdAt: ctx.now(),
+		...toAddonSummary(published, ctx.now()),
+	});
 	await ctx.db
 		.insert(addonMaintainer)
 		.values({ addonId: published.id, userId: ownerId, role: 'owner' });

@@ -1,10 +1,10 @@
-import { and, asc, count, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, or } from 'drizzle-orm';
 import type { Caller } from '@unbound-app/contracts/account';
 
 import { addon, addonMaintainer, user } from '~/db/schema';
+import { likeContains } from '~/lib/like-contains';
 import { DEFAULT_ROLE } from '~/lib/auth/access';
 import type { AppContext } from '~/lib/context';
-import { escapeLike } from '~/lib/escape-like';
 
 export type DevelopersQuery = {
 	/** Matches anywhere in the developer's name, case-insensitively. */
@@ -40,9 +40,7 @@ export async function listDevelopers(
 	const where = and(
 		inArray(user.id, maintainers),
 		or(isNull(user.banned), eq(user.banned, false)),
-		query.search
-			? sql`${user.name} like ${`%${escapeLike(query.search)}%`} escape '\\'`
-			: undefined,
+		query.search ? likeContains(user.name, query.search) : undefined,
 	);
 
 	const [rows, [counted]] = await Promise.all([

@@ -4,9 +4,9 @@ import { count, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 
 import { requirePermission } from '~/lib/api/caller';
+import { likeContains } from '~/lib/like-contains';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
-import { escapeLike } from '~/lib/escape-like';
 import { toAddon } from '~/lib/addons';
 import { addon } from '~/db/schema';
 
@@ -31,9 +31,7 @@ export type AdminAddonsPage = {
 };
 
 function matching(table: typeof addon, search: string): SQL {
-	const pattern = `%${escapeLike(search)}%`;
-
-	return sql`(${table.id} like ${pattern} escape '\\' or ${table.name} like ${pattern} escape '\\')`;
+	return sql`(${likeContains(table.id, search)} or ${likeContains(table.name, search)})`;
 }
 
 /**

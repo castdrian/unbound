@@ -1,3 +1,4 @@
+import type { ApiErrorCode } from '@unbound-app/contracts/errors';
 import type { z } from 'zod';
 
 import type { Endpoint } from '~/lib/api/endpoint';
@@ -10,7 +11,7 @@ type MethodHandlers = Record<string, (request: Bun.BunRequest) => Promise<Respon
 
 export type ApiFailure = {
 	status: number;
-	code: string;
+	code: ApiErrorCode;
 };
 
 /**

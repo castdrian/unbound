@@ -9,7 +9,7 @@ import { submissionKindSchema } from '@unbound-app/contracts/publish';
 import { and, eq } from 'drizzle-orm';
 
 import { addon, addonMaintainer, addonVersion, submission, user } from '~/db/schema';
-import { refreshAddonSummary, toAddonSummary } from '~/lib/addons';
+import { LATEST_VERSION, refreshAddonSummary, toAddonSummary } from '~/lib/addons';
 import { getArtifactKeys, toAddonVersion } from '~/lib/artifacts';
 import type { SubmissionRow } from '~/lib/submissions';
 import { requirePermission } from '~/lib/api/caller';
@@ -103,7 +103,7 @@ export async function listReviewQueue(
 	const [addons, memberships] = await Promise.all([
 		ctx.db.query.addon.findMany({
 			where: { id: { in: updated } },
-			with: { versions: { orderBy: { versionKey: 'desc' }, limit: 1 } },
+			with: LATEST_VERSION,
 		}),
 		ctx.db.query.addonMaintainer.findMany({
 			where: { userId: caller.user.id, addonId: { in: rows.map((row) => row.addonId) } },
@@ -283,7 +283,9 @@ function decide(
 				.values(toVersionRow(row, sha256, decision.reviewedAt))
 				.run();
 
-			refreshAddonSummary(tx, row.addonId);
+			if (row.kind === 'update') {
+				refreshAddonSummary(tx, row.addonId);
+			}
 
 			return updated;
 		},

@@ -1,23 +1,17 @@
 import { getRequestHeaders } from '@tanstack/react-start/server';
 import { createServerFn } from '@tanstack/react-start';
+import type { ApiKey } from '@better-auth/api-key';
+import type { Account } from 'better-auth';
 
 import app from '~/lib/app';
 
-export type AccountApiKey = {
-	id: string;
-	name: string | null;
-	start: string | null;
-	createdAt: Date;
-	expiresAt: Date | null;
-	lastRequest: Date | null;
-};
+export type AccountApiKey = Pick<
+	ApiKey,
+	'id' | 'name' | 'start' | 'createdAt' | 'expiresAt' | 'lastRequest'
+>;
 
-export type LinkedAccount = {
-	/** The Better Auth account row id, which unlinking takes. */
-	id: string;
-	/** The OAuth provider, e.g. `discord` or `github`. */
-	providerId: string;
-};
+/** `id` is the account row id, which unlinking takes. */
+export type LinkedAccount = Pick<Account, 'id' | 'providerId'>;
 
 export type AccountOverview = {
 	accounts: LinkedAccount[];

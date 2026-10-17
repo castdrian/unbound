@@ -190,21 +190,23 @@ describe('maintainers', () => {
 });
 
 describe('ownership transfer', () => {
-	test.each<[Role, number]>([
-		['user', 403],
-		['developer', 403],
-		['moderator', 403],
-	])('a %s cannot transfer ownership', async (role, status) => {
-		const owner = await ownedAddon(`transfer.denied-${role}`);
-		const caller = await signUp(role);
+	test.each<Role>(['user', 'developer', 'moderator'])(
+		'a %s cannot transfer ownership',
+		async (role) => {
+			const owner = await ownedAddon(`transfer.denied-${role}`);
+			const caller = await signUp(role);
 
-		expect(
-			await failure(transfer(caller.client, `transfer.denied-${role}`, caller.userId)),
-		).toEqual({ status, code: 'forbidden' });
-		expect(
-			roles([owner], (await maintainers(anonymous, `transfer.denied-${role}`)).maintainers),
-		).toEqual(['owner']);
-	});
+			expect(
+				await failure(transfer(caller.client, `transfer.denied-${role}`, caller.userId)),
+			).toEqual({ status: 403, code: 'forbidden' });
+			expect(
+				roles(
+					[owner],
+					(await maintainers(anonymous, `transfer.denied-${role}`)).maintainers,
+				),
+			).toEqual(['owner']);
+		},
+	);
 
 	test('an admin transfers ownership and keeps the previous owner as maintainer', async () => {
 		const owner = await ownedAddon('transfer.keep');

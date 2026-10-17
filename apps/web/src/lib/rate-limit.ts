@@ -40,16 +40,4 @@ export function consumeRateLimit(ctx: AppContext, options: RateLimitOptions) {
 	}
 }
 
-/**
- * @description Reads the client IP from the configured proxy header (the first hop of a list).
- * @param ctx The application context.
- * @param request The incoming request.
- * @returns The IP, or `unknown` when the header is absent, so such requests share one bucket.
- */
-export function getClientIp(ctx: AppContext, request: Request): string {
-	const header = request.headers.get(ctx.env.IP_ADDRESS_HEADER);
-
-	return header?.split(',')[0]?.trim() || 'unknown';
-}
-
-export default { consumeRateLimit, getClientIp };
+export default { consumeRateLimit };

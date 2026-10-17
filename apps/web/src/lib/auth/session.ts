@@ -2,7 +2,7 @@ import { getRequestHeaders } from '@tanstack/react-start/server';
 import type { Caller } from '@unbound-app/contracts/account';
 import { createServerFn } from '@tanstack/react-start';
 
-import { DEFAULT_ROLE } from '~/lib/auth/access';
+import { toCallerProfile } from '~/lib/api/caller';
 import app from '~/lib/app';
 
 /** The signed-in user as pages see them: the API's caller shape plus the email shown on `/account`. */
@@ -25,9 +25,7 @@ export const getSession = createServerFn({ method: 'GET' }).handler(
 
 		if (!session) return null;
 
-		const { id, name, email, image, role } = session.user;
-
-		return { user: { id, name, email, image: image ?? null, role: role ?? DEFAULT_ROLE } };
+		return { user: { ...toCallerProfile(session.user), email: session.user.email } };
 	},
 );
 

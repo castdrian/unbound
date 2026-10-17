@@ -1,8 +1,8 @@
 import { createLogger } from '@unbound-app/logger';
 
-import { createDatabase } from '../src/db/database';
-import { migrateDatabase } from '../src/db/migrate';
-import { parseEnv } from '../src/lib/env';
+import { createDatabase } from '~/db/database';
+import { migrateDatabase } from '~/db/migrate';
+import { parseEnv } from '~/lib/env';
 
 const logger = createLogger('Web', 'Migrate');
 const env = parseEnv();

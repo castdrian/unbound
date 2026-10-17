@@ -1,32 +1,60 @@
 import type { AddonManifest } from './addons';
 
-export type NativePluginCapability =
-	| 'native.objc.classes'
-	| 'native.objc.invoke'
-	| 'native.objc.ivars'
-	| 'native.objc.associations'
-	| 'native.objc.hooks'
-	| 'native.ffi.symbols'
-	| 'native.ffi.call'
-	| 'native.fabric.mount';
+export const NATIVE_PLUGIN_CAPABILITIES = [
+	'native.objc.classes',
+	'native.objc.invoke',
+	'native.objc.ivars',
+	'native.objc.associations',
+	'native.objc.hooks',
+	'native.ffi.symbols',
+	'native.ffi.call',
+	'native.fabric.mount',
+] as const;
 
-export type NativeHandle = object;
+export type NativePluginCapability = (typeof NATIVE_PLUGIN_CAPABILITIES)[number];
+
+declare const nativeHandle: unique symbol;
+
+/** An opaque reference to a native object. Only the bridge creates handles; plugins pass them back. */
+export type NativeHandle = {
+	readonly [nativeHandle]: true;
+};
 
 export type NativeClassHandle = NativeHandle;
 export type NativeObjectHandle = NativeHandle;
 export type NativePointer = NativeHandle;
 export type NativeAssociationKey = NativeHandle;
 
-export interface NativeStruct<T extends object = Record<string, unknown>> extends NativeHandle {
+/** A C struct field: a scalar, a pointer or object, or a nested struct. */
+export type NativeStructField = number | boolean | NativeHandle | NativeStructFields;
+
+export type NativeStructFields = {
+	[field: string]: NativeStructField;
+};
+
+export type NativeStruct<T extends NativeStructFields = NativeStructFields> = {
 	readonly name: string;
 	readonly value?: T;
-}
+} & NativeHandle;
+
+/** A value the bridge serializes by structure, such as Fabric surface props or a plist. */
+export type NativeSerializable =
+	| string
+	| number
+	| boolean
+	| null
+	| NativeSerializable[]
+	| NativeSerializableObject;
+
+export type NativeSerializableObject = {
+	[key: string]: NativeSerializable;
+};
 
 export type NativeThreadPolicy = 'current' | 'main';
 
-export interface NativeCallOptions {
+export type NativeCallOptions = {
 	thread?: NativeThreadPolicy;
-}
+};
 
 export type NativeFFITypeName =
 	| 'void'
@@ -49,57 +77,64 @@ export type NativeFFITypeName =
 
 export type NativeFFIType = NativeFFITypeName | { struct: string };
 
-export interface NativeFFISignature {
+export type NativeFFISignature = {
 	returnType: NativeFFIType;
 	args: NativeFFIType[];
-}
+};
 
-export interface NativeHookContext {
+export type NativeHookContext = {
 	self: NativeObjectHandle;
 	selector: string;
 	args: unknown[];
+	// UNKNOWN: returns whatever the hooked Objective-C method returns.
 	original: (...args: unknown[]) => unknown;
 	replaceObjectArgument(index: number, value: NativeObjectHandle | null): void;
-}
+};
 
-export interface NativeHookHandlers {
+export type NativeHookHandlers = {
 	before?: (context: NativeHookContext) => void | Promise<void>;
 	after?: (context: NativeHookContext) => void | Promise<void>;
+	// UNKNOWN: the replacement returns whatever type the hooked Objective-C method returns.
 	replace?: (context: NativeHookContext) => unknown;
-}
+};
 
-export interface NativeHookOptions extends NativeCallOptions {
+export type NativeHookOptions = {
 	cacheOnly?: boolean;
 	instance?: NativeObjectHandle;
 	once?: boolean;
-}
+} & NativeCallOptions;
 
-export interface NativeHookToken {
+export type NativeHookToken = {
 	readonly active: boolean;
+	// UNKNOWN: `value` is whatever type the hooked Objective-C method returns.
 	setReturnValue(self: NativeObjectHandle, args: unknown[], value: unknown): void;
 	removeReturnValue(self: NativeObjectHandle, args: unknown[]): void;
 	clearReturnValues(): void;
 	remove(): void;
-}
+};
 
-export interface NativeObjCBridge {
+export type NativeObjCBridge = {
 	getClass(name: string): NativeClassHandle | null;
 	alloc(classOrName: string | NativeClassHandle): NativeObjectHandle;
 	className(handle: NativeHandle): string | null;
 	respondsTo(handle: NativeHandle, selector: string): boolean;
+	// UNKNOWN: returns whatever the Objective-C method returns, bridged to JS.
 	call(handle: NativeHandle, selector: string, ...args: unknown[]): unknown;
+	// UNKNOWN: returns whatever the Objective-C method returns, bridged to JS.
 	callSuper(
 		handle: NativeObjectHandle,
 		currentClass: NativeClassHandle | string,
 		selector: string,
 		...args: unknown[]
 	): unknown;
+	// UNKNOWN: returns whatever the Objective-C method returns, bridged to JS.
 	invoke(
 		handle: NativeObjectHandle,
 		selector: string,
 		args: unknown[],
 		options?: NativeCallOptions,
 	): unknown;
+	// UNKNOWN: returns whatever the Objective-C method returns, bridged to JS.
 	invokeSuper(
 		handle: NativeObjectHandle,
 		currentClass: NativeClassHandle | string,
@@ -107,17 +142,24 @@ export interface NativeObjCBridge {
 		args: unknown[],
 		options?: NativeCallOptions,
 	): unknown;
+	// UNKNOWN: an ivar holds whatever type its Objective-C declaration says.
 	getIvar(handle: NativeObjectHandle, name: string): unknown;
+	// UNKNOWN: an ivar holds whatever type its Objective-C declaration says.
 	setIvar(handle: NativeObjectHandle, name: string, value: unknown): void;
 	createAssociationKey(): NativeAssociationKey;
+	// UNKNOWN: an association holds any JS or native value the plugin stored.
 	getAssociatedObject(handle: NativeObjectHandle, key: NativeAssociationKey): unknown;
+	// UNKNOWN: an association holds any JS or native value the plugin stores.
 	setAssociatedObject(
 		handle: NativeObjectHandle,
 		key: NativeAssociationKey,
 		value: unknown,
 		policy?: string,
 	): void;
-	struct<T extends object = Record<string, unknown>>(name: string, fields: T): NativeStruct<T>;
+	struct<T extends NativeStructFields = NativeStructFields>(
+		name: string,
+		fields: T,
+	): NativeStruct<T>;
 	array(handle: NativeObjectHandle): unknown[];
 	data(value: ArrayBuffer | Uint8Array): NativeObjectHandle;
 	hook(
@@ -126,34 +168,35 @@ export interface NativeObjCBridge {
 		handlers: NativeHookHandlers,
 		options?: NativeHookOptions,
 	): NativeHookToken;
-}
+};
 
-export interface NativeFFIBridge {
+export type NativeFFIBridge = {
 	symbol(name: string, image?: string): NativePointer | null;
+	// UNKNOWN: the result's type is described at runtime by `signature.returnType`.
 	call(pointer: NativePointer, signature: NativeFFISignature, ...args: unknown[]): unknown;
-}
+};
 
-export interface NativeFabricSize {
+export type NativeFabricSize = {
 	width: number;
 	height: number;
-}
+};
 
-export interface NativeFabricFrame {
+export type NativeFabricFrame = {
 	x: number;
 	y: number;
 	width: number;
 	height: number;
-}
+};
 
 export type NativeFabricSurface = NativeHandle;
 
-export interface NativeFabricBridge {
+export type NativeFabricBridge = {
 	mount(
 		container: NativeObjectHandle,
 		moduleName: string,
-		properties?: Record<string, unknown>,
+		properties?: NativeSerializableObject,
 	): NativeFabricSurface;
-	update(surface: NativeFabricSurface, properties: Record<string, unknown>): void;
+	update(surface: NativeFabricSurface, properties: NativeSerializableObject): void;
 	setSize(
 		surface: NativeFabricSurface,
 		minimumSize: NativeFabricSize,
@@ -162,36 +205,37 @@ export interface NativeFabricBridge {
 	setFrame(surface: NativeFabricSurface, frame: NativeFabricFrame): void;
 	measure(view: NativeObjectHandle): NativeFabricFrame;
 	unmount(surface: NativeFabricSurface): void;
-}
+};
 
-export interface NativePlatformDevice {
+export type NativePlatformDevice = {
 	getDeviceModel(): string;
 	getiOSVersionString(): string;
 	isJailbroken(): boolean;
 	isSystemApp(): boolean;
 	isVerifiedBuild(): boolean;
-	getEntitlements(): Record<string, any>;
+	getEntitlements(): NativeSerializableObject;
 	getEntitlementsAsPlist(): string;
-}
+};
 
-export interface NativePlatformApp {
+export type NativePlatformApp = {
 	getAppSource(): string;
-}
+};
 
-export interface NativePlatformBridge {
+export type NativePlatformBridge = {
+	// UNKNOWN: returns the completion value of arbitrary evaluated bytecode.
 	evaluateBytecode(bytecode: ArrayBuffer, tag?: string): unknown;
 	readonly device: NativePlatformDevice;
 	readonly app: NativePlatformApp;
-}
+};
 
-export interface NativePluginBridge {
+export type NativePluginBridge = {
 	readonly apiVersion: string;
 	readonly abiVersion: string;
 	readonly capabilities: readonly NativePluginCapability[];
 	readonly objc: NativeObjCBridge;
 	readonly ffi: NativeFFIBridge;
 	readonly fabric: NativeFabricBridge;
-}
+};
 
 export type NativePluginErrorCode =
 	| 'NATIVE_BRIDGE_ERROR'
@@ -200,16 +244,16 @@ export type NativePluginErrorCode =
 	| 'NATIVE_PLUGIN_SCOPE_DISPOSED'
 	| 'NATIVE_PLUGIN_UNAVAILABLE';
 
-export interface NativePluginError {
+export type NativePluginError = {
 	code: NativePluginErrorCode;
 	message: string;
 	capability?: NativePluginCapability;
-}
+};
 
-export interface PluginContext {
+export type PluginContext = {
 	readonly manifest: AddonManifest;
 	readonly id: string;
 	readonly capabilities: readonly NativePluginCapability[];
 	readonly native: NativePluginBridge;
 	dispose(): void;
-}
+};

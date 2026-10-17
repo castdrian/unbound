@@ -1,0 +1,16 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"noEmit": false,
+		"declaration": true,
+		"emitDeclarationOnly": true,
+		"rootDir": ".",
+		"outDir": "dist/types"
+	},
+	"files": [
+		"src/api/index.ts",
+		"src/api/client.ts",
+		"src/api/publish.ts",
+		"tests/helpers/index.ts"
+	]
+}

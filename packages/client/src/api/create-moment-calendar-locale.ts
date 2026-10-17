@@ -1,18 +1,16 @@
 import resolveMomentLocale from './resolve-moment-locale';
 
-type CalendarMethod = (...args: any[]) => any;
-type InstanceLocaleSetter = (this: unknown, locale: string) => unknown;
-
-function createMomentCalendarLocale<T extends CalendarMethod>(
-	original: T,
+function createMomentCalendarLocale<This, A extends unknown[], R>(
+	original: (this: This, ...args: A) => R,
 	getLocale: () => string,
 	getAvailableLocales: () => string[],
-	setInstanceLocale: InstanceLocaleSetter,
-): T {
-	return function (this: unknown, ...args: Parameters<T>) {
+	setInstanceLocale: (this: This, locale: string) => void,
+): (this: This, ...args: A) => R {
+	return function (this: This, ...args: A) {
 		setInstanceLocale.call(this, resolveMomentLocale(getLocale(), getAvailableLocales()));
+
 		return original.apply(this, args);
-	} as T;
+	};
 }
 
 export default createMomentCalendarLocale;

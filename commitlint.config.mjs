@@ -1,5 +1,1 @@
-const config = {
-	extends: ['@commitlint/config-angular'],
-};
-
-export default config;
+export { default } from '@marioparaschiv/oxc-config/commitlint';

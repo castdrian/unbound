@@ -1,10 +1,11 @@
+import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 
 import { Discord } from '~/api/metro/components';
 
 type CustomScreenParams = {
 	title?: string;
-	render?: () => any;
+	render?: () => ReactNode;
 };
 
 type CustomScreenProps = {
@@ -19,7 +20,9 @@ function CustomScreen({ route }: CustomScreenProps) {
 	const { title, render } = route.params ?? {};
 
 	useEffect(() => {
-		if (title) navigation.setOptions({ title });
+		if (title) {
+			navigation.setOptions({ title });
+		}
 	}, [title]);
 
 	return render?.() ?? null;

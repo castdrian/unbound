@@ -4,6 +4,11 @@
 	"private": true,
 	"type": "module",
 	"module": "index.ts",
+	"dependencies": {
+		"@unbound-app/contracts": "workspace:*",
+		"@unbound-app/logger": "workspace:*",
+		"zod": "^4.0.0"
+	},
 	"devDependencies": {
 		"@babel/core": "^7.28.6",
 		"@babel/plugin-transform-block-scoping": "^7.28.6",

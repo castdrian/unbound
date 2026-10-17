@@ -23,6 +23,7 @@ function AddonList({ kind }: AddonListProps) {
 
 	if (!addons.length) {
 		const type = ManagerNames[kind].toLowerCase();
+
 		return <Empty image='empty_permission'>{format('UNBOUND_NO_ADDONS', { type })}</Empty>;
 	}
 

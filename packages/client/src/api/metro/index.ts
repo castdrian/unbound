@@ -1,4 +1,6 @@
-import type { AnyProps, Fn } from '@unbound-app/types/utils';
+import '~/api/metro/registry';
+
+import type { DiscordFunction } from '@unbound-app/types/components';
 import { createLogger } from '@unbound-app/logger';
 import noop from '@unbound-app/utils/noop';
 
@@ -27,25 +29,31 @@ export type MetroSearchOptions = {
 };
 
 /** Search options for {@link findStore}, adding the `short` name-matching toggle. */
-export interface MetroStoreOptions extends MetroSearchOptions {
+export type MetroStoreOptions = {
 	short?: boolean;
-}
+} & MetroSearchOptions;
 
 /** Search options for {@link findLazy}, adding a `signal` that abandons the wait when aborted. */
-export interface MetroLazySearchOptions extends Omit<MetroSearchOptions, 'lazy' | 'all'> {
+export type MetroLazySearchOptions = {
 	signal?: AbortSignal;
-}
+} & Omit<MetroSearchOptions, 'lazy' | 'all'>;
 
 /** A single entry in a {@link bulk} search: a filter plus its per-item options. */
-export interface MetroBulkItem extends Omit<MetroSearchOptions, 'initial' | 'cache'> {
+export type MetroBulkItem = {
 	filter: MetroFilter;
-}
+} & Omit<MetroSearchOptions, 'initial' | 'cache'>;
 
 /** Tuple of search terms followed by a trailing options object. */
 export type MetroStringFindWithOptions<T extends string, Options = MetroSearchOptions> = [
 	...T[],
 	Options,
 ];
+
+/** An object of shape `T` widened with an arbitrary property index. */
+export type AnyProps<T = unknown> = T & Record<PropertyKey, MetroExport>;
+
+/** A function or class exported by a Discord module, whose signature Discord does not document. */
+export type MetroFunction = DiscordFunction & (new (...args: any[]) => any);
 
 /** A bag carrying a `params` array of prop names. */
 type MetroParamsBag<T extends string> = { params: T[] };
@@ -55,11 +63,11 @@ type MetroBulkMarker = { bulk: true };
 
 /** A record keyed by the non-options entries of a find argument tuple. */
 type MetroPropsRecord<T extends any[]> = {
-	[k in Exclude<T[number], Record<PropertyKey, any>>]: any;
+	[k in Exclude<T[number], object>]: MetroExport;
 };
 
 /** A record keyed by the prop names listed in a single bulk item's `params`. */
-type MetroParamsRecord<Params extends PropertyKey[]> = { [P in Params[number]]: any };
+type MetroParamsRecord<Params extends PropertyKey[]> = { [P in Params[number]]: MetroExport };
 
 /** Tuple of param bags followed by a `{ bulk: true }` marker, describing a bulk find. */
 export type MetroBulkFind<T extends string> = [
@@ -68,7 +76,7 @@ export type MetroBulkFind<T extends string> = [
 ];
 
 /** Widens a single result to an array when the search was made with `all: true`. */
-export type MetroAllValues<T extends Record<PropertyKey, any>, U extends unknown> = T extends {
+export type MetroAllValues<T extends MetroSearchOptions, U> = T extends {
 	all: true;
 }
 	? U[]
@@ -87,8 +95,8 @@ export type MetroSingleModuleByName<T extends any[]> = T extends [
 	...any,
 	infer O extends MetroSearchOptions,
 ]
-	? MetroAllValues<O, O extends { interop: false } ? { default: Fn } : Fn>
-	: Fn;
+	? MetroAllValues<O, O extends { interop: false } ? { default: MetroFunction } : MetroFunction>
+	: MetroFunction;
 
 /** Result shape of a bulk by-property search, one record per requested item. */
 export type MetroBulkModuleByProperty<T extends any[]> = {
@@ -97,7 +105,7 @@ export type MetroBulkModuleByProperty<T extends any[]> = {
 
 /** Result shape of a bulk by-name search, one function per requested item. */
 export type MetroBulkModuleByName<T extends any[]> = {
-	[K in keyof T]: T[K] extends { interop: false } ? { default: Fn } : Fn;
+	[K in keyof T]: T[K] extends { interop: false } ? { default: MetroFunction } : MetroFunction;
 };
 
 /** Dispatches to the bulk or single by-property result shape based on the argument tuple. */
@@ -124,30 +132,35 @@ for (let i = 0, len = Cache.moduleIds.length; i < len; i++) {
 		continue;
 	}
 
+	if (!mdl) {
+		continue;
+	}
+
 	if (mdl.factory) {
 		const orig = mdl.factory;
 
 		mdl.factory = function (...args) {
 			try {
 				const originalImportingId = data.importingModuleId;
+
 				data.importingModuleId = id;
 
 				const [, metroRequire, , , moduleObject] = args;
 
 				args[2] = (id: number) => {
 					const exps = metroRequire(id);
+
 					return exps && exps.__esModule ? exps.default : exps;
 				};
 
 				args[3] = (id: number) => {
 					const exps = metroRequire(id);
-					if (exps && exps.__esModule) return exps;
 
-					const importAll: Record<string, any> = {};
-					if (exps) Object.assign(importAll, exps);
-					importAll.default = exps;
+					if (exps && exps.__esModule) {
+						return exps;
+					}
 
-					return importAll;
+					return { ...exps, default: exps };
 				};
 
 				orig.apply(self, args);
@@ -219,10 +232,14 @@ function onModuleRequire(exports: any, id: number) {
 
 			if (filePath && data.importingModuleId !== -1) {
 				const module = window.modules.get(data.importingModuleId);
-				module.__filePath = filePath;
+
+				if (module) {
+					module.__filePath = filePath;
+				}
 			}
 
 			const result = orig.apply(this, args);
+
 			return result;
 		};
 
@@ -230,6 +247,7 @@ function onModuleRequire(exports: any, id: number) {
 	}
 
 	if (data.listeners.size === 0) return;
+
 	for (const listener of data.listeners) {
 		try {
 			listener(exports, id);
@@ -246,6 +264,7 @@ function onModuleRequire(exports: any, id: number) {
  */
 export function addListener(listener: (mdl: any, id: number) => void) {
 	data.listeners.add(listener);
+
 	return () => data.listeners.delete(listener);
 }
 
@@ -269,10 +288,16 @@ export const off = removeListener;
  */
 export function findLazy(filter: MetroFilter, options: MetroLazySearchOptions = {}) {
 	const existing = find(filter, options);
-	if (existing !== void 0) return existing;
+
+	if (existing !== void 0) {
+		return existing;
+	}
 
 	const { signal } = options;
-	if (signal?.aborted) return Promise.resolve(void 0);
+
+	if (signal?.aborted) {
+		return Promise.resolve(void 0);
+	}
 
 	return new Promise((resolve) => {
 		function settle(mdl: any) {
@@ -286,7 +311,10 @@ export function findLazy(filter: MetroFilter, options: MetroLazySearchOptions = 
 		}
 
 		function callback(mdl, id) {
-			if (filter(mdl, id)) return settle(mdl);
+			if (filter(mdl, id)) {
+				return settle(mdl);
+			}
+
 			if (mdl.default && filter(mdl.default, id)) {
 				return settle((options.interop ?? true) ? mdl.default : mdl);
 			}
@@ -306,7 +334,9 @@ export function findLazy(filter: MetroFilter, options: MetroLazySearchOptions = 
  * @returns The first matching module, an array of matches when `all` is set, or `null`.
  */
 export function find(filter: MetroFilter, options: MetroSearchOptions = {}) {
-	if (!filter) throw new Error('You must provide a filter to search by.');
+	if (!filter) {
+		throw new Error('You must provide a filter to search by.');
+	}
 
 	const {
 		all = false,
@@ -321,11 +351,14 @@ export function find(filter: MetroFilter, options: MetroSearchOptions = {}) {
 
 	const result = { found: initial ?? [], errored: false };
 
-	const search: MetroFilter = (mdl: any, id: number | string): boolean => {
+	const search: MetroFilter = (mdl, id) => {
 		try {
 			return !!filter(mdl, id);
 		} catch (error) {
-			if (result.errored) return false;
+			if (result.errored) {
+				return false;
+			}
+
 			result.errored = true;
 
 			Logger.error(
@@ -354,26 +387,47 @@ export function find(filter: MetroFilter, options: MetroSearchOptions = {}) {
 	if (cache) {
 		for (const id of cache) {
 			const rawModule = window.modules.get(id);
-			if (!rawModule) continue;
-			if (blacklist.has(id)) continue;
+
+			if (!rawModule) {
+				continue;
+			}
+
+			if (blacklist.has(id)) {
+				continue;
+			}
 
 			if (!rawModule.isInitialized) {
-				if (!initializeModules) continue;
+				if (!initializeModules) {
+					continue;
+				}
+
 				const initialized = initializeModule(id);
-				if (!initialized) continue;
+
+				if (!initialized) {
+					continue;
+				}
 			}
 
 			const found = searchExports(search, rawModule, id, esModules, interop, raw);
-			if (!found) continue;
-			if (!all) return found;
+
+			if (!found) {
+				continue;
+			}
+
+			if (!all) {
+				return found;
+			}
 
 			result.found.push(found);
 		}
 
 		return all ? result.found : null;
 	}
+
 	/****** END CACHE ******/
-	if (cacheOnly) return all ? result.found : null;
+	if (cacheOnly) {
+		return all ? result.found : null;
+	}
 
 	const store = useCache ? data.cache : window.modules;
 	const keys = useCache ? [...store.keys()] : Cache.moduleIds;
@@ -381,17 +435,32 @@ export function find(filter: MetroFilter, options: MetroSearchOptions = {}) {
 	for (let i = 0, len = keys.length; i < len; i++) {
 		const id = keys[i];
 		const rawModule = store.get(id);
-		if (blacklist.has(id)) continue;
+
+		if (blacklist.has(id)) {
+			continue;
+		}
 
 		if (!rawModule.isInitialized) {
-			if (!initializeModules) continue;
+			if (!initializeModules) {
+				continue;
+			}
+
 			const initialized = initializeModule(id);
-			if (!initialized) continue;
+
+			if (!initialized) {
+				continue;
+			}
 		}
 
 		const found = searchExports(search, rawModule, id, esModules, interop, raw);
-		if (!found) continue;
-		if (!all) return found;
+
+		if (!found) {
+			continue;
+		}
+
+		if (!all) {
+			return found;
+		}
 
 		result.found.push(found);
 	}
@@ -418,7 +487,10 @@ export function bulk(...items: MetroBulkItem[]) {
 		((mdl, id) => {
 			for (let i = 0, len = items.length; i < len; i++) {
 				const item = items[i];
-				if (!item.filter) continue;
+
+				if (!item.filter) {
+					continue;
+				}
 
 				if (item.filter(mdl, id)) {
 					if (item.all) {
@@ -539,14 +611,18 @@ export function findByName<
  * @returns `true` if the module is initialised, `false` if it was blacklisted.
  */
 export function initializeModule(id: number) {
-	if (blacklist.has(id)) return false;
+	if (blacklist.has(id)) {
+		return false;
+	}
 
 	const module = window.modules.get(id);
+
 	if (module?.isInitialized && !module?.hasError) {
 		return true;
 	}
 
 	const originalHandler = ErrorUtils.getGlobalHandler();
+
 	ErrorUtils.setGlobalHandler(noop);
 
 	try {
@@ -590,6 +666,7 @@ function searchExports(
 	raw: boolean = false,
 ) {
 	const mdl = rawModule.publicModule.exports;
+
 	if (!mdl) return null;
 
 	if (isInvalidExport(mdl)) {
@@ -609,15 +686,15 @@ function searchExports(
 		return raw ? rawModule : mdl;
 	}
 
-	if (!filter.isRaw && esModules && mdl.default && filter(mdl.default, id)) {
-		if (filter[CACHE_KEY]) {
-			Cache.addCachedIDForKey(filter[CACHE_KEY], id);
-		}
+	if (filter.isRaw || !esModules || !mdl.default || !filter(mdl.default, id)) return;
 
-		data.cache.set(id, rawModule);
-
-		return raw ? rawModule : interop ? mdl.default : mdl;
+	if (filter[CACHE_KEY]) {
+		Cache.addCachedIDForKey(filter[CACHE_KEY], id);
 	}
+
+	data.cache.set(id, rawModule);
+
+	return raw ? rawModule : interop ? mdl.default : mdl;
 }
 
 /**
@@ -628,7 +705,11 @@ function searchExports(
  * @param filter A filter function, or the name of a {@link Filters} entry to resolve.
  * @returns A lazy proxy, a bulk result array, or the result of {@link find}.
  */
-function searchWithOptions(args: any[], options: MetroInternalOptions, filter: Fn | string) {
+function searchWithOptions(
+	args: any[],
+	options: MetroInternalOptions,
+	filter: DiscordFunction | string,
+) {
 	if (options.lazy) {
 		let cache;
 
@@ -713,7 +794,9 @@ const INVALID_EXPORT_SYMBOL = Symbol('is-invalid-export');
  * @returns `true` if `mdl` is a catch-all proxy.
  */
 function isCatchAllProxy(mdl: any): boolean {
-	if (!mdl || typeof mdl !== 'object') return false;
+	if (!mdl || typeof mdl !== 'object') {
+		return false;
+	}
 
 	try {
 		return INVALID_EXPORT_SYMBOL in mdl && !Object.hasOwn(mdl, INVALID_EXPORT_SYMBOL);

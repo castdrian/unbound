@@ -47,3 +47,5 @@ export declare function getByName(name: string, type?: 'svg' | 'png'): UnboundAs
  */
 export declare function getIDByName(name: string, type?: 'svg' | 'png'): number | undefined;
 export { _default as default };
+
+export {};

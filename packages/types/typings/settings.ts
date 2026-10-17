@@ -1,13 +1,14 @@
 import type { ComponentType } from 'react';
 
 /** The screen descriptor a settings route entry renders. */
-export interface SettingsScreen {
+export type SettingsScreen = {
 	route: string;
-	getComponent: () => ComponentType<any>;
-}
+	/** Discord's navigator renders the screen with its own route props, so any component fits. */
+	getComponent: () => ComponentType<never>;
+};
 
 /** A registered Unbound settings entry, mirroring Discord's `SETTING_RENDERER_CONFIG` route shape. */
-export interface SettingsEntry {
+export type SettingsEntry = {
 	type: 'route';
 	key: string;
 	useTitle: () => string;
@@ -15,6 +16,12 @@ export interface SettingsEntry {
 	parent: string | null;
 	section?: string;
 	excludeFromDisplay?: boolean;
-	IconComponent?: ComponentType<any>;
+	IconComponent?: ComponentType;
 	screen: SettingsScreen;
-}
+};
+
+/** A JSON value held in a settings store. */
+export type SettingsValue = string | number | boolean | null | SettingsValue[] | SettingsObject;
+
+/** A settings store, or a nested group of settings within one. */
+export type SettingsObject = { [key: string]: SettingsValue };

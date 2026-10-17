@@ -76,6 +76,7 @@ describe('hoistLibraries', () => {
 		);
 
 		const usedOwners = new Set<string>();
+
 		hoistLibraries(
 			sourceFile,
 			'/api/src/sample.d.ts',

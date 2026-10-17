@@ -8,12 +8,15 @@ const SUMMARIES: Record<string, string> = {
 	create: 'Scaffold a new addon or workspace.',
 	dev: 'Watch addons and rebuild on change.',
 	build: 'Build every addon in the workspace.',
+	publish: 'Build an addon and submit it for review.',
+	login: 'Log in to Unbound for publishing.',
+	logout: 'Delete the stored login.',
 	eval: 'Run JavaScript on the connected device.',
 	mcp: 'Serve the debugger as an MCP server.',
 };
 
 /** The order commands appear in the menu, most-reached-for first. */
-const ORDER = ['create', 'dev', 'build', 'eval', 'mcp'];
+const ORDER = ['create', 'dev', 'build', 'publish', 'login', 'logout', 'eval', 'mcp'];
 
 /**
  * @description Renders the branded `ubd` menu shown when the CLI runs with no command: a colored

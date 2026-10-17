@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 
+import type { ManagerKind } from '~/lib/constants';
 import { Discord } from '~/api/metro/components';
-import { ManagerKind } from '~/lib/constants';
 import { Icons } from '~/api/assets';
 
 import InstallUrlModal from './install-url-modal';

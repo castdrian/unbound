@@ -1,3 +1,4 @@
+import type { TextProps } from '@unbound-app/types';
 import { createElement, memo } from 'react';
 import type { ComponentType } from 'react';
 import { View } from 'react-native';
@@ -13,11 +14,13 @@ type ToastContentProps = {
 
 type FieldProps = {
 	value: string | ComponentType;
-	[key: string]: any;
-};
+} & Omit<TextProps, 'children'>;
 
 function Field({ value, ...props }: FieldProps) {
-	if (typeof value === 'function') return createElement(value);
+	if (typeof value === 'function') {
+		return createElement(value);
+	}
+
 	return <Discord.Text {...props}>{value}</Discord.Text>;
 }
 

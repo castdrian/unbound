@@ -1,7 +1,7 @@
 import type { Addon } from '@unbound-app/types';
 import { useEffect } from 'react';
 
-import { ManagerKind } from '~/lib/constants';
+import type { ManagerKind } from '~/lib/constants';
 import { getManager } from '~/managers/utils';
 
 import useForceUpdate from './use-force-update';

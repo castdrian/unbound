@@ -10,6 +10,9 @@ import { fieldToFlag } from '~/lib/zod-flags';
 /** The value that marks a positional as fed from stdin instead of the command line. */
 const STDIN_MARKER = '-';
 
+/** The raw command-line input, before the definition's schema validates it. */
+type CommandInput = z.input<z.ZodObject<z.ZodRawShape>>;
+
 /**
  * @description Builds a cleye command from a registry definition: the fields named in
  * `cli.positionals` become positional parameters, every other schema field becomes a flag whose type
@@ -31,7 +34,9 @@ export function toCleyeCommand(definition: CommandDefinition<z.ZodObject<z.ZodRa
 	};
 
 	for (const [name, field] of Object.entries(definition.schema.shape)) {
-		if (positionalNames.includes(name)) continue;
+		if (positionalNames.includes(name)) {
+			continue;
+		}
 
 		flags[name] = fieldToFlag(field as z.ZodType);
 	}
@@ -45,7 +50,7 @@ export function toCleyeCommand(definition: CommandDefinition<z.ZodObject<z.ZodRa
 		},
 		async (parsed) => {
 			const { json, ...flagInput } = parsed.flags;
-			const input: Record<string, unknown> = { ...flagInput };
+			const input: CommandInput = { ...flagInput };
 
 			for (const name of positionalNames) {
 				input[name] = parsed._[name as keyof typeof parsed._];
@@ -58,7 +63,7 @@ export function toCleyeCommand(definition: CommandDefinition<z.ZodObject<z.ZodRa
 
 async function run(
 	definition: CommandDefinition<z.ZodObject<z.ZodRawShape>>,
-	input: Record<string, unknown>,
+	input: CommandInput,
 	stdinField: string | undefined,
 	json: boolean,
 ) {
@@ -92,7 +97,9 @@ async function run(
 			process.stderr.write(`${output.text}\n`);
 		}
 
-		if (output.ok) process.exit(0);
+		if (output.ok) {
+			process.exit(0);
+		}
 
 		const connectionError = context.connected && !context.client.isDeviceConnected;
 

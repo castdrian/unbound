@@ -1,3 +1,2 @@
 allowBuilds:
-  '@ast-grep/cli': true
-  lefthook: true
+    lefthook: true

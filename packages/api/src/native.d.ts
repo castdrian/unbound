@@ -30,8 +30,8 @@ export type {
 	PluginContext,
 } from './_internal';
 import type { NativePlatformBridge, NativePluginCapability } from './_internal';
-import type { Fn, PromiseFn } from './utils';
 declare const NativePlatform$1: NativePlatformBridge | undefined;
+
 export declare class NativePluginCapabilityError extends Error {
 	readonly code = 'NATIVE_PLUGIN_CAPABILITY_DENIED';
 	readonly capability: NativePluginCapability;
@@ -62,21 +62,18 @@ export declare const DeviceInfo: DeviceInfoType;
  * @param names The candidate native module names to look up, in priority order.
  * @returns The first matching native module.
  */
-export declare function getNativeModule<T = any>(...names: string[]): T;
+export declare function getNativeModule<T>(...names: string[]): T;
 /**
  * @description Reads Hermes' runtime metadata, such as the bytecode version, GC, and build channel.
- * React Native types the global `HermesInternal` as `null | {}`, so this reads it via
- * `window.HermesInternal` where our own typing wins.
  * @returns The runtime property map, or an empty object when Hermes internals are unavailable.
  */
-export declare function getRuntimeProperties(): Record<string, any>;
+export declare function getRuntimeProperties(): HermesRuntimeProperties;
 /**
  * @description Persists pending settings to storage, then reloads the native bundle.
  */
 export declare function reload(): Promise<void>;
-
 /** Build and release metadata reported by the native client info module. */
-export interface BundleInfoType {
+export type BundleInfoType = {
 	Version: string;
 	ReleaseChannel: string;
 	Manifest: string;
@@ -87,27 +84,29 @@ export interface BundleInfoType {
 	SentryStaffDsn: string;
 	Identifier: string;
 	SentryAlphaBetaDsn: string;
-}
+};
 /** The native `BundleUpdaterManager` module surface for OTA updates and reloading the bundle. */
-export interface DCDBundleManagerType {
-	getInitialBundleDownloaded: PromiseFn;
-	getInitialOtaUpdateChecked: PromiseFn;
-	checkForUpdateAndReload: Fn;
-	reload: Fn;
-	getOtaRootPath: PromiseFn;
-	getBuildOverrideCookieContents: PromiseFn;
-	setBuildOverrideCookieHeader: PromiseFn;
-	getManifestInfo: PromiseFn;
-	addListener: Fn;
-	removeListeners: Fn;
-}
+export type DCDBundleManagerType = {
+	getInitialBundleDownloaded: UndocumentedNativeMethod;
+	getInitialOtaUpdateChecked: UndocumentedNativeMethod;
+	checkForUpdateAndReload(): void;
+	reload(): void;
+	getOtaRootPath: UndocumentedNativeMethod;
+	getBuildOverrideCookieContents: UndocumentedNativeMethod;
+	setBuildOverrideCookieHeader: UndocumentedNativeMethod;
+	getManifestInfo: UndocumentedNativeMethod;
+	addListener(eventName: string): void;
+	removeListeners(count: number): void;
+};
 /** The constant directory paths exposed by the native `DCDFileManager`. */
-export interface DCDFileManagerConstants {
+export type DCDFileManagerConstants = {
 	CacheDirPath: string;
 	DocumentsDirPath: string;
-}
+};
+/** The text encodings accepted by the native `DCDFileManager` read/write operations. */
+export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
 /** The native `DCDFileManager` module surface for reading, writing, and inspecting files. */
-export interface DCDFileManagerType extends DCDFileManagerConstants {
+export type DCDFileManagerType = {
 	readFile(path: string, encoding: DCDFileManagerEncoding): Promise<string>;
 	writeFile(
 		type: 'documents' | 'cache',
@@ -115,16 +114,16 @@ export interface DCDFileManagerType extends DCDFileManagerConstants {
 		data: string,
 		encoding: DCDFileManagerEncoding,
 	): Promise<string>;
-	removeFile(type: 'documents' | 'cache', path: string): Promise<any>;
-	readAsset(): Promise<unknown>;
-	getSize(): Promise<unknown>;
-	getVideoDimensions(): Promise<unknown>;
+	removeFile(type: 'documents' | 'cache', path: string): Promise<boolean>;
+	readAsset: UndocumentedNativeMethod;
+	getSize: UndocumentedNativeMethod;
+	getVideoDimensions: UndocumentedNativeMethod;
 	fileExists(path: string): Promise<boolean>;
-	saveFileToGallery(): Promise<unknown>;
+	saveFileToGallery: UndocumentedNativeMethod;
 	getConstants(): DCDFileManagerConstants;
-}
+} & DCDFileManagerConstants;
 /** Hardware and OS details reported by the native device module. */
-export interface DeviceInfoType {
+export type DeviceInfoType = {
 	isTaskBarEnabled: boolean;
 	maxCpuFreq: string;
 	socName: string;
@@ -137,8 +136,10 @@ export interface DeviceInfoType {
 	deviceBrand: string;
 	ramSize: string;
 	device: string;
-}
+};
+export type HermesRuntimeProperties = ReturnType<HermesInternalObject['getRuntimeProperties']>;
+export type UndocumentedNativeMethod = () => Promise<unknown>;
 
-/** The text encodings accepted by the native `DCDFileManager` read/write operations. */
-export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
 export { NativePlatform$1 as NativePlatform };
+
+export {};

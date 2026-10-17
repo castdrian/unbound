@@ -23,6 +23,7 @@ const readyState = (runtimeGlobal.__unboundReady ??= {
 	callbacks: [],
 });
 
+/** Marks Unbound as ready and runs every callback waiting on it. */
 export function markReady(): void {
 	if (readyState.ready) return;
 
@@ -31,13 +32,12 @@ export function markReady(): void {
 	for (const callback of readyState.callbacks.splice(0)) callback();
 }
 
-/** A native → JS call held back until our initialization has finished. */
-type DeferredCall = {
-	object: any;
-	method: string;
-	args: any[];
-	resume?: (call: DeferredCall) => void;
-};
+/** A native → JS method that may be held back. */
+// UNKNOWN: matches any method; the held method's own return type flows through `ReturnType`.
+type NativeMethod = (...args: never[]) => unknown;
+
+/** Replays a native → JS call held back until our initialization has finished. */
+type DeferredCall = () => void;
 
 const deferredCalls: DeferredCall[] = [];
 const unpatches: (() => void)[] = [];
@@ -54,12 +54,15 @@ export default function deferUntilReady(onReady: () => Promise<void>): void {
 	// `__r` already exists: the hook point is gone (legacy Vendetta-style loader). Initialize now.
 	if (typeof window.__r !== 'undefined') {
 		void runReady(onReady).then((initialized) => {
-			if (initialized) markReady();
+			if (initialized) {
+				markReady();
+			}
 		});
+
 		return;
 	}
 
-	let requireFn: any;
+	let requireFn: ((id: number) => ReturnType<MetroRequire>) | undefined;
 
 	Object.defineProperties(globalThis, {
 		__r: {
@@ -67,7 +70,9 @@ export default function deferUntilReady(onReady: () => Promise<void>): void {
 			get: () => requireFn,
 			set(original: MetroRequire) {
 				requireFn = function patchedRequire(id: number) {
-					if (id !== 0) return original(id);
+					if (id !== 0) {
+						return original(id);
+					}
 
 					ensureModules();
 					onRunApplication(original, onReady);
@@ -79,6 +84,7 @@ export default function deferUntilReady(onReady: () => Promise<void>): void {
 			configurable: true,
 			get() {
 				ensureModules();
+
 				return this.value;
 			},
 			set(value: MetroDefine) {
@@ -91,9 +97,12 @@ export default function deferUntilReady(onReady: () => Promise<void>): void {
 /** Populates `window.modules` from the host registry factory if it has not been materialised yet. */
 function ensureModules() {
 	// `window.Object` is guarded because the host has it momentarily undefined during early boot.
-	if (!window.modules && typeof window.Object !== 'undefined') {
-		const modules = window.__c?.();
-		if (modules) window.modules = modules;
+	if (window.modules || typeof window.Object === 'undefined') return;
+
+	const modules = window.__c?.();
+
+	if (modules) {
+		window.modules = modules;
 	}
 }
 
@@ -110,7 +119,10 @@ function onRunApplication(original: MetroRequire, onReady: () => Promise<void>) 
 
 		original(0);
 		resumeDeferred();
-		if (initialized) markReady();
+
+		if (initialized) {
+			markReady();
+		}
 	});
 }
 
@@ -118,83 +130,87 @@ function onRunApplication(original: MetroRequire, onReady: () => Promise<void>) 
 async function runReady(onReady: () => Promise<void>): Promise<boolean> {
 	try {
 		await onReady();
+
 		return true;
-	} catch (error: any) {
-		const message = 'stack' in error ? error.stack : String(error);
+	} catch (error) {
+		const message =
+			typeof error === 'object' && error !== null && 'stack' in error
+				? String(error.stack)
+				: String(error);
+
 		logger.error('Failed to initialize Unbound:', error);
 		alert(`Unbound failed to initialize: ${message}`);
+
 		return false;
 	}
 }
 
 /**
- * Intercepts the native → JS entry points that would otherwise drive an un-run app: the old
- * architecture's batched bridge and the New Architecture's app registry. Held calls replay in
- * {@link resumeDeferred}.
+ * Intercepts the native → JS entry points of an un-run app (the old architecture's batched bridge
+ * and the New Architecture's app registry). Held calls replay in {@link resumeDeferred}.
  */
 function holdNativeCalls() {
 	const bridge = window.__fbBatchedBridge;
+
 	if (bridge) {
 		deferMethodExecution(
 			bridge,
 			'callFunctionReturnFlushedQueue',
+			() => bridge.flushedQueue(),
 			// Hold AppRegistry calls (the app is not registered until we run it) and any module that
 			// is not yet callable; everything else passes through immediately.
-			(...args) => args[0] === 'AppRegistry' || !bridge.getCallableModule(args[0]),
-			({ args }) => {
-				if (bridge.getCallableModule(args[0])) {
-					bridge.__callFunction(...args);
+			(module) => module === 'AppRegistry' || !bridge.getCallableModule(module),
+			(module, method, args) => {
+				if (bridge.getCallableModule(module)) {
+					bridge.__callFunction(module, method, args);
 				}
 			},
-			() => bridge.flushedQueue(),
 		);
 	}
 
 	const registry = window.RN$AppRegistry;
+
 	if (registry) {
-		deferMethodExecution(registry, 'runApplication');
+		deferMethodExecution(registry, 'runApplication', () => undefined);
 	}
 }
 
 /**
  * Wraps `object[method]` so that matching calls are queued instead of executed, recording an
  * unpatch to restore the original. Twin of {@link resumeDeferred}.
- * @param condition Decides whether a call should be held; held when omitted.
- * @param resume Replays a held call; defaults to invoking the original method with its args.
+ * @param object The object owning the method.
+ * @param method The name of the method to wrap.
  * @param returnWith Produces the value returned to the caller while the call is held.
+ * @param condition Decides whether a call should be held; every call is held by default.
+ * @param resume Replays a held call; defaults to invoking the method with its args.
  */
-function deferMethodExecution(
-	object: any,
-	method: string,
-	condition?: (...args: any[]) => boolean,
-	resume?: (call: DeferredCall) => void,
-	returnWith?: (call: DeferredCall) => any,
+function deferMethodExecution<T extends Record<K, NativeMethod>, K extends keyof T>(
+	object: T,
+	method: K,
+	returnWith: () => ReturnType<T[K]>,
+	condition: (...args: Parameters<T[K]>) => boolean = () => true,
+	resume: (...args: Parameters<T[K]>) => void = (...args) =>
+		Reflect.apply(object[method], object, args),
 ) {
 	const original = object[method];
 
-	object[method] = function (this: any, ...args: any[]) {
-		if (condition && !condition(...args)) {
-			return original.apply(this, args);
+	function patched(this: T, ...args: Parameters<T[K]>): ReturnType<T[K]> {
+		if (!condition(...args)) {
+			return Reflect.apply(original, this, args);
 		}
 
-		const call: DeferredCall = { object, method, args, resume };
-		deferredCalls.push(call);
+		deferredCalls.push(() => resume(...args));
 
-		return returnWith?.(call);
-	};
+		return returnWith();
+	}
 
-	unpatches.push(() => {
-		object[method] = original;
-	});
+	Reflect.set(object, method, patched);
+	unpatches.push(() => Reflect.set(object, method, original));
 }
 
 /** Replays every held native call in order, then clears the queue. Twin of {@link holdNativeCalls}. */
 function resumeDeferred() {
-	for (const call of deferredCalls.splice(0)) {
-		if (call.resume) {
-			call.resume(call);
-		} else {
-			call.object[call.method](...call.args);
-		}
+	for (const replay of deferredCalls.splice(0)) {
+		replay();
 	}
 }

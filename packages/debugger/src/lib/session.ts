@@ -7,31 +7,29 @@ import type {
 } from '@unbound-app/debugger-protocol';
 
 /**
- * The bridge's routing core, transport-agnostic. Holds the single device socket and the set of
- * controllers, correlates each eval request to the controller that issued it (so the result goes
- * back to exactly one place), and fans telemetry out to every listener. {@link ws.ts} feeds sockets
- * into this; the terminal REPL consumes it in-process.
+ * The bridge's transport-agnostic routing core: routes each eval result back to the controller that
+ * issued it and fans telemetry out to every listener.
  */
 
 /** The minimal socket surface the session needs, satisfied by `Bun.ServerWebSocket`. */
-export interface SocketLike {
-	send(data: string): unknown;
-	close(): unknown;
-}
+export type SocketLike = {
+	send(data: string): void;
+	close(): void;
+};
 
-interface PendingEval {
+type PendingEval = {
 	/** Delivers the device's answer back to whoever issued this eval (a socket, or the REPL). */
 	deliver: (result: EvalResult) => void;
 	timer: ReturnType<typeof setTimeout>;
-}
+};
 
-interface PendingPush {
+type PendingPush = {
 	/** Delivers the device's reload outcome back to the controller that issued the push. */
 	deliver: (result: PluginPushResult) => void;
 	timer: ReturnType<typeof setTimeout>;
 	/** The controller that issued this push, so a controller detach can fail its in-flight pushes. */
 	origin: SocketLike;
-}
+};
 
 export const state: {
 	device: SocketLike | null;
@@ -60,7 +58,9 @@ const PLUGIN_PUSH_TIMEOUT_MS = 60_000;
  * @returns Whether the device was accepted (false if one is already connected).
  */
 export function attachDevice(socket: SocketLike): boolean {
-	if (state.device) return false;
+	if (state.device) {
+		return false;
+	}
 
 	state.device = socket;
 	broadcastDeviceStatus(true);
@@ -120,13 +120,19 @@ export function detachController(socket: SocketLike) {
 	state.controllers.delete(socket);
 
 	for (const [id, entry] of pending) {
-		if (entry.deliver !== controllerDelivery.get(socket)) continue;
+		if (entry.deliver !== controllerDelivery.get(socket)) {
+			continue;
+		}
+
 		clearTimeout(entry.timer);
 		pending.delete(id);
 	}
 
 	for (const [id, entry] of pendingPushes) {
-		if (entry.origin !== socket) continue;
+		if (entry.origin !== socket) {
+			continue;
+		}
+
 		clearTimeout(entry.timer);
 		pendingPushes.delete(id);
 	}
@@ -152,6 +158,7 @@ export function evaluateForController(socket: SocketLike, id: string, code: stri
 
 	dispatch(id, code, (result) => {
 		for (const listener of resultListeners) listener(result);
+
 		deliver(result);
 	});
 }
@@ -173,6 +180,7 @@ export function pushPluginForController(socket: SocketLike, request: PluginPushR
 			ok: false,
 			error: 'No device is connected to the debugger.',
 		});
+
 		return;
 	}
 
@@ -211,6 +219,7 @@ function dispatch(id: string, code: string, deliver: (result: EvalResult) => voi
 			ok: false,
 			error: 'No device is connected to the debugger.',
 		});
+
 		return;
 	}
 
@@ -236,6 +245,7 @@ function dispatch(id: string, code: string, deliver: (result: EvalResult) => voi
 export function handleDeviceMessage(message: BridgeMessage) {
 	if (message.type === 'eval-result') {
 		const entry = pending.get(message.id);
+
 		if (!entry) return;
 
 		clearTimeout(entry.timer);
@@ -247,6 +257,7 @@ export function handleDeviceMessage(message: BridgeMessage) {
 
 	if (message.type === 'plugin-push-result') {
 		const entry = pendingPushes.get(message.id);
+
 		if (!entry) return;
 
 		clearTimeout(entry.timer);
@@ -256,42 +267,65 @@ export function handleDeviceMessage(message: BridgeMessage) {
 		return;
 	}
 
-	if (message.type === 'log') {
-		for (const socket of state.controllers) socket.send(JSON.stringify(message));
-		for (const listener of logListeners) listener(message);
-	}
+	if (message.type !== 'log') return;
+
+	for (const socket of state.controllers) socket.send(JSON.stringify(message));
+
+	for (const listener of logListeners) listener(message);
 }
 
-/** @description Subscribes to device log lines; returns an unsubscribe function. */
+/**
+ * @description Subscribes to device log lines.
+ * @param listener Called with each log line.
+ * @returns An unsubscribe function.
+ */
 export function onLog(listener: (log: LogMessage) => void): () => void {
 	logListeners.add(listener);
+
 	return () => void logListeners.delete(listener);
 }
 
-/** @description Subscribes to device connect/disconnect transitions; returns an unsubscribe function. */
+/**
+ * @description Subscribes to device connect/disconnect transitions.
+ * @param listener Called with whether a device is now connected.
+ * @returns An unsubscribe function.
+ */
 export function onDevice(listener: (connected: boolean) => void): () => void {
 	deviceListeners.add(listener);
+
 	return () => void deviceListeners.delete(listener);
 }
 
-/** @description Subscribes to code a controller (e.g. the MCP) sends to evaluate; returns an unsubscribe function. */
+/**
+ * @description Subscribes to code a controller (e.g. the MCP) sends to evaluate.
+ * @param listener Called with each controller's code.
+ * @returns An unsubscribe function.
+ */
 export function onControllerEval(listener: (code: string) => void): () => void {
 	evalListeners.add(listener);
+
 	return () => void evalListeners.delete(listener);
 }
 
-/** @description Subscribes to the results of controller evals; returns an unsubscribe function. */
+/**
+ * @description Subscribes to the results of controller evals.
+ * @param listener Called with each controller eval's result.
+ * @returns An unsubscribe function.
+ */
 export function onControllerResult(listener: (result: EvalResult) => void): () => void {
 	resultListeners.add(listener);
+
 	return () => void resultListeners.delete(listener);
 }
 
 /**
- * @description Subscribes to controller (MCP) connect/disconnect transitions, with the resulting
- * controller count; returns an unsubscribe function.
+ * @description Subscribes to controller (MCP) connect/disconnect transitions.
+ * @param listener Called with the transition and the resulting controller count.
+ * @returns An unsubscribe function.
  */
 export function onController(listener: (connected: boolean, count: number) => void): () => void {
 	controllerListeners.add(listener);
+
 	return () => void controllerListeners.delete(listener);
 }
 
@@ -300,7 +334,10 @@ const controllerDelivery = new Map<SocketLike, (result: EvalResult) => void>();
 
 function getControllerDelivery(socket: SocketLike): (result: EvalResult) => void {
 	let deliver = controllerDelivery.get(socket);
-	if (deliver) return deliver;
+
+	if (deliver) {
+		return deliver;
+	}
 
 	deliver = (result) => socket.send(JSON.stringify(result));
 	controllerDelivery.set(socket, deliver);
@@ -314,5 +351,6 @@ function sendDeviceStatus(socket: SocketLike, connected: boolean) {
 
 function broadcastDeviceStatus(connected: boolean) {
 	for (const socket of state.controllers) sendDeviceStatus(socket, connected);
+
 	for (const listener of deviceListeners) listener(connected);
 }

@@ -1,9 +1,8 @@
 import { terminal } from 'terminal-kit';
 
 /**
- * Renders the debugger's startup banner: a rounded box, tinted in the brand pink, that adapts to the
- * terminal's width. The box shrinks to fit narrow terminals and caps at a comfortable reading width
- * on wide ones; when the terminal is too narrow for a box, it falls back to plain starred lines.
+ * Renders the debugger's startup banner: a pink rounded box sized to the terminal, capped on wide
+ * ones, falling back to plain starred lines when the terminal is too narrow for a box.
  */
 
 /** Brand pink used for the banner frame and title. */
@@ -47,6 +46,7 @@ export function printBanner(deviceAddress: string, mcpAddress: string) {
 
 	if (inner < MIN_BOX_WIDTH || inner < longest) {
 		printFallback(title, lines);
+
 		return;
 	}
 
@@ -89,6 +89,7 @@ function printBox(title: string, lines: Line[], inner: number) {
 
 function printFallback(title: string, lines: Line[]) {
 	boldRgb(PINK, `✦ ${title}\n`);
+
 	for (const line of lines) {
 		rgb(PINK, `  ${line.label.padEnd(8)}`);
 		rgb(GREY, `${line.value}\n`);
@@ -97,11 +98,17 @@ function printFallback(title: string, lines: Line[]) {
 
 /** The usable terminal width: terminal-kit's when it's a real TTY, else stdout's, else a default. */
 function terminalWidth(): number {
-	const fromKit = (terminal as unknown as { width?: number }).width;
-	if (typeof fromKit === 'number' && Number.isFinite(fromKit)) return fromKit;
+	const fromKit = terminal.width;
+
+	if (Number.isFinite(fromKit)) {
+		return fromKit;
+	}
 
 	const fromStdout = process.stdout.columns;
-	if (typeof fromStdout === 'number' && fromStdout > 0) return fromStdout;
+
+	if (typeof fromStdout === 'number' && fromStdout > 0) {
+		return fromStdout;
+	}
 
 	return 80;
 }
@@ -109,19 +116,14 @@ function terminalWidth(): number {
 function center(text: string, width: number): string {
 	const total = Math.max(width - text.length, 0);
 	const left = Math.floor(total / 2);
+
 	return ' '.repeat(left) + text + ' '.repeat(total - left);
 }
 
 function rgb(hex: string, text: string) {
-	(terminal as unknown as { colorRgbHex: (hex: string, str: string) => void }).colorRgbHex(
-		hex,
-		text,
-	);
+	terminal.colorRgbHex(hex, text);
 }
 
 function boldRgb(hex: string, text: string) {
-	(terminal.bold as unknown as { colorRgbHex: (hex: string, str: string) => void }).colorRgbHex(
-		hex,
-		text,
-	);
+	terminal.bold.colorRgbHex(hex, text);
 }

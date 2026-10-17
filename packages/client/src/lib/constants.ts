@@ -15,9 +15,8 @@ export const DEV: boolean = $$DEV$$;
 export const I18N_BASE_URL = '$$I18N_BASE_URL$$';
 
 /**
- * `host:port` of the REPL/MCP debugger server (`@unbound-app/debugger`). Replaced at build time
- * with the dev host (so it tracks the same machine as the dev server). Empty in production.
- * Override the host with `DEV_HOST` / `--host`, or the whole value with `DEBUGGER_ADDRESS`.
+ * `host:port` of the REPL/MCP debugger server, replaced at build time with the dev host. Empty in
+ * production. Override the host with `DEV_HOST` / `--host`, or the whole value with `DEBUGGER_ADDRESS`.
  */
 export const DEBUGGER_ADDRESS = '$$DEBUGGER_ADDRESS$$';
 
@@ -26,6 +25,12 @@ export const CLIENT_NAME = 'Unbound';
 
 /** Short git revision this bundle was built from. Replaced at build time; `N/A` when git is unavailable. */
 export const VERSION = '$$VERSION$$';
+
+/** Semantic version of this client, sent to the addon updater. Replaced at build time from `package.json`. */
+export const CLIENT_VERSION = '$$CLIENT_VERSION$$';
+
+/** Origin of the Unbound web API. Replaced at build time from `UNBOUND_API_URL`, defaulting to production. */
+export const API_URL = '$$API_URL$$';
 
 /** Route keys for every built-in Unbound settings screen. Values double as `SETTING_RENDERER_CONFIG` keys. */
 export const Screens = {

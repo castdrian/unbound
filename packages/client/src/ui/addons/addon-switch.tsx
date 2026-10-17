@@ -1,8 +1,8 @@
 import type { Addon } from '@unbound-app/types';
 import { useState, memo } from 'react';
 
+import type { ManagerKind } from '~/lib/constants';
 import { Switch } from '~/api/metro/components';
-import { ManagerKind } from '~/lib/constants';
 import { getManager } from '~/managers/utils';
 import { useAddonState } from '~/ui/hooks';
 
@@ -26,7 +26,7 @@ function AddonSwitch({ addon, kind, disabled }: AddonSwitchProps) {
 
 		try {
 			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-			await manager.toggle(addon.id);
+			manager.toggle(addon.id);
 		} finally {
 			setTransitioning(false);
 		}

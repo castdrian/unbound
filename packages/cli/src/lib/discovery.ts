@@ -42,7 +42,10 @@ export async function discoverAddons(resolved: ResolvedConfig): Promise<Discover
 
 	for (const addonDir of dirs) {
 		const addon = readAddon(addonDir, config.output);
-		if (addon) addons.push(addon);
+
+		if (addon) {
+			addons.push(addon);
+		}
 	}
 
 	return addons;
@@ -57,7 +60,10 @@ export async function discoverAddons(resolved: ResolvedConfig): Promise<Discover
  */
 export function readAddon(addonDir: string, output: string): DiscoveredAddon | undefined {
 	const manifestPath = join(addonDir, 'manifest.json');
-	if (!existsSync(manifestPath)) return void 0;
+
+	if (!existsSync(manifestPath)) {
+		return void 0;
+	}
 
 	let manifest: { id?: unknown; main?: unknown };
 
@@ -65,12 +71,15 @@ export function readAddon(addonDir: string, output: string): DiscoveredAddon | u
 		manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 	} catch (error) {
 		process.stderr.write(
-			`Skipping ${addonDir}: its manifest.json could not be read: ${error}\n`,
+			`Skipping ${addonDir}: its manifest.json could not be read: ${String(error)}\n`,
 		);
+
 		return void 0;
 	}
 
-	if (typeof manifest.id !== 'string' || typeof manifest.main !== 'string') return void 0;
+	if (typeof manifest.id !== 'string' || typeof manifest.main !== 'string') {
+		return void 0;
+	}
 
 	const kind = manifest.main.endsWith('.json') ? 'theme' : 'plugin';
 	const isStatic = !hasBuildScript(addonDir);
@@ -86,7 +95,10 @@ export function readAddon(addonDir: string, output: string): DiscoveredAddon | u
 
 function hasBuildScript(addonDir: string): boolean {
 	const packagePath = join(addonDir, 'package.json');
-	if (!existsSync(packagePath)) return false;
+
+	if (!existsSync(packagePath)) {
+		return false;
+	}
 
 	try {
 		const pkg = JSON.parse(readFileSync(packagePath, 'utf8'));

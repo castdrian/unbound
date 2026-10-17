@@ -8,6 +8,7 @@ function uuid(length: number = 30): string {
 
 	do {
 		const random = (Math.random() * 16) | 0;
+
 		uuid += (uuid.length === 12 ? 4 : uuid.length === 16 ? (random & 3) | 8 : random).toString(
 			16,
 		);

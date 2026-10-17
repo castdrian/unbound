@@ -1,9 +1,8 @@
 import { Project, type SourceFile } from 'ts-morph';
 
 /**
- * The single in-memory project every parse in the generator goes through. Call sites reuse a
- * role-specific file name and overwrite it per parse, so the project never grows beyond one
- * file per role.
+ * The single in-memory project every parse goes through. Call sites overwrite a role-specific file
+ * name per parse, so the project never holds more than one file per role.
  */
 const project = new Project({ useInMemoryFileSystem: true });
 

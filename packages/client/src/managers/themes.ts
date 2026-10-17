@@ -1,4 +1,5 @@
 import type { Theme, ThemeEntity } from '@unbound-app/types';
+import toError from '@unbound-app/utils/to-error';
 
 import { ManagerType } from '~/managers/base';
 import { Addons } from '~/managers/addons';
@@ -47,12 +48,15 @@ export class Themes extends Addons<ThemeEntity> {
 	 */
 	enable(entity: string | ThemeEntity) {
 		const resolved = this.resolve(entity);
+
 		if (!resolved) return;
 
 		try {
 			const prev = this.settings.get('applied', null);
+
 			if (prev && prev !== resolved.id) {
 				const prevEntity = this.getEntity(prev);
+
 				if (prevEntity && prevEntity.started) {
 					this.stop(prevEntity);
 				}
@@ -61,6 +65,7 @@ export class Themes extends Addons<ThemeEntity> {
 			this.settings.set('applied', resolved.id);
 
 			const states = this.getStates();
+
 			states[resolved.id] = true;
 			this.settings.set('states', states);
 
@@ -70,9 +75,9 @@ export class Themes extends Addons<ThemeEntity> {
 
 			ThemeStore.getState().setApplied(resolved.id, resolved.instance);
 			this.emit('enabled', resolved);
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error(`Failed to enable theme ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
+			this.errors.set(resolved.id, toError(error));
 		}
 	}
 
@@ -83,12 +88,14 @@ export class Themes extends Addons<ThemeEntity> {
 	 */
 	disable(entity: string | ThemeEntity) {
 		const resolved = this.resolve(entity);
+
 		if (!resolved) return;
 
 		try {
 			this.settings.set('applied', null);
 
 			const states = this.getStates();
+
 			states[resolved.id] = false;
 			this.settings.set('states', states);
 
@@ -98,9 +105,9 @@ export class Themes extends Addons<ThemeEntity> {
 
 			ThemeStore.getState().setApplied(null, null);
 			this.emit('disabled', resolved);
-		} catch (error: any) {
+		} catch (error) {
 			this.logger.error(`Failed to disable theme ${resolved.id}:`, error);
-			this.errors.set(resolved.id, error);
+			this.errors.set(resolved.id, toError(error));
 		}
 	}
 }

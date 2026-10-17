@@ -1,0 +1,47 @@
+import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router';
+import type { ReactNode } from 'react';
+
+import { getSession } from '~/lib/auth/session';
+import Toaster from '~/components/ui/sonner';
+
+import stylesheet from '../styles.css?url';
+
+type RootDocumentProps = {
+	children: ReactNode;
+};
+
+function RootDocument({ children }: RootDocumentProps) {
+	return (
+		<html className='dark' lang='en' suppressHydrationWarning>
+			<head>
+				<HeadContent />
+			</head>
+			<body className='flex flex-col min-h-dvh [view-transition-name:main-content]'>
+				{children}
+				<Toaster />
+				<Scripts />
+			</body>
+		</html>
+	);
+}
+
+export const Route = createRootRoute({
+	head: () => ({
+		meta: [
+			{ charSet: 'utf-8' },
+			{ name: 'viewport', content: 'width=device-width, initial-scale=1' },
+			{ title: 'Unbound' },
+		],
+		links: [
+			{ rel: 'stylesheet', href: stylesheet },
+			{ rel: 'icon', href: '/favicon-light.ico', media: '(prefers-color-scheme: light)' },
+			{ rel: 'icon', href: '/favicon-dark.ico', media: '(prefers-color-scheme: dark)' },
+			{
+				rel: 'stylesheet',
+				href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap',
+			},
+		],
+	}),
+	beforeLoad: async () => ({ session: await getSession() }),
+	shellComponent: RootDocument,
+});

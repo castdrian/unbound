@@ -8,7 +8,9 @@ import { Icons } from '~/api/assets';
 
 /** @description Formats a toast duration for its settings row. */
 function formatDuration(duration: number): string {
-	if (duration === 0) return Messages.UNBOUND_INDEFINITE;
+	if (duration === 0) {
+		return Messages.UNBOUND_INDEFINITE;
+	}
 
 	return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(duration / 1000)}s`;
 }

@@ -4,25 +4,39 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		"./api": "./src/api/index.ts",
-		"./client": "./src/api/client.ts"
+		"./api": {
+			"types": "./dist/types/src/api/index.d.ts",
+			"default": "./src/api/index.ts"
+		},
+		"./client": {
+			"types": "./dist/types/src/api/client.d.ts",
+			"default": "./src/api/client.ts"
+		},
+		"./testing": {
+			"types": "./dist/types/tests/helpers/index.d.ts",
+			"default": "./tests/helpers/index.ts"
+		}
 	},
 	"scripts": {
 		"dev": "bun scripts/migrate.ts && bun --bun vite dev",
 		"build": "bun --bun vite build",
 		"start": "bun scripts/migrate.ts && bun scripts/serve.ts",
 		"typecheck": "tsc --noEmit -p .",
+		"build:types": "tsc -p tsconfig.types.json && bun scripts/resolve-type-paths.ts",
 		"db:generate": "drizzle-kit generate",
-		"db:migrate": "bun scripts/migrate.ts"
+		"db:migrate": "bun scripts/migrate.ts",
+		"b2:staging-lifecycle": "b2 bucket update --lifecycle-rule \"$(cat b2/staging-lifecycle.json)\" \"$S3_STAGING_BUCKET\" allPrivate"
 	},
 	"dependencies": {
 		"@better-auth/api-key": "1.7.10",
 		"@better-auth/drizzle-adapter": "1.7.10",
+		"@tanstack/history": "1.162.5",
 		"@tanstack/react-router": "1.170.45",
 		"@tanstack/react-start": "1.169.3",
+		"@tanstack/router-core": "1.171.38",
 		"@unbound-app/contracts": "workspace:*",
 		"@unbound-app/logger": "workspace:*",
-		"better-auth": "1.7.10",
+		"better-auth": "catalog:",
 		"drizzle-orm": "1.0.0-rc.4",
 		"react": "catalog:react",
 		"react-dom": "catalog:react",

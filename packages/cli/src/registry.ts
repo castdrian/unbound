@@ -1,8 +1,11 @@
 import type { CommandDefinition } from '@unbound-app/debugger-protocol/registry';
 import type { z } from 'zod';
 
+import publishCommand from '~/commands/publish';
 import createCommand from '~/commands/create';
+import logoutCommand from '~/commands/logout';
 import buildCommand from '~/commands/build';
+import loginCommand from '~/commands/login';
 import evalCommand from '~/commands/eval';
 import devCommand from '~/commands/dev';
 
@@ -15,6 +18,9 @@ export const commands: CommandDefinition<z.ZodObject<z.ZodRawShape>>[] = [
 	buildCommand,
 	devCommand,
 	createCommand,
+	loginCommand,
+	logoutCommand,
+	publishCommand,
 ];
 
 export default commands;

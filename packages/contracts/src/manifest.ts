@@ -3,12 +3,16 @@ import { ADDON_TYPES } from '@unbound-app/types/addons';
 import { z } from 'zod';
 
 /**
- * A version string `Bun.semver` accepts as an exact version. Only parse request payloads with this on
- * Bun (the server and the CLI): the check runs `Bun.semver`, which the client runtime lacks.
+ * A strict SemVer 2.0.0 version (the specification's own pattern): no `v` prefix, no leading zeros.
+ * Versions become object-storage path segments and are ordered by the server, so loose forms are refused.
  */
 export const semverSchema = z
 	.string()
-	.refine((value) => Bun.semver.satisfies(value, value), 'Must be a semver version.');
+	.max(64)
+	.regex(
+		/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/,
+		'Must be a semver version.',
+	);
 
 /**
  * Addon ids become object-storage path segments (`addons/{id}/{version}/...`), so they are limited to
@@ -38,7 +42,11 @@ export const addonManifestSchema = z.looseObject({
 	description: z.string(),
 	authors: z.array(addonAuthorSchema).min(1),
 	icon: z.union([z.string(), z.object({ uri: z.string() })]).optional(),
-	main: z.string().min(1),
+	// The bundle is published next to the manifest at `addons/{id}/{version}/{main}` and resolved
+	// relative to the manifest URL, so `main` may not leave that directory.
+	main: z
+		.string()
+		.regex(/^(?:[\w-][\w.-]*\/)*[\w-][\w.-]*$/, 'Must be a relative path inside the addon.'),
 	version: semverSchema,
 	capabilities: z.array(z.enum(NATIVE_PLUGIN_CAPABILITIES)).optional(),
 	minNativePluginApi: z.string().optional(),

@@ -22,13 +22,18 @@
 	"type": "module",
 	"module": "src/index.ts",
 	"scripts": {
-		"build": "tsdown"
+		"build": "tsdown",
+		"typecheck": "bun run --filter @unbound-app/web build:types && tsc --noEmit -p ."
 	},
 	"dependencies": {
 		"@clack/prompts": "^1.7.0",
 		"@modelcontextprotocol/sdk": "^1.29.0",
+		"@unbound-app/contracts": "workspace:*",
 		"@unbound-app/debugger-protocol": "workspace:*",
 		"@unbound-app/types": "workspace:*",
+		"@unbound-app/utils": "workspace:*",
+		"@unbound-app/web": "workspace:*",
+		"better-auth": "catalog:",
 		"cleye": "^1.3.4",
 		"picocolors": "^1.1.1",
 		"zod": "^4.0.0"

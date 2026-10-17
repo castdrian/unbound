@@ -55,6 +55,14 @@ export function toSubmission(row: SubmissionRow): Submission {
 		status: row.status,
 		repository: row.repository,
 		unverifiedSource: row.repository === null,
+		review:
+			row.reviewDecision && row.reviewedAt
+				? {
+						decision: row.reviewDecision,
+						note: row.reviewNote,
+						reviewedAt: row.reviewedAt.toISOString(),
+					}
+				: null,
 	};
 }
 

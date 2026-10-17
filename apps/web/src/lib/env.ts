@@ -37,6 +37,13 @@ export const envSchema = z.object({
 	SUBMISSION_MIN_ACCOUNT_AGE_DAYS: z.coerce.number().int().nonnegative().default(30),
 	SUBMISSION_RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(3600),
 	SUBMISSION_RATE_LIMIT_MAX: positiveInt.default(10),
+
+	/** How long a reviewer's presigned download of a staged bundle stays valid. */
+	REVIEW_ARTIFACT_URL_TTL_SECONDS: positiveInt.default(600),
+	STAGING_SWEEP_INTERVAL_SECONDS: positiveInt.default(3600),
+	UPDATES_RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(60),
+	UPDATES_RATE_LIMIT_MAX: positiveInt.default(30),
+	ADDON_LIST_PAGE_SIZE: positiveInt.default(50),
 });
 
 export type Env = z.infer<typeof envSchema>;

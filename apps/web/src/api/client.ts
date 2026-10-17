@@ -8,13 +8,20 @@ export const API_KEY_HEADER = 'x-api-key';
 /** The OAuth `client_id` `ubd login` sends to the device authorization endpoints. */
 export const CLI_CLIENT_ID = 'ubd';
 
-/** One `"METHOD /path"` entry of the API map: the request body type and the response schema. */
+/** URL search parameters as a route's query schema accepts them. */
+export type QueryValues = Record<string, string | undefined>;
+
+/** One `"METHOD /path"` entry of the API map: the request body and query types and the response schema. */
 export type ApiRoute = {
 	body: unknown;
+	query: QueryValues | undefined;
 	response: z.ZodType;
 };
 
 export type ApiMap = Record<string, ApiRoute>;
+
+// The DOM's `HeadersInit` is missing where only Bun's types are loaded, as in the CLI.
+type HeaderValues = ConstructorParameters<typeof Headers>[0];
 
 type PathOf<K> = K extends `${string} ${infer Path}` ? Path : never;
 
@@ -32,16 +39,21 @@ type BodyOption<R extends ApiRoute> = undefined extends R['body']
 	? { body?: R['body'] }
 	: { body: R['body'] };
 
+type QueryOption<R extends ApiRoute> = undefined extends R['query']
+	? { query?: R['query'] }
+	: { query: R['query'] };
+
 export type RequestOptions<K, R extends ApiRoute> = ParamsOption<K> &
-	BodyOption<R> & {
+	BodyOption<R> &
+	QueryOption<R> & {
 		/** The route's contract response schema; the compiler checks it is the one the route declares. */
 		response: R['response'];
-		headers?: HeadersInit;
+		headers?: HeaderValues;
 	};
 
 export type ApiClientOptions = {
 	baseUrl: string;
-	headers?: HeadersInit;
+	headers?: HeaderValues;
 };
 
 /** A non-2xx response from the API, carrying the contract error code. */
@@ -54,6 +66,25 @@ export class ApiRequestError extends Error {
 		super(message);
 		this.name = 'ApiRequestError';
 	}
+}
+
+function buildUrl(
+	baseUrl: string,
+	path: string,
+	params: Record<string, string> | undefined,
+	query: QueryValues | undefined,
+): URL {
+	const url = new URL(buildPath(path, params), baseUrl);
+
+	for (const [name, value] of Object.entries(query ?? {})) {
+		if (value === undefined) {
+			continue;
+		}
+
+		url.searchParams.set(name, value);
+	}
+
+	return url;
 }
 
 function buildPath(path: string, params: Record<string, string> | undefined): string {
@@ -109,7 +140,8 @@ export function createApiClient<Api extends ApiMap>(options: ApiClientOptions) {
 			headers.set('content-type', 'application/json');
 		}
 
-		const response = await fetch(new URL(buildPath(path, init.params), options.baseUrl), {
+		const url = buildUrl(options.baseUrl, path, init.params, init.query);
+		const response = await fetch(url, {
 			method,
 			headers,
 			body: init.body === undefined ? undefined : JSON.stringify(init.body),

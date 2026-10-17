@@ -10,19 +10,40 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DeviceRouteImport } from './routes/device'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiV1AddonsRouteImport } from './routes/api/v1/addons'
 import { Route as ApiV1MeRouteImport } from './routes/api/v1/me'
 import { Route as ApiV1SubmissionsRouteImport } from './routes/api/v1/submissions'
+import { Route as ApiV1UpdatesRouteImport } from './routes/api/v1/updates'
+import { Route as ApiV1MeAddonsRouteImport } from './routes/api/v1/me/addons'
+import { Route as ApiV1ReviewQueueRouteImport } from './routes/api/v1/review/queue'
+import { Route as ApiV1AddonsIdDelistRouteImport } from './routes/api/v1/addons/$id/delist'
+import { Route as ApiV1AddonsIdMaintainersRouteImport } from './routes/api/v1/addons/$id/maintainers'
+import { Route as ApiV1AddonsIdRelistRouteImport } from './routes/api/v1/addons/$id/relist'
+import { Route as ApiV1AddonsIdTransferRouteImport } from './routes/api/v1/addons/$id/transfer'
 import { Route as ApiV1SubmissionsIdFinalizeRouteImport } from './routes/api/v1/submissions/$id/finalize'
+import { Route as ApiV1SubmissionsIdReviewRouteImport } from './routes/api/v1/submissions/$id/review'
+import { Route as ApiV1AddonsIdMaintainersUserIdRouteImport } from './routes/api/v1/addons/$id/maintainers/$userId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DeviceRoute = DeviceRouteImport.update({
+  id: '/device',
+  path: '/device',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1AddonsRoute = ApiV1AddonsRouteImport.update({
+  id: '/api/v1/addons',
+  path: '/api/v1/addons',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1MeRoute = ApiV1MeRouteImport.update({
@@ -35,64 +56,182 @@ const ApiV1SubmissionsRoute = ApiV1SubmissionsRouteImport.update({
   path: '/api/v1/submissions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1UpdatesRoute = ApiV1UpdatesRouteImport.update({
+  id: '/api/v1/updates',
+  path: '/api/v1/updates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1MeAddonsRoute = ApiV1MeAddonsRouteImport.update({
+  id: '/addons',
+  path: '/addons',
+  getParentRoute: () => ApiV1MeRoute,
+} as any)
+const ApiV1ReviewQueueRoute = ApiV1ReviewQueueRouteImport.update({
+  id: '/api/v1/review/queue',
+  path: '/api/v1/review/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1AddonsIdDelistRoute = ApiV1AddonsIdDelistRouteImport.update({
+  id: '/$id/delist',
+  path: '/$id/delist',
+  getParentRoute: () => ApiV1AddonsRoute,
+} as any)
+const ApiV1AddonsIdMaintainersRoute =
+  ApiV1AddonsIdMaintainersRouteImport.update({
+    id: '/$id/maintainers',
+    path: '/$id/maintainers',
+    getParentRoute: () => ApiV1AddonsRoute,
+  } as any)
+const ApiV1AddonsIdRelistRoute = ApiV1AddonsIdRelistRouteImport.update({
+  id: '/$id/relist',
+  path: '/$id/relist',
+  getParentRoute: () => ApiV1AddonsRoute,
+} as any)
+const ApiV1AddonsIdTransferRoute = ApiV1AddonsIdTransferRouteImport.update({
+  id: '/$id/transfer',
+  path: '/$id/transfer',
+  getParentRoute: () => ApiV1AddonsRoute,
+} as any)
 const ApiV1SubmissionsIdFinalizeRoute =
   ApiV1SubmissionsIdFinalizeRouteImport.update({
     id: '/$id/finalize',
     path: '/$id/finalize',
     getParentRoute: () => ApiV1SubmissionsRoute,
   } as any)
+const ApiV1SubmissionsIdReviewRoute =
+  ApiV1SubmissionsIdReviewRouteImport.update({
+    id: '/$id/review',
+    path: '/$id/review',
+    getParentRoute: () => ApiV1SubmissionsRoute,
+  } as any)
+const ApiV1AddonsIdMaintainersUserIdRoute =
+  ApiV1AddonsIdMaintainersUserIdRouteImport.update({
+    id: '/$userId',
+    path: '/$userId',
+    getParentRoute: () => ApiV1AddonsIdMaintainersRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/device': typeof DeviceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
+  '/api/v1/me': typeof ApiV1MeRouteWithChildren
   '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
+  '/api/v1/updates': typeof ApiV1UpdatesRoute
+  '/api/v1/me/addons': typeof ApiV1MeAddonsRoute
+  '/api/v1/review/queue': typeof ApiV1ReviewQueueRoute
+  '/api/v1/addons/$id/delist': typeof ApiV1AddonsIdDelistRoute
+  '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
+  '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
+  '/api/v1/addons/$id/transfer': typeof ApiV1AddonsIdTransferRoute
   '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
+  '/api/v1/submissions/$id/review': typeof ApiV1SubmissionsIdReviewRoute
+  '/api/v1/addons/$id/maintainers/$userId': typeof ApiV1AddonsIdMaintainersUserIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/device': typeof DeviceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
+  '/api/v1/me': typeof ApiV1MeRouteWithChildren
   '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
+  '/api/v1/updates': typeof ApiV1UpdatesRoute
+  '/api/v1/me/addons': typeof ApiV1MeAddonsRoute
+  '/api/v1/review/queue': typeof ApiV1ReviewQueueRoute
+  '/api/v1/addons/$id/delist': typeof ApiV1AddonsIdDelistRoute
+  '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
+  '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
+  '/api/v1/addons/$id/transfer': typeof ApiV1AddonsIdTransferRoute
   '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
+  '/api/v1/submissions/$id/review': typeof ApiV1SubmissionsIdReviewRoute
+  '/api/v1/addons/$id/maintainers/$userId': typeof ApiV1AddonsIdMaintainersUserIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/device': typeof DeviceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
+  '/api/v1/me': typeof ApiV1MeRouteWithChildren
   '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
+  '/api/v1/updates': typeof ApiV1UpdatesRoute
+  '/api/v1/me/addons': typeof ApiV1MeAddonsRoute
+  '/api/v1/review/queue': typeof ApiV1ReviewQueueRoute
+  '/api/v1/addons/$id/delist': typeof ApiV1AddonsIdDelistRoute
+  '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
+  '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
+  '/api/v1/addons/$id/transfer': typeof ApiV1AddonsIdTransferRoute
   '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
+  '/api/v1/submissions/$id/review': typeof ApiV1SubmissionsIdReviewRoute
+  '/api/v1/addons/$id/maintainers/$userId': typeof ApiV1AddonsIdMaintainersUserIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/device'
     | '/api/auth/$'
+    | '/api/v1/addons'
     | '/api/v1/me'
     | '/api/v1/submissions'
+    | '/api/v1/updates'
+    | '/api/v1/me/addons'
+    | '/api/v1/review/queue'
+    | '/api/v1/addons/$id/delist'
+    | '/api/v1/addons/$id/maintainers'
+    | '/api/v1/addons/$id/relist'
+    | '/api/v1/addons/$id/transfer'
     | '/api/v1/submissions/$id/finalize'
+    | '/api/v1/submissions/$id/review'
+    | '/api/v1/addons/$id/maintainers/$userId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/device'
     | '/api/auth/$'
+    | '/api/v1/addons'
     | '/api/v1/me'
     | '/api/v1/submissions'
+    | '/api/v1/updates'
+    | '/api/v1/me/addons'
+    | '/api/v1/review/queue'
+    | '/api/v1/addons/$id/delist'
+    | '/api/v1/addons/$id/maintainers'
+    | '/api/v1/addons/$id/relist'
+    | '/api/v1/addons/$id/transfer'
     | '/api/v1/submissions/$id/finalize'
+    | '/api/v1/submissions/$id/review'
+    | '/api/v1/addons/$id/maintainers/$userId'
   id:
     | '__root__'
     | '/'
+    | '/device'
     | '/api/auth/$'
+    | '/api/v1/addons'
     | '/api/v1/me'
     | '/api/v1/submissions'
+    | '/api/v1/updates'
+    | '/api/v1/me/addons'
+    | '/api/v1/review/queue'
+    | '/api/v1/addons/$id/delist'
+    | '/api/v1/addons/$id/maintainers'
+    | '/api/v1/addons/$id/relist'
+    | '/api/v1/addons/$id/transfer'
     | '/api/v1/submissions/$id/finalize'
+    | '/api/v1/submissions/$id/review'
+    | '/api/v1/addons/$id/maintainers/$userId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DeviceRoute: typeof DeviceRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
-  ApiV1MeRoute: typeof ApiV1MeRoute
+  ApiV1AddonsRoute: typeof ApiV1AddonsRouteWithChildren
+  ApiV1MeRoute: typeof ApiV1MeRouteWithChildren
   ApiV1SubmissionsRoute: typeof ApiV1SubmissionsRouteWithChildren
+  ApiV1UpdatesRoute: typeof ApiV1UpdatesRoute
+  ApiV1ReviewQueueRoute: typeof ApiV1ReviewQueueRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -104,11 +243,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/device': {
+      id: '/device'
+      path: '/device'
+      fullPath: '/device'
+      preLoaderRoute: typeof DeviceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/addons': {
+      id: '/api/v1/addons'
+      path: '/api/v1/addons'
+      fullPath: '/api/v1/addons'
+      preLoaderRoute: typeof ApiV1AddonsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/me': {
@@ -125,6 +278,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1SubmissionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/updates': {
+      id: '/api/v1/updates'
+      path: '/api/v1/updates'
+      fullPath: '/api/v1/updates'
+      preLoaderRoute: typeof ApiV1UpdatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/me/addons': {
+      id: '/api/v1/me/addons'
+      path: '/addons'
+      fullPath: '/api/v1/me/addons'
+      preLoaderRoute: typeof ApiV1MeAddonsRouteImport
+      parentRoute: typeof ApiV1MeRoute
+    }
+    '/api/v1/review/queue': {
+      id: '/api/v1/review/queue'
+      path: '/api/v1/review/queue'
+      fullPath: '/api/v1/review/queue'
+      preLoaderRoute: typeof ApiV1ReviewQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/addons/$id/delist': {
+      id: '/api/v1/addons/$id/delist'
+      path: '/$id/delist'
+      fullPath: '/api/v1/addons/$id/delist'
+      preLoaderRoute: typeof ApiV1AddonsIdDelistRouteImport
+      parentRoute: typeof ApiV1AddonsRoute
+    }
+    '/api/v1/addons/$id/maintainers': {
+      id: '/api/v1/addons/$id/maintainers'
+      path: '/$id/maintainers'
+      fullPath: '/api/v1/addons/$id/maintainers'
+      preLoaderRoute: typeof ApiV1AddonsIdMaintainersRouteImport
+      parentRoute: typeof ApiV1AddonsRoute
+    }
+    '/api/v1/addons/$id/relist': {
+      id: '/api/v1/addons/$id/relist'
+      path: '/$id/relist'
+      fullPath: '/api/v1/addons/$id/relist'
+      preLoaderRoute: typeof ApiV1AddonsIdRelistRouteImport
+      parentRoute: typeof ApiV1AddonsRoute
+    }
+    '/api/v1/addons/$id/transfer': {
+      id: '/api/v1/addons/$id/transfer'
+      path: '/$id/transfer'
+      fullPath: '/api/v1/addons/$id/transfer'
+      preLoaderRoute: typeof ApiV1AddonsIdTransferRouteImport
+      parentRoute: typeof ApiV1AddonsRoute
+    }
     '/api/v1/submissions/$id/finalize': {
       id: '/api/v1/submissions/$id/finalize'
       path: '/$id/finalize'
@@ -132,15 +334,74 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1SubmissionsIdFinalizeRouteImport
       parentRoute: typeof ApiV1SubmissionsRoute
     }
+    '/api/v1/submissions/$id/review': {
+      id: '/api/v1/submissions/$id/review'
+      path: '/$id/review'
+      fullPath: '/api/v1/submissions/$id/review'
+      preLoaderRoute: typeof ApiV1SubmissionsIdReviewRouteImport
+      parentRoute: typeof ApiV1SubmissionsRoute
+    }
+    '/api/v1/addons/$id/maintainers/$userId': {
+      id: '/api/v1/addons/$id/maintainers/$userId'
+      path: '/$userId'
+      fullPath: '/api/v1/addons/$id/maintainers/$userId'
+      preLoaderRoute: typeof ApiV1AddonsIdMaintainersUserIdRouteImport
+      parentRoute: typeof ApiV1AddonsIdMaintainersRoute
+    }
   }
 }
 
+interface ApiV1AddonsIdMaintainersRouteChildren {
+  ApiV1AddonsIdMaintainersUserIdRoute: typeof ApiV1AddonsIdMaintainersUserIdRoute
+}
+
+const ApiV1AddonsIdMaintainersRouteChildren: ApiV1AddonsIdMaintainersRouteChildren =
+  {
+    ApiV1AddonsIdMaintainersUserIdRoute: ApiV1AddonsIdMaintainersUserIdRoute,
+  }
+
+const ApiV1AddonsIdMaintainersRouteWithChildren =
+  ApiV1AddonsIdMaintainersRoute._addFileChildren(
+    ApiV1AddonsIdMaintainersRouteChildren,
+  )
+
+interface ApiV1AddonsRouteChildren {
+  ApiV1AddonsIdDelistRoute: typeof ApiV1AddonsIdDelistRoute
+  ApiV1AddonsIdMaintainersRoute: typeof ApiV1AddonsIdMaintainersRouteWithChildren
+  ApiV1AddonsIdRelistRoute: typeof ApiV1AddonsIdRelistRoute
+  ApiV1AddonsIdTransferRoute: typeof ApiV1AddonsIdTransferRoute
+}
+
+const ApiV1AddonsRouteChildren: ApiV1AddonsRouteChildren = {
+  ApiV1AddonsIdDelistRoute: ApiV1AddonsIdDelistRoute,
+  ApiV1AddonsIdMaintainersRoute: ApiV1AddonsIdMaintainersRouteWithChildren,
+  ApiV1AddonsIdRelistRoute: ApiV1AddonsIdRelistRoute,
+  ApiV1AddonsIdTransferRoute: ApiV1AddonsIdTransferRoute,
+}
+
+const ApiV1AddonsRouteWithChildren = ApiV1AddonsRoute._addFileChildren(
+  ApiV1AddonsRouteChildren,
+)
+
+interface ApiV1MeRouteChildren {
+  ApiV1MeAddonsRoute: typeof ApiV1MeAddonsRoute
+}
+
+const ApiV1MeRouteChildren: ApiV1MeRouteChildren = {
+  ApiV1MeAddonsRoute: ApiV1MeAddonsRoute,
+}
+
+const ApiV1MeRouteWithChildren =
+  ApiV1MeRoute._addFileChildren(ApiV1MeRouteChildren)
+
 interface ApiV1SubmissionsRouteChildren {
   ApiV1SubmissionsIdFinalizeRoute: typeof ApiV1SubmissionsIdFinalizeRoute
+  ApiV1SubmissionsIdReviewRoute: typeof ApiV1SubmissionsIdReviewRoute
 }
 
 const ApiV1SubmissionsRouteChildren: ApiV1SubmissionsRouteChildren = {
   ApiV1SubmissionsIdFinalizeRoute: ApiV1SubmissionsIdFinalizeRoute,
+  ApiV1SubmissionsIdReviewRoute: ApiV1SubmissionsIdReviewRoute,
 }
 
 const ApiV1SubmissionsRouteWithChildren =
@@ -148,9 +409,13 @@ const ApiV1SubmissionsRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DeviceRoute: DeviceRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
-  ApiV1MeRoute: ApiV1MeRoute,
+  ApiV1AddonsRoute: ApiV1AddonsRouteWithChildren,
+  ApiV1MeRoute: ApiV1MeRouteWithChildren,
   ApiV1SubmissionsRoute: ApiV1SubmissionsRouteWithChildren,
+  ApiV1UpdatesRoute: ApiV1UpdatesRoute,
+  ApiV1ReviewQueueRoute: ApiV1ReviewQueueRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { addonIdSchema, semverSchema } from './manifest';
+import { addonVersionSchema } from './addons';
 
 /** The most installed addons a single updates request may ask about. */
 export const UPDATES_BATCH_LIMIT = 500;
@@ -21,16 +22,9 @@ export const updatesRequestSchema = z.object({
 		),
 });
 
-// Parsed on the client, so versions are not re-checked with `Bun.semver` here: the server only ever
-// emits versions it validated on publish.
-export const addonUpdateSchema = z.object({
-	id: addonIdSchema,
-	version: z.string(),
-	manifestUrl: z.url(),
-	bundleUrl: z.url(),
-	sha256: z.string().regex(/^[0-9a-f]{64}$/, 'Must be a lowercase hex SHA-256 digest.'),
-	changelog: z.string().nullable(),
-});
+export const addonUpdateSchema = addonVersionSchema
+	.pick({ version: true, manifestUrl: true, bundleUrl: true, sha256: true, changelog: true })
+	.extend({ id: addonIdSchema });
 
 /** Only addons with a newer approved version compatible with `clientVersion` are listed. */
 export const updatesResponseSchema = z.object({

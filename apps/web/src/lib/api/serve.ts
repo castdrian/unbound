@@ -18,9 +18,11 @@ export type ServedEndpoint<E> = ((args: ServerHandlerArgs) => Promise<Response>)
  * @param target The endpoint to serve.
  * @returns The handler to place under a method in `server.handlers`.
  */
-export function serve<TBody extends z.ZodType, TResponse extends z.ZodType>(
-	target: Endpoint<TBody, TResponse>,
-): ServedEndpoint<Endpoint<TBody, TResponse>> {
+export function serve<
+	TBody extends z.ZodType,
+	TResponse extends z.ZodType,
+	TQuery extends z.ZodType,
+>(target: Endpoint<TBody, TResponse, TQuery>): ServedEndpoint<Endpoint<TBody, TResponse, TQuery>> {
 	return Object.assign(
 		({ request, params }: ServerHandlerArgs) => target.handle(app, request, params),
 		{

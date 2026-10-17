@@ -6,9 +6,13 @@ import { ApiError } from '~/lib/api/errors';
 
 const logger = createLogger('Web', 'API');
 
+/** The route's `$param` path segments, by name. */
+export type PathParams = Record<string, string>;
+
 export type EndpointInput<TBody> = {
 	ctx: AppContext;
 	request: Request;
+	params: PathParams;
 	body: TBody;
 };
 
@@ -21,7 +25,7 @@ export type EndpointSchemas<TBody extends z.ZodType, TResponse extends z.ZodType
 /** A `/api/v1` handler bound to the contract schemas its request body and response follow. */
 export type Endpoint<TBody extends z.ZodType, TResponse extends z.ZodType> = {
 	schemas: EndpointSchemas<TBody, TResponse>;
-	handle(ctx: AppContext, request: Request): Promise<Response>;
+	handle(ctx: AppContext, request: Request, params?: PathParams): Promise<Response>;
 };
 
 // UNKNOWN: the raw JSON body, validated by the endpoint's body schema next.
@@ -60,10 +64,10 @@ export function endpoint<TBody extends z.ZodType, TResponse extends z.ZodType>(
 ): Endpoint<TBody, TResponse> {
 	return {
 		schemas,
-		async handle(ctx, request) {
+		async handle(ctx, request, params = {}) {
 			try {
 				const body = await readBody(request, schemas.body);
-				const result = await handler({ ctx, request, body });
+				const result = await handler({ ctx, request, params, body });
 
 				return Response.json(schemas.response.parse(result));
 			} catch (error) {

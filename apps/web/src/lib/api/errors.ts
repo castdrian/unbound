@@ -16,6 +16,8 @@ export const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
 	artifact_too_large: 413,
 	upload_missing: 409,
 	upload_expired: 410,
+	upload_size_mismatch: 400,
+	submission_not_awaiting_upload: 409,
 	github_not_linked: 403,
 	github_no_push_access: 403,
 	internal_error: 500,

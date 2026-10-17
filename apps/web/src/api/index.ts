@@ -1,5 +1,7 @@
 import type { z } from 'zod';
 
+import type { Route as FinalizeSubmissionRoute } from '~/routes/api/v1/submissions/$id/finalize';
+import type { Route as SubmissionsRoute } from '~/routes/api/v1/submissions';
 import type { Route as MeRoute } from '~/routes/api/v1/me';
 import type { ServedEndpoint } from '~/lib/api/serve';
 import type { Endpoint } from '~/lib/api/endpoint';
@@ -24,4 +26,6 @@ export type RouteApi<R extends { fullPath: string }> = {
 };
 
 /** The typed map of every `/api/v1` route, for `createApiClient<Api>()`. Type-only: import with `import type`. */
-export type Api = RouteApi<typeof MeRoute>;
+export type Api = RouteApi<typeof MeRoute> &
+	RouteApi<typeof SubmissionsRoute> &
+	RouteApi<typeof FinalizeSubmissionRoute>;

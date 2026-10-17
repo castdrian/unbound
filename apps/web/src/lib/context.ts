@@ -11,6 +11,8 @@ export type AppContext = {
 	db: Database;
 	auth: Auth;
 	storage: Storage;
+	/** The clock for upload expiry, account age and rate windows; tests pin it instead of sleeping. */
+	now: () => Date;
 };
 
 /**
@@ -20,7 +22,13 @@ export type AppContext = {
  * @returns The application context.
  */
 export function createAppContext(env: Env, db: Database): AppContext {
-	return { env, db, auth: createAuth(db, env), storage: createStorage(env) };
+	return {
+		env,
+		db,
+		auth: createAuth(db, env),
+		storage: createStorage(env),
+		now: () => new Date(),
+	};
 }
 
 export default { createAppContext };

@@ -2,7 +2,7 @@
 	"extends": ["../../tsconfig.base.json"],
 	"compilerOptions": {
 		"composite": false,
-		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"lib": ["ESNext", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
 		"types": ["bun", "vite/client"],
 		"verbatimModuleSyntax": true,
 		"noUncheckedIndexedAccess": true,

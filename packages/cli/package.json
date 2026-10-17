@@ -28,11 +28,7 @@
 	"dependencies": {
 		"@clack/prompts": "^1.7.0",
 		"@modelcontextprotocol/sdk": "^1.29.0",
-		"@unbound-app/contracts": "workspace:*",
 		"@unbound-app/debugger-protocol": "workspace:*",
-		"@unbound-app/types": "workspace:*",
-		"@unbound-app/utils": "workspace:*",
-		"@unbound-app/web": "workspace:*",
 		"better-auth": "catalog:",
 		"cleye": "^1.3.4",
 		"picocolors": "^1.1.1",
@@ -40,6 +36,10 @@
 	},
 	"devDependencies": {
 		"@types/bun": "latest",
+		"@unbound-app/contracts": "workspace:*",
+		"@unbound-app/types": "workspace:*",
+		"@unbound-app/utils": "workspace:*",
+		"@unbound-app/web": "workspace:*",
 		"tsdown": "^0.22.9"
 	},
 	"peerDependencies": {

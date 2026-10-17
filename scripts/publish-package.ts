@@ -55,7 +55,7 @@ function distManifest(manifest: Manifest): Manifest {
 // are materialised to the concrete versions bun would have written at pack time.
 function resolveSpecifiers(manifest: Manifest): Manifest {
 	const root: Manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
-	const workspace = workspaceVersions(root);
+	const workspace = workspaceManifests(root);
 	const next: Manifest = { ...manifest };
 
 	// Workspace-only references for release triggering; they must not reach npm metadata.
@@ -76,30 +76,36 @@ function resolveSpecifiers(manifest: Manifest): Manifest {
 	return next;
 }
 
-function workspaceVersions(root: Manifest): Map<string, string> {
-	const versions = new Map<string, string>();
+function workspaceManifests(root: Manifest): Map<string, Manifest> {
+	const manifests = new Map<string, Manifest>();
 
 	for (const dir of root.workspaces.packages) {
 		const manifest: Manifest = JSON.parse(
 			readFileSync(join(ROOT, dir, 'package.json'), 'utf8'),
 		);
-		versions.set(manifest.name, manifest.version);
+		manifests.set(manifest.name, manifest);
 	}
 
-	return versions;
+	return manifests;
 }
 
 function resolveSpecifier(
 	root: Manifest,
-	workspace: Map<string, string>,
+	workspace: Map<string, Manifest>,
 	name: string,
 	specifier: string,
 ) {
 	if (specifier.startsWith('workspace:')) {
-		const version = workspace.get(name);
-		if (!version) throw new Error(`No workspace package resolves ${name}@${specifier}.`);
+		const manifest = workspace.get(name);
+		if (!manifest) throw new Error(`No workspace package resolves ${name}@${specifier}.`);
 
-		return version;
+		// Private packages never reach npm, so a runtime pin on one makes the package uninstallable;
+		// they belong in devDependencies so the bundler inlines them.
+		if (manifest.private) {
+			throw new Error(`${name} is private and cannot be a published runtime dependency.`);
+		}
+
+		return manifest.version;
 	}
 
 	if (specifier.startsWith('catalog:')) {

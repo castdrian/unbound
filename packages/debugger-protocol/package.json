@@ -30,6 +30,7 @@
 		"zod": "^4.0.0"
 	},
 	"devDependencies": {
+		"@types/bun": "catalog:",
 		"tsdown": "^0.22.9"
 	},
 	"peerDependencies": {

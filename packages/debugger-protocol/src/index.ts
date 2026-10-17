@@ -1,28 +1,20 @@
 import type { AddonManifest } from '@unbound-app/types';
 
 /**
- * The wire protocol shared by the bridge, the on-device debugger, and any controller (the terminal
- * REPL or an MCP client). Everything crossing a socket is a JSON-encoded {@link BridgeMessage}.
- *
- * Two planes travel over the single device socket:
- *   - control: a controller issues an {@link EvalRequest} or {@link PluginPushRequest}; the device
- *     answers with the matching {@link EvalResult} / {@link PluginPushResult} (correlated by `id`).
- *   - telemetry: the device streams {@link LogMessage}s, broadcast to every controller.
- *
- * Device-safe and dependency-free at runtime (the manifest type is import-erased) so it can be
- * bundled into the React Native client.
+ * The wire protocol shared by the bridge, the device and controllers: every frame is a JSON-encoded
+ * {@link BridgeMessage}. Dependency-free at runtime so the React Native client can bundle it.
  */
 
 /** A request to evaluate code on the device, sent controller → bridge → device. */
-export interface EvalRequest {
+export type EvalRequest = {
 	type: 'eval';
 	/** Correlation id echoed back on the matching {@link EvalResult}. */
 	id: string;
 	code: string;
-}
+};
 
 /** The outcome of an {@link EvalRequest}, sent device → bridge → the one waiting controller. */
-export interface EvalResult {
+export type EvalResult = {
 	type: 'eval-result';
 	/** The `id` of the {@link EvalRequest} this answers. */
 	id: string;
@@ -32,49 +24,48 @@ export interface EvalResult {
 	/** Present when `!ok`; the inspected error. */
 	error?: string;
 	/**
-	 * Console output captured on the device for the duration of this eval, so a caller sees the
-	 * side effects (`console.log`s) the code produced, not just its return value. Populated by the
-	 * controller that owns the request, not sent by the device.
+	 * Console output captured during this eval, so callers see its side effects too. Populated by
+	 * the controller that owns the request, not sent by the device.
 	 */
 	logs?: LogMessage[];
-}
+};
 
 /**
  * A request to hot-reload a plugin on the device, sent controller → bridge → device. Carries the
  * freshly built bundle and manifest so the device swaps them in without a re-fetch.
  */
-export interface PluginPushRequest {
+export type PluginPushRequest = {
 	type: 'plugin-push';
 	/** Correlation id echoed back on the matching {@link PluginPushResult}. */
 	id: string;
 	addonId: string;
 	bundle: string;
 	manifest: AddonManifest;
-}
+};
 
 /** The outcome of a {@link PluginPushRequest}, sent device → bridge → the one waiting controller. */
-export interface PluginPushResult {
+export type PluginPushResult = {
 	type: 'plugin-push-result';
 	/** The `id` of the {@link PluginPushRequest} this answers. */
 	id: string;
 	ok: boolean;
 	/** Present when `!ok`; the reload failure, inspected. */
 	error?: string;
-}
+};
 
 /** A `console.*` / `nativeLoggingHook` line, streamed device → bridge → all controllers. */
-export interface LogMessage {
+export type LogMessage = {
 	type: 'log';
 	/** 1 = log/gray, 2 = warn/yellow, 3 = error/red. */
 	level: 1 | 2 | 3;
 	message: string;
-}
+};
 
 /** Bridge → controller, once on attach and whenever the device connects or drops. */
-export interface DeviceStatus {
+export type DeviceStatus = {
 	type: 'device-status';
 	connected: boolean;
-}
+};
 
 /** Every framed message on the wire. */
 export type BridgeMessage =
@@ -91,7 +82,7 @@ export const DEFAULT_BRIDGE_PORT = 9090;
 /** The query marker a controller appends to its URL so the bridge routes it as a controller, not a device. */
 export const CONTROLLER_ENDPOINT_MARKER = 'mcp';
 
-const MESSAGE_TYPES = new Set<BridgeMessage['type']>([
+const MESSAGE_TYPES: ReadonlySet<string> = new Set<BridgeMessage['type']>([
 	'eval',
 	'eval-result',
 	'plugin-push',
@@ -115,13 +106,17 @@ export function parseMessage(raw: string): BridgeMessage | undefined {
 		return void 0;
 	}
 
-	if (typeof value !== 'object' || value === null) return void 0;
+	return isBridgeMessage(value) ? value : void 0;
+}
 
-	const type = (value as { type?: unknown }).type;
-	if (typeof type !== 'string' || !MESSAGE_TYPES.has(type as BridgeMessage['type']))
-		return void 0;
-
-	return value as BridgeMessage;
+function isBridgeMessage(value: unknown): value is BridgeMessage {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'type' in value &&
+		typeof value.type === 'string' &&
+		MESSAGE_TYPES.has(value.type)
+	);
 }
 
 /**

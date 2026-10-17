@@ -11,13 +11,16 @@ export const state: {
 	currentInput: '',
 };
 
+/** @description Exits the debugger on Ctrl+C. */
 export function setupReplListeners() {
-	terminal.on('key', (name: string, ...t) => {
+	terminal.on('key', (name: string) => {
 		if (name !== 'CTRL_C') return;
+
 		process.exit(0);
 	});
 }
 
+/** @description Draws a fresh prompt and evaluates the submitted line on the device. */
 export async function takeReplInput() {
 	abortCurrentReplInput();
 
@@ -29,7 +32,10 @@ export async function takeReplInput() {
 			history,
 		},
 		(error, input) => {
-			if (error) return console.error(error);
+			if (error) {
+				return console.error(error);
+			}
+
 			if (!input) return;
 
 			state.currentInput = input;
@@ -53,19 +59,28 @@ export async function takeReplInput() {
 	await state.repl.promise;
 }
 
-interface AbortOptions {
+type AbortOptions = {
 	deletePrompt?: boolean;
 	deleteCurrentInput?: boolean;
-}
+};
 
+/** @description Cancels the active prompt, optionally erasing it and the pending input. */
 export function abortCurrentReplInput({
 	deletePrompt = false,
 	deleteCurrentInput = false,
 }: AbortOptions = {}) {
-	if (state.repl) {
-		state.repl.abort();
-		state.repl = null;
-		if (deletePrompt) terminal.deleteLine(-1);
-		if (deleteCurrentInput) state.currentInput = '';
+	if (!state.repl) {
+		return;
+	}
+
+	state.repl.abort();
+	state.repl = null;
+
+	if (deletePrompt) {
+		terminal.deleteLine(-1);
+	}
+
+	if (deleteCurrentInput) {
+		state.currentInput = '';
 	}
 }

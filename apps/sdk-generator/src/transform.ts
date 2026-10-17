@@ -9,7 +9,9 @@ import { parseSource } from './project';
  * @returns `true` when the node is tagged `@internal`.
  */
 export function isInternal(node: Node): boolean {
-	if (!Node.isJSDocable(node)) return false;
+	if (!Node.isJSDocable(node)) {
+		return false;
+	}
 
 	return node
 		.getJsDocs()
@@ -50,12 +52,17 @@ export function stripInternal(
 
 		if (Node.isModuleDeclaration(statement)) {
 			const body = statement.getBody();
-			if (body) stripInternal(body, internalNames, retainedInternalNames);
+
+			if (body) {
+				stripInternal(body, internalNames, retainedInternalNames);
+			}
 		}
 
 		if (Node.isInterfaceDeclaration(statement)) {
 			for (const member of statement.getMembers()) {
-				if (isInternal(member)) member.remove();
+				if (isInternal(member)) {
+					member.remove();
+				}
 			}
 		}
 	}
@@ -64,10 +71,11 @@ export function stripInternal(
 
 	for (const [statement, names] of candidates) {
 		if (names.some((name) => referenced.has(name))) {
-			// A retained backing declaration must not be part of the module's public surface: drop its
-			// `export` so it stays an ambient `declare`, matching how the same symbol appears in the
-			// bundles that never re-export it (e.g. `metro/filters.d.ts`, root `index.d.ts`).
-			if (Node.isModifierable(statement)) statement.toggleModifier('export', false);
+			// Keep a retained backing declaration off the public surface: drop its `export` so it stays
+			// an ambient `declare`, as in the bundles that never re-export it.
+			if (Node.isModifierable(statement)) {
+				statement.toggleModifier('export', false);
+			}
 
 			for (const name of names) retainedInternalNames.add(name);
 
@@ -92,7 +100,9 @@ export function collectReferencedNames(statements: Node[]): Set<string> {
 
 	for (const statement of statements) {
 		for (const reference of statement.getDescendantsOfKind(SyntaxKind.Identifier)) {
-			if (!isReference(reference)) continue;
+			if (!isReference(reference)) {
+				continue;
+			}
 
 			referenced.add(reference.getText());
 		}
@@ -108,11 +118,18 @@ export function collectReferencedNames(statements: Node[]): Set<string> {
  * exactly its parent's name node is a declaration name. A computed `[X]` property name is a real
  * reference to `X`, so it is excluded.
  * @param reference The identifier to classify.
+ * @returns `true` when the identifier is its parent's declared name.
  */
 export function isDeclarationName(reference: Node): boolean {
 	const parent = reference.getParent() as { getNameNode?: () => Node | undefined };
-	if (typeof parent.getNameNode !== 'function') return false;
-	if (parent.getNameNode() !== reference) return false;
+
+	if (typeof parent.getNameNode !== 'function') {
+		return false;
+	}
+
+	if (parent.getNameNode() !== reference) {
+		return false;
+	}
 
 	return !Node.isComputedPropertyName(reference.getParent());
 }
@@ -123,12 +140,15 @@ export function isDeclarationName(reference: Node): boolean {
  * specifier's names are re-bindings, not references; a declaration's own name node is not a
  * reference. A computed `[X]` property name stays a reference (handled by `isDeclarationName`).
  * @param reference The identifier to classify.
+ * @returns `true` when the identifier references a declaration.
  */
 export function isReference(reference: Node): boolean {
 	const parent = reference.getParent();
 
 	if (Node.isExportSpecifier(parent)) {
-		if (parent.getAliasNode() === reference) return false;
+		if (parent.getAliasNode() === reference) {
+			return false;
+		}
 	} else if (Node.isImportSpecifier(parent)) {
 		return false;
 	} else if (isDeclarationName(reference)) {
@@ -156,6 +176,7 @@ export function declaredNames(statement: Node): string[] {
 		Node.isEnumDeclaration(statement)
 	) {
 		const name = statement.getName();
+
 		return name ? [name] : [];
 	}
 
@@ -173,7 +194,9 @@ export function declaredNames(statement: Node): string[] {
 export function exportedNames(container: Node): Set<string> {
 	const names = new Set<string>();
 
-	if (!Node.isStatemented(container)) return names;
+	if (!Node.isStatemented(container)) {
+		return names;
+	}
 
 	for (const statement of container.getStatements()) {
 		if (Node.isExportDeclaration(statement)) {
@@ -182,7 +205,10 @@ export function exportedNames(container: Node): Set<string> {
 			}
 
 			const namespaceExport = statement.getNamespaceExport();
-			if (namespaceExport) names.add(namespaceExport.getName());
+
+			if (namespaceExport) {
+				names.add(namespaceExport.getName());
+			}
 
 			continue;
 		}
@@ -217,15 +243,23 @@ export function collapseNamespaces(
 	const backingNames = new Set<string>();
 
 	for (const statement of sourceFile.getStatements()) {
-		if (!Node.isModuleDeclaration(statement)) continue;
+		if (!Node.isModuleDeclaration(statement)) {
+			continue;
+		}
 
 		const child = children.get(statement.getName());
-		if (!child) continue;
+
+		if (!child) {
+			continue;
+		}
 
 		const body = statement.getBody();
+
 		if (body && Node.isStatemented(body)) {
 			for (const inner of body.getStatements()) {
-				if (!Node.isExportDeclaration(inner)) continue;
+				if (!Node.isExportDeclaration(inner)) {
+					continue;
+				}
 
 				for (const specifier of inner.getNamedExports()) {
 					backingNames.add(specifier.getName());
@@ -250,17 +284,27 @@ export function collapseNamespaces(
 	for (const statement of sourceFile.getStatements()) {
 		if (Node.isExportDeclaration(statement) && !statement.getModuleSpecifier()) {
 			for (const specifier of statement.getNamedExports()) {
-				if (collapsed.has(specifier.getName())) specifier.remove();
+				if (collapsed.has(specifier.getName())) {
+					specifier.remove();
+				}
 			}
 
-			if (statement.getNamedExports().length === 0) statement.remove();
+			if (statement.getNamedExports().length === 0) {
+				statement.remove();
+			}
 
 			continue;
 		}
 
 		const names = declaredNames(statement);
-		if (names.length === 0) continue;
-		if (names.some((name) => !backingNames.has(name) || referenced.has(name))) continue;
+
+		if (names.length === 0) {
+			continue;
+		}
+
+		if (names.some((name) => !backingNames.has(name) || referenced.has(name))) {
+			continue;
+		}
 
 		statement.remove();
 	}
@@ -269,6 +313,7 @@ export function collapseNamespaces(
 		.sort()
 		.map((name) => {
 			const specifier = relativeSpecifier(outPath, children.get(name)!.out);
+
 			return `export * as ${name} from '${specifier}';`;
 		})
 		.join('\n');
@@ -328,12 +373,11 @@ export function hoistLibraries(
 		for (const name of declaredNames(statement)) {
 			const owner = ownerByName.get(name)!;
 
-			// An owned type is re-exported from this module even when no surviving declaration uses it,
-			// so the public surface is stable. A re-export creates no local binding, so a name the
-			// module also references is imported besides; a non-owned type is only imported where
-			// genuinely referenced.
+			// Owned types are always re-exported so the public surface is stable. A re-export binds
+			// nothing locally, so any referenced name (owned or not) is imported as well.
 			if (owned.has(name)) {
 				const exports = exportsByOwner.get(owner) ?? new Set<string>();
+
 				exports.add(name);
 				exportsByOwner.set(owner, exports);
 				usedOwners.add(owner);
@@ -341,6 +385,7 @@ export function hoistLibraries(
 
 			if (referenced.has(name)) {
 				const imports = importsByOwner.get(owner) ?? new Set<string>();
+
 				imports.add(name);
 				importsByOwner.set(owner, imports);
 				usedOwners.add(owner);
@@ -353,15 +398,19 @@ export function hoistLibraries(
 	const lines = [
 		...[...importsByOwner.entries()].map(([owner, names]) => {
 			const specifier = relativeSpecifier(outPath, owner);
+
 			return `import type { ${[...names].sort().join(', ')} } from '${specifier}';`;
 		}),
 		...[...exportsByOwner.entries()].map(([owner, names]) => {
 			const specifier = relativeSpecifier(outPath, owner);
+
 			return `export type { ${[...names].sort().join(', ')} } from '${specifier}';`;
 		}),
 	].sort();
 
-	if (lines.length > 0) sourceFile.insertStatements(0, lines.join('\n'));
+	if (lines.length > 0) {
+		sourceFile.insertStatements(0, lines.join('\n'));
+	}
 }
 
 /**
@@ -373,6 +422,7 @@ export function hoistLibraries(
  * @param children The nested subpath entries whose parent is this module.
  * @param ownerByName The map attributing each hoisted declaration name to its owning hoist file.
  * @param usedOwners Collects the hoist-file paths actually imported from, so orphan files aren't emitted.
+ * @param owned The names this module owns and re-exports from their hoist file.
  * @returns The stripped, collapsed, hoisted module text.
  */
 export function strip(

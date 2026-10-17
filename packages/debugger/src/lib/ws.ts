@@ -32,26 +32,21 @@ const SYSTEM_COLORS = {
 } as const;
 
 /**
- * @description Prints a bold, glyph-prefixed banner line for a bridge lifecycle event, tinted with
- * the given hex colour. Uses terminal-kit's runtime `colorRgbHex`, which `@types/terminal-kit`
- * doesn't declare, so the chain is reached through a narrow cast.
+ * @description Prints a bold, glyph-prefixed banner line for a bridge lifecycle event.
  * @param color The banner colour, keyed into {@link SYSTEM_COLORS}.
  * @param text The line to print (the glyph is prepended and a trailing newline added).
  */
 function system(color: keyof typeof SYSTEM_COLORS, text: string) {
-	(terminal.bold as unknown as { colorRgbHex: (hex: string, str: string) => void }).colorRgbHex(
-		SYSTEM_COLORS[color],
-		`${SYSTEM_GLYPH} ${text}\n`,
-	);
+	terminal.bold.colorRgbHex(SYSTEM_COLORS[color], `${SYSTEM_GLYPH} ${text}\n`);
 }
 
 /**
  * Marks a socket's role so the WebSocket handlers can route it. Set at upgrade time from the URL: a
  * controller connects with `?mcp`, everything else is the device (the on-device debugger dialling in).
  */
-interface SocketData {
+type SocketData = {
 	role: 'device' | 'controller';
-}
+};
 
 /**
  * @description Boots the bridge: the phone-facing WebSocket server, the shared session routing, and
@@ -60,6 +55,7 @@ interface SocketData {
  */
 export function setupWebSocket() {
 	if (state.isInitialized) return;
+
 	state.isInitialized = true;
 
 	Bun.serve<SocketData>({
@@ -71,6 +67,7 @@ export function setupWebSocket() {
 			// share the one device, so they're never rejected for being "busy".
 			if (url.searchParams.has('mcp')) {
 				server.upgrade(request, { data: { role: 'controller' } });
+
 				return;
 			}
 
@@ -87,6 +84,7 @@ export function setupWebSocket() {
 			open(ws) {
 				if (ws.data.role === 'controller') {
 					session.attachController(ws);
+
 					return;
 				}
 
@@ -103,6 +101,7 @@ export function setupWebSocket() {
 
 				if (ws.data.role === 'controller') {
 					handleControllerMessage(ws, message);
+
 					return;
 				}
 
@@ -111,6 +110,7 @@ export function setupWebSocket() {
 			close(ws) {
 				if (ws.data.role === 'controller') {
 					session.detachController(ws);
+
 					return;
 				}
 
@@ -132,11 +132,8 @@ export function setupWebSocket() {
 		takeReplInput();
 	});
 
-	// Mirror MCP (controller) activity into the terminal so it's a full transcript: the code an MCP
-	// asked to run, and the value/error it got back, interleaved with the device's console logs above.
-	// Only the eval input is tagged `[mcp]` — it genuinely originates from the MCP; the result is just
-	// a value from the device, and logs are ambient (any part of the app can emit them in the same
-	// window), so neither is labelled as MCP-originated.
+	// Mirror MCP activity into the terminal for a full transcript. Only the eval input is tagged
+	// `[mcp]`: results come from the device and logs are ambient, so neither is MCP-originated.
 	session.onControllerEval((code) => {
 		abortCurrentReplInput({ deletePrompt: true });
 		terminal.magenta(`» [mcp] ${code}\n`);
@@ -145,11 +142,13 @@ export function setupWebSocket() {
 
 	session.onControllerResult((result) => {
 		abortCurrentReplInput({ deletePrompt: true });
+
 		if (result.ok) {
 			terminal.gray(`« ${result.value}\n`);
 		} else {
 			terminal.red(`« ${result.error}\n`);
 		}
+
 		takeReplInput();
 	});
 
@@ -177,6 +176,7 @@ function handleDeviceMessage(raw: string) {
 
 	if (!message) {
 		system('red', 'Parsing failed on message from device');
+
 		return;
 	}
 
@@ -190,6 +190,7 @@ function handleControllerMessage(ws: session.SocketLike, raw: string) {
 	// result back over this same controller's socket.
 	if (message?.type === 'eval') {
 		session.evaluateForController(ws, message.id, message.code);
+
 		return;
 	}
 
@@ -198,11 +199,17 @@ function handleControllerMessage(ws: session.SocketLike, raw: string) {
 	}
 }
 
-export function getLocalAddress() {
+/**
+ * @description Finds the machine's first external IPv4 address, for devices on the LAN to dial.
+ * @returns The address, or `undefined` if the machine has none.
+ */
+export function getLocalAddress(): string | undefined {
 	const interfaces = os.networkInterfaces();
 
 	for (const ifaces of Object.values(interfaces)) {
-		if (!ifaces) continue;
+		if (!ifaces) {
+			continue;
+		}
 
 		for (const iface of ifaces) {
 			// Skip over internal (i.e., 127.0.0.1) and non-IPv4 addresses

@@ -1,13 +1,5 @@
-/**
- * Reformats a log line as Hermes hands it to `nativeLoggingHook`. Hermes inspects each `console.*`
- * argument and joins them with `, ` — quoting string args (`'a', 'b', { x: 1 }`). That reads badly
- * in the debugger terminal, so we split on the top-level commas Hermes inserted, unquote the plain
- * string segments, and rejoin with spaces — leaving inspected objects/arrays untouched.
- *
- * This is best-effort: it only rewrites what parses cleanly as Hermes's join format. A segment it
- * can't confidently classify is left exactly as received, so worst case a line is unchanged, never
- * mangled.
- */
+// Hermes joins `console.*` args with `, ` and quotes strings (`'a', 'b', { x: 1 }`). Only what parses
+// cleanly as that join is rewritten; anything else is left exactly as received, never mangled.
 
 /**
  * @description Cleans a Hermes-joined console line into space-separated, unquoted output.
@@ -44,7 +36,11 @@ function splitTopLevel(input: string): string[] | null {
 				i++;
 				continue;
 			}
-			if (char === "'") inString = false;
+
+			if (char === "'") {
+				inString = false;
+			}
+
 			continue;
 		}
 
@@ -65,10 +61,15 @@ function splitTopLevel(input: string): string[] | null {
 			case ',':
 				if (depth === 0) {
 					segments.push(input.slice(start, i));
+
 					// Skip the single space Hermes puts after each comma.
-					if (input[i + 1] === ' ') i++;
+					if (input[i + 1] === ' ') {
+						i++;
+					}
+
 					start = i + 1;
 				}
+
 				break;
 		}
 	}

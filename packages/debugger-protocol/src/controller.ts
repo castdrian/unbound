@@ -5,22 +5,21 @@ import type { EvalResult, LogMessage, PluginPushResult } from './index';
 import { serializeMessage, parseMessage } from './index';
 
 /**
- * The controller half of the bridge, from a separate process. Dials the bridge's `?mcp` endpoint,
- * issues id-correlated evals over that one socket, and settles each against the matching result the
- * bridge routes back. Used by the MCP server; auto-reconnects so it can outlive bridge restarts.
+ * The controller half of the bridge: dials the `?mcp` endpoint and settles id-correlated evals
+ * against the results the bridge routes back. Reconnects so it outlives bridge restarts.
  */
 
-interface PendingEval {
+type PendingEval = {
 	resolve: (result: EvalResult) => void;
 	timer: ReturnType<typeof setTimeout>;
 	/** Console output seen between this eval's dispatch and its result, so side effects surface too. */
 	logs: LogMessage[];
-}
+};
 
-interface PendingPush {
+type PendingPush = {
 	resolve: (result: PluginPushResult) => void;
 	timer: ReturnType<typeof setTimeout>;
-}
+};
 
 type PluginPush = {
 	addonId: string;
@@ -110,6 +109,7 @@ export class ControllerClient {
 					ok: false,
 					error: 'Not connected to the debugger bridge.',
 				});
+
 				return;
 			}
 
@@ -148,6 +148,7 @@ export class ControllerClient {
 					ok: false,
 					error: 'Not connected to the debugger bridge.',
 				});
+
 				return;
 			}
 
@@ -168,40 +169,45 @@ export class ControllerClient {
 
 	private onMessage(raw: string) {
 		const message = parseMessage(raw);
+
 		if (!message) return;
 
 		if (message.type === 'device-status') {
 			this.deviceConnected = message.connected;
+
 			return;
 		}
 
 		if (message.type === 'log') {
-			// Logs aren't id-tagged by the device, so attribute each to every in-flight eval. For the
-			// MCP's one-at-a-time use this is exact; concurrent evals get a superset, which is the right
-			// tradeoff short of device-side per-eval log tagging.
+			// Device logs carry no eval id, so each goes to every in-flight eval. Exact for the MCP's
+			// one-at-a-time use; concurrent evals get a superset.
 			for (const entry of this.pending.values()) entry.logs.push(message);
+
 			return;
 		}
 
 		if (message.type === 'eval-result') {
 			const entry = this.pending.get(message.id);
+
 			if (!entry) return;
 
 			clearTimeout(entry.timer);
 			this.pending.delete(message.id);
 			// Return the captured side-effect logs alongside the value.
 			entry.resolve({ ...message, logs: entry.logs });
+
 			return;
 		}
 
-		if (message.type === 'plugin-push-result') {
-			const entry = this.pendingPushes.get(message.id);
-			if (!entry) return;
+		if (message.type !== 'plugin-push-result') return;
 
-			clearTimeout(entry.timer);
-			this.pendingPushes.delete(message.id);
-			entry.resolve(message);
-		}
+		const entry = this.pendingPushes.get(message.id);
+
+		if (!entry) return;
+
+		clearTimeout(entry.timer);
+		this.pendingPushes.delete(message.id);
+		entry.resolve(message);
 	}
 
 	private onClose() {
@@ -209,6 +215,7 @@ export class ControllerClient {
 		this.deviceConnected = false;
 
 		if (this.closed) return;
+
 		setTimeout(() => this.connect(), RECONNECT_DELAY_MS);
 	}
 }

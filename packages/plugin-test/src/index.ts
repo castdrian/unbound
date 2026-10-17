@@ -2,7 +2,7 @@
 
 import { getNativeModule, reload, BundleInfo } from '@unbound-app/api/native';
 import { findByName, findByProps, findStore } from '@unbound-app/api/metro';
-import { DesignModule } from '@unbound-app/api/metro/components';
+import type { DesignModule } from '@unbound-app/api/metro/components';
 import { byProps, byName } from '@unbound-app/api/metro/filters';
 import { getStore, get, set } from '@unbound-app/api/storage';
 import { showToast } from '@unbound-app/api/toasts';
@@ -16,6 +16,7 @@ const nameFilter = byName('C');
 
 const store = getStore('unbound');
 const enabled = get('unbound', 'plugins.enabled', false);
+
 set('unbound', 'plugins.enabled', true);
 
 const handle = showToast({

@@ -1,11 +1,6 @@
 /**
- * Configuration for the plugin SDK generator (`apps/sdk-generator`).
- *
- * The generator derives the module surface by parsing the api barrel's `export * as <name>`
- * specifiers (recursively, for folder modules), so adding a public module never touches the
- * generator - you export it from the barrel and regenerate. The values here are the policy the
- * generator cannot infer: which libraries to inline, where the surface roots are, and the escape
- * hatches for the auto-derived subpaths.
+ * Policy for the plugin SDK generator (`apps/sdk-generator`) that it cannot infer from the api
+ * barrel's `export * as` specifiers: inlined libraries, surface roots and subpath escape hatches.
  */
 
 type SubpathEntry = {
@@ -15,10 +10,8 @@ type SubpathEntry = {
 
 type SdkConfig = {
 	/**
-	 * Package names whose typings are flattened into the bundle instead of kept as external imports.
-	 * These never become peer dependencies - consumers ship no runtime, so they only need to resolve
-	 * as types. `react`, `react-native`, and `@types/react` are deliberately absent: they stay
-	 * external and are declared as peers.
+	 * Packages whose typings are flattened into the bundle rather than becoming peers. `react`,
+	 * `react-native` and `@types/react` are deliberately absent: they stay external peers.
 	 */
 	inlinedLibraries: string[];
 	/** The public-surface root, relative to the repo root. Every `export * as` here becomes a module. */

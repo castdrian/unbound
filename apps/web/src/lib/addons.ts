@@ -1,30 +1,136 @@
 import type {
 	AddonResponse,
+	AddonSort,
+	AddonType,
+	AddonVersion,
+	ListAddonsQuery,
 	ListAddonsResponse,
+	Maintainer,
 	MaintainersResponse,
 	MyAddonsResponse,
 	TransferAddonRequest,
 } from '@unbound-app/contracts/addons';
-import { and, eq, ne } from 'drizzle-orm';
+import { addonIdSchema, type PublishedManifest } from '@unbound-app/contracts/manifest';
+import { and, desc, eq, ne, or, sql } from 'drizzle-orm';
+import { z } from 'zod';
 
 import { OPEN_SUBMISSION_STATUSES, toSubmission } from '~/lib/submissions';
-import { addon, addonMaintainer } from '~/db/schema';
+import { addon, addonMaintainer, addonVersion } from '~/db/schema';
 import { requirePermission } from '~/lib/api/caller';
+import type { Transaction } from '~/db/database';
 import { toAddonVersion } from '~/lib/artifacts';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
+import { escapeLike } from '~/lib/escape-like';
 import { ApiError } from '~/lib/api/errors';
 
 export type AddonRow = typeof addon.$inferSelect;
 
-const LATEST_VERSION = { versions: { orderBy: { versionKey: 'desc' }, limit: 1 } } as const;
+export type AddonSummary = Pick<AddonRow, 'type' | 'name' | 'description' | 'updatedAt'>;
 
-function toAddon(row: AddonRow): AddonResponse['addon'] {
+export type AddonDetails = {
+	id: string;
+	type: AddonType;
+	createdAt: string;
+	/** Newest first. */
+	versions: AddonVersion[];
+	maintainers: Maintainer[];
+};
+
+type MaintainerRow = Pick<typeof addonMaintainer.$inferSelect, 'role' | 'createdAt'> & {
+	user: Pick<Maintainer, 'id' | 'name' | 'image'> | null;
+};
+
+type ListingCursor = [value: string | number, id: string];
+
+const MAINTAINERS = {
+	with: { user: { columns: { id: true, name: true, image: true } } },
+	orderBy: { role: 'desc', createdAt: 'asc' },
+} as const;
+
+const SORT_COLUMNS = {
+	name: 'name',
+	created: 'createdAt',
+	updated: 'updatedAt',
+} as const satisfies Record<AddonSort, keyof AddonRow>;
+
+const CURSOR_SCHEMAS = {
+	name: z.tuple([z.string(), addonIdSchema]),
+	created: z.tuple([z.int(), addonIdSchema]),
+	updated: z.tuple([z.int(), addonIdSchema]),
+} satisfies Record<AddonSort, z.ZodType<ListingCursor>>;
+
+/** The relational `with` that loads an addon's newest version. */
+export const LATEST_VERSION = { versions: { orderBy: { versionKey: 'desc' }, limit: 1 } } as const;
+
+/**
+ * @description Serializes an addon row for the API.
+ * @param row The addon row.
+ * @returns The addon.
+ */
+export function toAddon(row: AddonRow): AddonResponse['addon'] {
 	return {
 		id: row.id,
 		createdAt: row.createdAt.toISOString(),
 		delistedAt: row.delistedAt?.toISOString() ?? null,
 	};
+}
+
+function toMaintainers(rows: MaintainerRow[]): Maintainer[] {
+	return rows.flatMap((row) =>
+		row.user
+			? [
+					{
+						id: row.user.id,
+						name: row.user.name,
+						image: row.user.image ?? null,
+						role: row.role,
+						addedAt: row.createdAt.toISOString(),
+					},
+				]
+			: [],
+	);
+}
+
+/**
+ * @description Derives the listing columns an addon copies from its newest version.
+ * @param manifest The newest version's manifest.
+ * @param publishedAt When that version was approved.
+ * @returns The `addon` summary columns.
+ */
+export function toAddonSummary(manifest: PublishedManifest, publishedAt: Date): AddonSummary {
+	return {
+		// `type` is optional in manifests; themes are the addons whose `main` is a JSON file.
+		type: manifest.type ?? (manifest.main.endsWith('.json') ? 'theme' : 'plugin'),
+		name: manifest.name,
+		description: manifest.description,
+		updatedAt: publishedAt,
+	};
+}
+
+/**
+ * @description Copies the addon's newest version's summary onto the addon row, after a version is
+ * approved.
+ * @param tx The approval transaction.
+ * @param addonId The addon id.
+ */
+export function refreshAddonSummary(tx: Transaction, addonId: string) {
+	const latest = tx
+		.select({ manifest: addonVersion.manifest, publishedAt: addonVersion.publishedAt })
+		.from(addonVersion)
+		.where(eq(addonVersion.addonId, addonId))
+		.orderBy(desc(addonVersion.versionKey))
+		.limit(1)
+		.get();
+
+	if (!latest) {
+		throw new Error(`Addon ${addonId} has no approved version to summarize.`);
+	}
+
+	tx.update(addon)
+		.set(toAddonSummary(latest.manifest, latest.publishedAt))
+		.where(eq(addon.id, addonId))
+		.run();
 }
 
 async function requireAddon(ctx: AppContext, id: string): Promise<AddonRow> {
@@ -77,25 +183,10 @@ export async function listMaintainers(
 ): Promise<MaintainersResponse> {
 	const rows = await ctx.db.query.addonMaintainer.findMany({
 		where: { addonId },
-		with: { user: { columns: { id: true, name: true, image: true } } },
-		orderBy: { role: 'desc', createdAt: 'asc' },
+		...MAINTAINERS,
 	});
 
-	const maintainers = rows.flatMap((row) =>
-		row.user
-			? [
-					{
-						id: row.user.id,
-						name: row.user.name,
-						image: row.user.image ?? null,
-						role: row.role,
-						addedAt: row.createdAt.toISOString(),
-					},
-				]
-			: [],
-	);
-
-	return { maintainers };
+	return { maintainers: toMaintainers(rows) };
 }
 
 /**
@@ -276,30 +367,114 @@ export function relistAddon(
 	return setDelistedAt(ctx, caller, addonId, null);
 }
 
+function encodeCursor(row: AddonRow, sort: AddonSort): string {
+	const value = row[SORT_COLUMNS[sort]];
+	const cursor: ListingCursor = [value instanceof Date ? value.getTime() : value, row.id];
+
+	return Buffer.from(JSON.stringify(cursor)).toString('base64url');
+}
+
+function decodeCursor(cursor: string, sort: AddonSort): ListingCursor {
+	try {
+		return CURSOR_SCHEMAS[sort].parse(JSON.parse(Buffer.from(cursor, 'base64url').toString()));
+	} catch {
+		throw new ApiError('invalid_request', `The cursor is not a ${sort} listing cursor.`);
+	}
+}
+
 /**
- * @description Lists one page of addons that are not delisted, ordered by id, with each one's newest
- * version.
+ * @description Builds the one statement behind {@link listAddons}: one page plus a lookahead row,
+ * keyset-paginated over the sort column and id so every filter and sort reads one index.
  * @param ctx The application context.
- * @param cursor The last addon id of the previous page.
+ * @param query The type filter, search text, sort and the previous page's cursor.
+ * @returns The unexecuted relational query.
+ */
+export function queryListedAddons(ctx: AppContext, query: ListAddonsQuery = {}) {
+	const { type, q, sort = 'name', order = 'asc', cursor } = query;
+	const column = SORT_COLUMNS[sort];
+	const after = cursor ? decodeCursor(cursor, sort) : undefined;
+	const pattern = q ? `%${escapeLike(q)}%` : undefined;
+
+	return ctx.db.query.addon.findMany({
+		where: {
+			delistedAt: { isNull: true },
+			type,
+			RAW: (table) =>
+				and(
+					pattern
+						? or(
+								sql`${table.name} like ${pattern} escape '\\'`,
+								sql`${table.description} like ${pattern} escape '\\'`,
+							)
+						: undefined,
+					after
+						? sql`(${table[column]}, ${table.id}) ${order === 'asc' ? sql`>` : sql`<`} (${after[0]}, ${after[1]})`
+						: undefined,
+				) ?? sql`true`,
+		},
+		with: LATEST_VERSION,
+		orderBy: (table, operators) => {
+			const direction = operators[order];
+
+			return [direction(table[column]), direction(table.id)];
+		},
+		limit: ctx.env.ADDON_LIST_PAGE_SIZE + 1,
+	});
+}
+
+/**
+ * @description Lists one page of approved addons that are not delisted, each with its newest version.
+ * @param ctx The application context.
+ * @param query The type filter, search text, sort and the previous page's cursor.
  * @returns The page and the cursor of the next one.
  */
-export async function listAddons(ctx: AppContext, cursor?: string): Promise<ListAddonsResponse> {
+export async function listAddons(
+	ctx: AppContext,
+	query: ListAddonsQuery = {},
+): Promise<ListAddonsResponse> {
 	const size = ctx.env.ADDON_LIST_PAGE_SIZE;
-	const rows = await ctx.db.query.addon.findMany({
-		where: { delistedAt: { isNull: true }, ...(cursor ? { id: { gt: cursor } } : {}) },
-		with: LATEST_VERSION,
-		orderBy: { id: 'asc' },
-		limit: size + 1,
-	});
-
+	const rows = await queryListedAddons(ctx, query);
 	const page = rows.slice(0, size);
+	const last = page.at(-1);
 	const addons = page.flatMap((row) => {
 		const [latest] = row.versions;
 
-		return latest ? [{ id: row.id, latestVersion: toAddonVersion(ctx.env, latest) }] : [];
+		return latest
+			? [{ id: row.id, type: row.type, latestVersion: toAddonVersion(ctx.env, latest) }]
+			: [];
 	});
 
-	return { addons, nextCursor: rows.length > size ? (page.at(-1)?.id ?? null) : null };
+	return {
+		addons,
+		nextCursor: rows.length > size && last ? encodeCursor(last, query.sort ?? 'name') : null,
+	};
+}
+
+/**
+ * @description Loads a listed addon for its public page: every approved version, newest first, and
+ * its maintainers, owners first.
+ * @param ctx The application context.
+ * @param id The addon id.
+ * @returns The addon, or `undefined` when it does not exist or is delisted.
+ */
+export async function getAddonDetails(
+	ctx: AppContext,
+	id: string,
+): Promise<AddonDetails | undefined> {
+	const row = await ctx.db.query.addon.findFirst({
+		where: { id, delistedAt: { isNull: true } },
+		with: { versions: { orderBy: { versionKey: 'desc' } }, maintainers: MAINTAINERS },
+	});
+
+	if (!row) return;
+
+	return {
+		id: row.id,
+		type: row.type,
+		createdAt: row.createdAt.toISOString(),
+		versions: row.versions.map((version) => toAddonVersion(ctx.env, version)),
+		maintainers: toMaintainers(row.maintainers),
+	};
 }
 
 /**
@@ -351,12 +526,18 @@ export async function listMyAddons(ctx: AppContext, caller: Caller): Promise<MyA
 }
 
 export default {
+	LATEST_VERSION,
+	toAddon,
+	toAddonSummary,
+	refreshAddonSummary,
 	listMaintainers,
 	addMaintainer,
 	removeMaintainer,
 	transferAddon,
 	delistAddon,
 	relistAddon,
+	queryListedAddons,
 	listAddons,
+	getAddonDetails,
 	listMyAddons,
 };

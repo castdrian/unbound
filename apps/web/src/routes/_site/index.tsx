@@ -7,7 +7,7 @@ import {
 	IconUsers,
 } from '@tabler/icons-react';
 import type { ComponentType, CSSProperties, MouseEvent } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 
 import { Card, CardDescription, CardTitle } from '~/components/ui/card';
@@ -149,7 +149,7 @@ function HomePage() {
 				</h2>
 				<div className='flex gap-4 mt-4'>
 					<Button asChild variant='default' size='lg' className='min-w-40'>
-						<a href='/plugins'>Get Started</a>
+						<Link to='/plugins'>Get Started</Link>
 					</Button>
 					<Button asChild variant='secondary' size='lg' className='min-w-40'>
 						<a href={DOCS_URL} target='_blank' rel='noopener noreferrer'>

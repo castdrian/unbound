@@ -1,4 +1,11 @@
-import { IconChevronDown, IconLogin, IconLogout, IconShield, IconUser } from '@tabler/icons-react';
+import {
+	IconChevronDown,
+	IconLayoutDashboard,
+	IconLogin,
+	IconLogout,
+	IconShield,
+	IconUser,
+} from '@tabler/icons-react';
 import { Link, useRouteContext, useRouter } from '@tanstack/react-router';
 
 import {
@@ -55,12 +62,18 @@ function AccountMenu() {
 						Account
 					</Link>
 				</DropdownMenuItem>
+				<DropdownMenuItem asChild>
+					<Link to='/dashboard'>
+						<IconLayoutDashboard />
+						Dashboard
+					</Link>
+				</DropdownMenuItem>
 				{getStaffAreas(user.role).map((area) => (
 					<DropdownMenuItem key={area.id} asChild>
-						<a href={area.href}>
+						<Link to={area.to}>
 							<IconShield />
 							{area.label}
-						</a>
+						</Link>
 					</DropdownMenuItem>
 				))}
 				<DropdownMenuSeparator />

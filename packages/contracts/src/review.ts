@@ -21,6 +21,8 @@ export const reviewQueueItemSchema = z.object({
 	sha256: sha256Schema,
 	submittedAt: z.iso.datetime(),
 	submitter: userSummarySchema,
+	/** The viewer authored it or maintains the addon, so the server refuses their review with `self_review`. */
+	selfReview: z.boolean(),
 	/** The addon's newest approved version, for updates. */
 	previousVersion: addonVersionSchema.nullable(),
 	/** A short-lived presigned download of the staged bundle. */

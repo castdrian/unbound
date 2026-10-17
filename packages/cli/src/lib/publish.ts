@@ -1,10 +1,7 @@
-import {
-	createSubmissionResponseSchema,
-	finalizeSubmissionResponseSchema,
-} from '@unbound-app/contracts/publish';
 import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import { addonManifestSchema } from '@unbound-app/contracts/manifest';
 import type { Submission } from '@unbound-app/contracts/publish';
+import { publishArtifact } from '@unbound-app/web/publish';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -60,31 +57,7 @@ export async function publish({
 		throw new Error(`Built bundle not found at ${bundle.name}. Build ${addon.id} first.`);
 	}
 
-	const request = createClient(env);
-
-	const { submission, upload } = await request('POST /api/v1/submissions', {
-		body: { manifest, bundleSize: bundle.size, repository, changelog },
-		response: createSubmissionResponseSchema,
-	});
-
-	const uploaded = await fetch(upload.url, {
-		method: upload.method,
-		headers: upload.headers,
-		body: bundle,
-	});
-
-	if (!uploaded.ok) {
-		throw new Error(
-			`Uploading the bundle of submission ${submission.id} failed with ${uploaded.status}: ${await uploaded.text()}`,
-		);
-	}
-
-	const finalized = await request('POST /api/v1/submissions/$id/finalize', {
-		params: { id: submission.id },
-		response: finalizeSubmissionResponseSchema,
-	});
-
-	return finalized.submission;
+	return publishArtifact(createClient(env), { manifest, bundle, repository, changelog });
 }
 
 export default publish;

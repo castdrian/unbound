@@ -9,6 +9,7 @@ import { submissionKindSchema } from '@unbound-app/contracts/publish';
 import { and, eq } from 'drizzle-orm';
 
 import { addon, addonMaintainer, addonVersion, submission, user } from '~/db/schema';
+import { refreshAddonSummary, toAddonSummary } from '~/lib/addons';
 import { getArtifactKeys, toAddonVersion } from '~/lib/artifacts';
 import type { SubmissionRow } from '~/lib/submissions';
 import { requirePermission } from '~/lib/api/caller';
@@ -94,16 +95,24 @@ export async function listReviewQueue(
 		orderBy: { submittedAt: 'asc' },
 	});
 
+	if (rows.length === 0) {
+		return { submissions: [] };
+	}
+
 	const updated = rows.filter((row) => row.kind === 'update').map((row) => row.addonId);
-	const addons =
-		updated.length > 0
-			? await ctx.db.query.addon.findMany({
-					where: { id: { in: updated } },
-					with: { versions: { orderBy: { versionKey: 'desc' }, limit: 1 } },
-				})
-			: [];
+	const [addons, memberships] = await Promise.all([
+		ctx.db.query.addon.findMany({
+			where: { id: { in: updated } },
+			with: { versions: { orderBy: { versionKey: 'desc' }, limit: 1 } },
+		}),
+		ctx.db.query.addonMaintainer.findMany({
+			where: { userId: caller.user.id, addonId: { in: rows.map((row) => row.addonId) } },
+			columns: { addonId: true },
+		}),
+	]);
 
 	const previous = new Map(addons.map((entry) => [entry.id, entry.versions[0]]));
+	const maintained = new Set(memberships.map((membership) => membership.addonId));
 	const expiresIn = ctx.env.REVIEW_ARTIFACT_URL_TTL_SECONDS;
 	const expiresAt = new Date(ctx.now().getTime() + expiresIn * 1000).toISOString();
 
@@ -123,6 +132,7 @@ export async function listReviewQueue(
 			sha256,
 			submittedAt: submittedAt.toISOString(),
 			submitter: { id: author.id, name: author.name, image: author.image ?? null },
+			selfReview: author.id === caller.user.id || maintained.has(row.addonId),
 			previousVersion: version ? toAddonVersion(ctx.env, version) : null,
 			artifact: {
 				url: ctx.storage.staging.presign(row.stagingKey, { method: 'GET', expiresIn }),
@@ -239,7 +249,13 @@ function decide(
 			}
 
 			if (row.kind === 'listing') {
-				tx.insert(addon).values({ id: row.addonId, createdAt: decision.reviewedAt }).run();
+				tx.insert(addon)
+					.values({
+						id: row.addonId,
+						createdAt: decision.reviewedAt,
+						...toAddonSummary(row.manifest, decision.reviewedAt),
+					})
+					.run();
 				tx.insert(addonMaintainer)
 					.values({
 						addonId: row.addonId,
@@ -266,6 +282,8 @@ function decide(
 			tx.insert(addonVersion)
 				.values(toVersionRow(row, sha256, decision.reviewedAt))
 				.run();
+
+			refreshAddonSummary(tx, row.addonId);
 
 			return updated;
 		},

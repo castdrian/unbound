@@ -12,6 +12,10 @@
 			"types": "./dist/types/src/api/client.d.ts",
 			"default": "./src/api/client.ts"
 		},
+		"./publish": {
+			"types": "./dist/types/src/api/publish.d.ts",
+			"default": "./src/api/publish.ts"
+		},
 		"./testing": {
 			"types": "./dist/types/tests/helpers/index.d.ts",
 			"default": "./tests/helpers/index.ts"
@@ -25,7 +29,8 @@
 		"build:types": "tsc -p tsconfig.types.json && bun scripts/resolve-type-paths.ts",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "bun scripts/migrate.ts",
-		"b2:staging-lifecycle": "b2 bucket update --lifecycle-rule \"$(cat b2/staging-lifecycle.json)\" \"$S3_STAGING_BUCKET\" allPrivate"
+		"b2:staging-lifecycle": "b2 bucket update --lifecycle-rule \"$(cat b2/staging-lifecycle.json)\" \"$S3_STAGING_BUCKET\" allPrivate",
+		"b2:staging-cors": "b2 bucket update --cors-rules \"$(cat b2/staging-cors.json)\" \"$S3_STAGING_BUCKET\" allPrivate"
 	},
 	"dependencies": {
 		"@better-auth/api-key": "1.7.10",

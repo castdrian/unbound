@@ -4,6 +4,7 @@ import type { Caller } from '@unbound-app/contracts/account';
 import { addon, addonMaintainer, user } from '~/db/schema';
 import { DEFAULT_ROLE } from '~/lib/auth/access';
 import type { AppContext } from '~/lib/context';
+import { escapeLike } from '~/lib/escape-like';
 
 export type DevelopersQuery = {
 	/** Matches anywhere in the developer's name, case-insensitively. */
@@ -17,10 +18,6 @@ export type DevelopersPage = {
 	total: number;
 	pageSize: number;
 };
-
-function escapeLike(value: string): string {
-	return value.replaceAll(/[\\%_]/g, (match) => `\\${match}`);
-}
 
 /**
  * @description Lists one page of developers: users who are not banned and maintain at least one

@@ -34,22 +34,37 @@ export const addonResponseSchema = z.object({
 	addon: addonSchema,
 });
 
+export const addonTypeSchema = addonManifestSchema.shape.type.unwrap();
+
+/** `created` is when the addon was first approved, `updated` when its newest version was. */
+export const addonSortSchema = z.enum(['name', 'created', 'updated']);
+
+export const sortOrderSchema = z.enum(['asc', 'desc']);
+
 export const listAddonsQuerySchema = z
 	.object({
-		/** The last addon id of the previous page. */
-		cursor: addonIdSchema.optional(),
+		type: addonTypeSchema.optional(),
+		/** Matches anywhere in the newest version's name or description, case-insensitively. */
+		q: z.string().trim().max(100).optional(),
+		/** Defaults to `name`; ties are ordered by id. */
+		sort: addonSortSchema.optional(),
+		/** Defaults to `asc`. */
+		order: sortOrderSchema.optional(),
+		/** The previous page's `nextCursor`, requested with the same filters and sort. */
+		cursor: z.string().max(512).optional(),
 	})
 	.optional();
 
-/** Listed addons, ordered by id, each with its newest version. */
+export const listedAddonSchema = z.object({
+	id: addonIdSchema,
+	type: addonTypeSchema,
+	latestVersion: addonVersionSchema,
+});
+
+/** One page of listed addons, each with its newest version. */
 export const listAddonsResponseSchema = z.object({
-	addons: z.array(
-		z.object({
-			id: addonIdSchema,
-			latestVersion: addonVersionSchema,
-		}),
-	),
-	nextCursor: addonIdSchema.nullable(),
+	addons: z.array(listedAddonSchema),
+	nextCursor: z.string().nullable(),
 });
 
 export const maintainerSchema = userSummarySchema.extend({
@@ -88,7 +103,11 @@ export type MaintainerRole = z.infer<typeof maintainerRoleSchema>;
 export type AddonVersion = z.infer<typeof addonVersionSchema>;
 export type Addon = z.infer<typeof addonSchema>;
 export type AddonResponse = z.infer<typeof addonResponseSchema>;
+export type AddonType = z.infer<typeof addonTypeSchema>;
+export type AddonSort = z.infer<typeof addonSortSchema>;
+export type SortOrder = z.infer<typeof sortOrderSchema>;
 export type ListAddonsQuery = z.infer<typeof listAddonsQuerySchema>;
+export type ListedAddon = z.infer<typeof listedAddonSchema>;
 export type ListAddonsResponse = z.infer<typeof listAddonsResponseSchema>;
 export type Maintainer = z.infer<typeof maintainerSchema>;
 export type AddMaintainerRequest = z.infer<typeof addMaintainerRequestSchema>;
@@ -103,7 +122,11 @@ export default {
 	addonVersionSchema,
 	addonSchema,
 	addonResponseSchema,
+	addonTypeSchema,
+	addonSortSchema,
+	sortOrderSchema,
 	listAddonsQuerySchema,
+	listedAddonSchema,
 	listAddonsResponseSchema,
 	maintainerSchema,
 	addMaintainerRequestSchema,

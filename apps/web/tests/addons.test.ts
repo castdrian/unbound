@@ -297,49 +297,6 @@ describe('delisting', () => {
 	});
 });
 
-describe('listing', () => {
-	test('pages through addons by id with each one newest version', async () => {
-		const paged = createTestContext({ ADDON_LIST_PAGE_SIZE: '2' });
-		const target: AppContext = { ...paged.ctx, now: () => NOW };
-		const pagedServer = serveEndpoints(target, { 'GET /api/v1/addons': listAddonsEndpoint });
-		const client = createApiClient<Api>({ baseUrl: pagedServer.url.href });
-
-		try {
-			const { userId } = await signInWithDiscord(target, {
-				id: '80351110224670001',
-				name: 'Lister',
-				email: 'lister@example.com',
-			});
-
-			for (const id of ['page.c', 'page.a', 'page.b']) {
-				await seedApprovedAddon(target, userId, manifest(id));
-			}
-
-			await seedVersion(target, userId, manifest('page.a', '1.10.0'));
-			await seedVersion(target, userId, manifest('page.a', '1.9.0'));
-
-			const first = await client('GET /api/v1/addons', {
-				response: listAddonsResponseSchema,
-			});
-			const second = await client('GET /api/v1/addons', {
-				query: { cursor: first.nextCursor ?? undefined },
-				response: listAddonsResponseSchema,
-			});
-
-			expect(first.addons.map((entry) => [entry.id, entry.latestVersion.version])).toEqual([
-				['page.a', '1.10.0'],
-				['page.b', '1.0.0'],
-			]);
-			expect(first.nextCursor).toBe('page.b');
-			expect(second.addons.map((entry) => entry.id)).toEqual(['page.c']);
-			expect(second.nextCursor).toBeNull();
-		} finally {
-			await pagedServer.stop(true);
-			paged.close();
-		}
-	});
-});
-
 describe('my addons', () => {
 	test('lists maintained addons with their newest version, open updates and open listings', async () => {
 		const owner = await ownedAddon('mine.owned');

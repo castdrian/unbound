@@ -1,4 +1,5 @@
 import type { CommandDefinition } from '@unbound-app/debugger-protocol/registry';
+import { setTimeout as sleep } from 'node:timers/promises';
 import toError from '@unbound-app/utils/to-error';
 import { z } from 'zod';
 
@@ -26,7 +27,7 @@ const loginCommand: CommandDefinition<typeof schema> = {
 				};
 			}
 
-			const path = await login({ env, delay: Bun.sleep, prompt: printCode });
+			const path = await login({ env, delay: sleep, prompt: printCode });
 
 			return { ok: true, text: `Logged in. Credentials stored in ${path}.` };
 		} catch (error) {

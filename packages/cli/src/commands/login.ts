@@ -26,7 +26,7 @@ const loginCommand: CommandDefinition<typeof schema> = {
 				};
 			}
 
-			const path = await login({ env, delay: (ms) => Bun.sleep(ms), prompt: printCode });
+			const path = await login({ env, delay: Bun.sleep, prompt: printCode });
 
 			return { ok: true, text: `Logged in. Credentials stored in ${path}.` };
 		} catch (error) {

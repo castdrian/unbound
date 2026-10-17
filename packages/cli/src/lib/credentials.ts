@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { z } from 'zod';
 
@@ -38,10 +38,10 @@ export function readCredentials(path: string): Credentials | undefined {
  */
 export function writeCredentials(path: string, credentials: Credentials): void {
 	mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+	// `mode` only applies when the file is created, so replace a file left by an earlier login instead
+	// of writing the token into it before its permissions could be tightened.
+	rmSync(path, { force: true });
 	writeFileSync(path, `${JSON.stringify(credentials, null, '\t')}\n`, { mode: 0o600 });
-
-	// `mode` only applies when the file is created, so tighten a file left by an earlier login too.
-	chmodSync(path, 0o600);
 }
 
 /**

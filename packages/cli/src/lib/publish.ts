@@ -27,15 +27,15 @@ type Artifact = {
 // The bundle is served next to the manifest, so the published `main` names the built bundle.
 function readArtifact(addon: DiscoveredAddon): Artifact {
 	const path = join(addon.dir, 'manifest.json');
-	const source = JSON.parse(readFileSync(path, 'utf8'));
-	const main = getBundleName(addon, source.main);
-	const parsed = addonManifestSchema.safeParse({ ...source, main });
+	const parsed = addonManifestSchema.safeParse(JSON.parse(readFileSync(path, 'utf8')));
 
 	if (!parsed.success) {
 		throw new Error(`Invalid ${path}:\n${z.prettifyError(parsed.error)}`);
 	}
 
-	return { manifest: parsed.data, bundle: Bun.file(join(addon.output, main)) };
+	const main = getBundleName(addon, parsed.data.main);
+
+	return { manifest: { ...parsed.data, main }, bundle: Bun.file(join(addon.output, main)) };
 }
 
 /**

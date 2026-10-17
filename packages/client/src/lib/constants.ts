@@ -26,6 +26,12 @@ export const CLIENT_NAME = 'Unbound';
 /** Short git revision this bundle was built from. Replaced at build time; `N/A` when git is unavailable. */
 export const VERSION = '$$VERSION$$';
 
+/** Semantic version of this client, sent to the addon updater. Replaced at build time from `package.json`. */
+export const CLIENT_VERSION = '$$CLIENT_VERSION$$';
+
+/** Origin of the Unbound web API. Replaced at build time from `UNBOUND_API_URL`, defaulting to production. */
+export const API_URL = '$$API_URL$$';
+
 /** Route keys for every built-in Unbound settings screen. Values double as `SETTING_RENDERER_CONFIG` keys. */
 export const Screens = {
 	General: 'UNBOUND_GENERAL',

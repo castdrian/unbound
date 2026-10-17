@@ -8,9 +8,11 @@ import { swc } from 'rollup-plugin-swc3';
 import { join } from 'node:path';
 
 import {
+	API_URL,
 	IS_DEV_BUILD,
 	GIT_REVISION,
 	I18N_BASE_URL,
+	CLIENT_VERSION,
 	DEV_SERVER_URL,
 	IGNORED_WARNINGS,
 	DEBUGGER_ADDRESS,
@@ -64,10 +66,17 @@ const config: RolldownOptions = {
 		replace({
 			preventAssignment: true,
 			$$VERSION$$: GIT_REVISION,
+			$$CLIENT_VERSION$$: CLIENT_VERSION,
+			$$API_URL$$: API_URL,
 			$$I18N_BASE_URL$$: I18N_BASE_URL,
 			$$DEBUGGER_ADDRESS$$: DEBUGGER_ADDRESS,
 		}),
-		swc({ tsconfig: false, swcrc: true, exclude: /node_modules\/(?!\.bun\/possess|possess)/ }),
+		// Dependencies that ship classes or async functions must be down-levelled for older Hermes.
+		swc({
+			tsconfig: false,
+			swcrc: true,
+			exclude: /node_modules\/(?!(\.bun\/)?(possess|zod|@noble))/,
+		}),
 		hermes(),
 		generateManifest(GIT_REVISION),
 		...(IS_DEV_BUILD ? [locales()] : []),

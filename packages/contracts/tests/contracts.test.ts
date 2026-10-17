@@ -9,6 +9,7 @@ import { UPDATES_BATCH_LIMIT, updatesRequestSchema, updatesResponseSchema } from
 import { addonManifestSchema, semverSchema } from '../src/manifest';
 import { reviewSubmissionRequestSchema } from '../src/review';
 import { apiErrorResponseSchema } from '../src/errors';
+import { apiUrlSchema } from '../src/api';
 
 const manifest = {
 	id: 'mario.hello-world',
@@ -20,6 +21,19 @@ const manifest = {
 };
 
 const sha256 = 'a'.repeat(64);
+
+describe('apiUrlSchema', () => {
+	test('reduces an http(s) URL to its origin and defaults to production', () => {
+		expect(apiUrlSchema.parse('http://localhost:3000/api/v1/')).toBe('http://localhost:3000');
+		expect(apiUrlSchema.parse(undefined)).toBe('https://unbound.rip');
+	});
+
+	test('rejects other protocols and non-URLs', () => {
+		for (const url of ['ftp://unbound.rip', 'unbound.rip', '']) {
+			expect(apiUrlSchema.safeParse(url).success).toBe(false);
+		}
+	});
+});
 
 describe('semverSchema', () => {
 	test('accepts release, prerelease and build versions', () => {

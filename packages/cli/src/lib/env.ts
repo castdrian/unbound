@@ -1,13 +1,11 @@
+import { apiUrlSchema } from '@unbound-app/contracts/api';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
 
 const schema = z.object({
 	/** The origin of the Unbound web API that `ubd login` and `ubd publish` talk to. */
-	UNBOUND_API_URL: z
-		.url({ protocol: /^https?$/ })
-		.transform((url) => new URL(url).origin)
-		.default('https://unbound.rip'),
+	UNBOUND_API_URL: apiUrlSchema,
 	/** An API key for CI; when set, `ubd publish` sends it instead of the stored login. */
 	UNBOUND_API_KEY: z.string().min(1).optional(),
 	XDG_CONFIG_HOME: z.string().min(1).optional(),

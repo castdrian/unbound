@@ -81,14 +81,16 @@ export async function seedSubmission(
  * @param ctx The application context.
  * @param authorId The submitting user.
  * @param published The approved manifest.
+ * @param sha256 The bundle's SHA-256; defaults to a digest of the version for tests that never
+ * download the bundle.
  * @returns The approved submission row.
  */
 export async function seedVersion(
 	ctx: AppContext,
 	authorId: string,
 	published: PublishedManifest,
+	sha256: string = new Bun.CryptoHasher('sha256').update(published.version).digest('hex'),
 ): Promise<SubmissionRow> {
-	const sha256 = new Bun.CryptoHasher('sha256').update(published.version).digest('hex');
 	const row = await seedSubmission(ctx, authorId, published, { status: 'approved', sha256 });
 
 	await ctx.db.insert(addonVersion).values(toVersionRow(row, sha256, ctx.now()));

@@ -1,5 +1,8 @@
 import type { Addon, AddonManifest, PluginContext } from '@unbound-app/types';
+import type { AddonUpdate } from '@unbound-app/contracts/updates';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import toError from '@unbound-app/utils/to-error';
+import { sha256 } from '@noble/hashes/sha2.js';
 import noop from '@unbound-app/utils/noop';
 
 import { validateNativePluginRequirements } from '~/api/native-runtime';
@@ -31,6 +34,8 @@ type AddonEvents<T extends Addon> = {
 	'reload-error': (entity: T, error: Error) => void;
 	installed: (entity: T) => void;
 	'install-error': (error: Error) => void;
+	updated: (entity: T) => void;
+	'update-error': (entity: T, error: Error) => void;
 	deleted: (entity: T) => void;
 };
 
@@ -243,29 +248,9 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 */
 	async install(url: string): Promise<T | undefined> {
 		try {
-			const manifest: AddonManifest = await fetch(url, { cache: 'no-cache' }).then((res) => {
-				if (!res.ok) {
-					throw new Error(`Failed to fetch manifest (${res.status}).`);
-				}
-
-				return res.json();
-			});
-
-			this.validateManifest(manifest);
-
-			if (manifest.type && manifest.type !== this.entityType) {
-				throw new Error(`Expected a ${this.entityType} manifest, got ${manifest.type}.`);
-			}
-
+			const manifest = await this.fetchManifest(url);
 			const origin = url.split('/').slice(0, -1).join('/');
-			const bundleUrl = new URL(manifest.main, `${origin}/`).toString();
-			const bundle = await fetch(bundleUrl, { cache: 'no-cache' }).then((res) => {
-				if (!res.ok) {
-					throw new Error(`Failed to fetch bundle (${res.status}).`);
-				}
-
-				return res.text();
-			});
+			const bundle = await this.fetchBundle(new URL(manifest.main, `${origin}/`).toString());
 
 			await this.persist(bundle, manifest);
 
@@ -282,6 +267,46 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			this.emit('install-error', toError(error));
 
 			return undefined;
+		}
+	}
+
+	/**
+	 * @description Applies an updater release to an installed addon: downloads its manifest and bundle,
+	 * verifies the bundle's SHA-256, then swaps it in through {@link reload} and emits `updated`.
+	 * @param entity The addon to update, as its id or the entity itself.
+	 * @param update The release the updater returned for this addon.
+	 */
+	async update(entity: AddonResolveable, update: AddonUpdate): Promise<void> {
+		const resolved = this.resolve(entity);
+
+		if (!resolved) return;
+
+		try {
+			const manifest = await this.fetchManifest(update.manifestUrl);
+			const bundle = await this.fetchBundle(update.bundleUrl);
+			// `fetchBundle` decodes the body as UTF-8; re-encoding gives back the served bytes for
+			// any valid UTF-8 bundle, and anything else fails closed as a mismatch.
+			const digest = bytesToHex(sha256(utf8ToBytes(bundle)));
+
+			if (digest !== update.sha256) {
+				throw new Error(`Bundle SHA-256 ${digest} does not match ${update.sha256}.`);
+			}
+
+			const result = await this.reload(resolved, bundle, manifest);
+
+			if (!result.ok) {
+				this.emit('update-error', resolved, result.error);
+
+				return;
+			}
+
+			this.emit('updated', resolved);
+		} catch (error) {
+			const failure = toError(error);
+
+			this.logger.error(`Failed to update addon ${resolved.id}:`, failure);
+			this.errors.set(resolved.id, failure);
+			this.emit('update-error', resolved, failure);
 		}
 	}
 
@@ -433,6 +458,44 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		}
 
 		this.emit('toggled', resolved);
+	}
+
+	/**
+	 * @description Downloads an addon manifest and validates it for this manager.
+	 * @param url The manifest URL.
+	 * @returns The validated manifest.
+	 */
+	private async fetchManifest(url: string): Promise<AddonManifest> {
+		const res = await fetch(url, { cache: 'no-cache' });
+
+		if (!res.ok) {
+			throw new Error(`Failed to fetch manifest (${res.status}).`);
+		}
+
+		const manifest: AddonManifest = await res.json();
+
+		this.validateManifest(manifest);
+
+		if (manifest.type && manifest.type !== this.entityType) {
+			throw new Error(`Expected a ${this.entityType} manifest, got ${manifest.type}.`);
+		}
+
+		return manifest;
+	}
+
+	/**
+	 * @description Downloads an addon bundle.
+	 * @param url The bundle URL.
+	 * @returns The bundle source.
+	 */
+	private async fetchBundle(url: string): Promise<string> {
+		const res = await fetch(url, { cache: 'no-cache' });
+
+		if (!res.ok) {
+			throw new Error(`Failed to fetch bundle (${res.status}).`);
+		}
+
+		return res.text();
 	}
 
 	/**

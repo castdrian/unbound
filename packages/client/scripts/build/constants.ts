@@ -1,6 +1,9 @@
+import { semverSchema } from '@unbound-app/contracts/manifest';
+import { apiUrlSchema } from '@unbound-app/contracts/api';
 import { execSync } from 'child_process';
 
 import { resolveDevServerUrl, resolveDevHost } from '../dev-host';
+import { version } from '../../package.json';
 
 export const GIT_REVISION = (() => {
 	try {
@@ -9,6 +12,10 @@ export const GIT_REVISION = (() => {
 		return 'N/A';
 	}
 })();
+
+export const CLIENT_VERSION = semverSchema.parse(version);
+
+export const API_URL = apiUrlSchema.parse(process.env.UNBOUND_API_URL);
 
 export const IGNORED_WARNINGS = ['PLUGIN_TIMINGS', 'EVAL', 'MISSING_NAME_OPTION_FOR_IIFE_EXPORT'];
 

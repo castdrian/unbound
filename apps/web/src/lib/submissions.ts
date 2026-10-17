@@ -256,7 +256,7 @@ function reserve(
  * rate, the Discord account age and, when a repository is named, GitHub push access; then claims
  * the addon id (new listing) or checks maintainership (update), enforces the pending caps,
  * supersedes the caller's own replaceable submission for the addon (deleting its staged bundle)
- * and presigns a single-use upload of exactly `bundleSize` bytes.
+ * and presigns an upload of exactly `bundleSize` bytes.
  * @param ctx The application context.
  * @param caller The submitting user.
  * @param request The validated create request.

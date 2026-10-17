@@ -71,7 +71,7 @@ export const createSubmissionRequestSchema = z.object({
 	changelog: z.string().max(10_000).optional(),
 });
 
-/** A single-use presigned upload for the bundle; send exactly `bundleSize` bytes with `headers` before `expiresAt`. */
+/** A presigned upload for the bundle; send exactly `bundleSize` bytes with `headers` before `expiresAt`. */
 export const submissionUploadSchema = z.object({
 	url: z.url(),
 	method: z.literal('PUT'),

@@ -60,11 +60,10 @@ describe('presignStagingUpload', () => {
 		expect(await ctx.storage.staging.exists(uploadKey)).toBe(false);
 	});
 
-	test('uploads once and refuses to overwrite', async () => {
+	test('uploads a body of the signed length', async () => {
 		const { url, headers } = presign();
 
 		expect((await fetch(url, { method: 'PUT', headers, body: 'hello' })).status).toBe(200);
-		expect((await fetch(url, { method: 'PUT', headers, body: 'world' })).status).toBe(412);
 		expect(await ctx.storage.staging.file(uploadKey).text()).toBe('hello');
 	});
 });

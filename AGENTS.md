@@ -5,7 +5,7 @@ This is the canonical style guide for this repository, and the `AGENTS.md` that 
 The hierarchy of authority, highest first:
 
 1. **`oxfmt`** - owns all whitespace, quoting, and line-wrapping. Never fight it; never hand-format. Run it.
-2. **`oxlint`** (`.oxlintrc.json`, run `--type-aware`) - correctness, structural bans (the custom `oxc-config/*` rules), JSDoc shape, statement padding, and import/export ordering via `perfectionist`. Every rule is an `error`. The rules, the commitlint config and the Claude hook come from `@marioparaschiv/oxc-config`; `.oxlintrc.json` extends its `base`, `react` and `jsdoc` presets with no local rule overrides, so change a shared rule in that package, not here. The one local override allows `any` in the metro layer and the Discord design-module typings (§4). `bun run lint` also runs `oxc-config-check`, which fails on unknown rule names.
+2. **`oxlint`** (`.oxlintrc.json`, run `--type-aware`) - correctness, structural bans (the custom `oxc-config/*` rules), JSDoc shape, statement padding, and import/export ordering via `perfectionist`. Every rule is an `error`. The rules and the commitlint config come from `@marioparaschiv/oxc-config`; `.oxlintrc.json` extends its `base`, `react` and `jsdoc` presets with no local rule overrides, so change a shared rule in that package, not here. The one local override allows `any` in the metro layer and the Discord design-module typings (§4). `bun run lint` also runs `oxc-config-check`, which fails on unknown rule names.
 3. **This document** - the conventions the tools can't encode: naming, file shape, module structure, the _feel_ of the code.
 
 Fix a lint finding in the code. Don't silence it with a disable comment, a cast, or a config override.
@@ -26,7 +26,7 @@ These are settled by `.oxfmtrc.json`. Stated here so you recognise the output, n
 - **Bracket spacing on**: `{ foo }`, not `{foo}`.
 - `*.gen.ts` is formatter-ignored. Don't hand-edit generated files.
 
-You never need to think about any of the above. Save the file; the format-on-save hook (`oxc-config-hook`, wired in `.claude/settings.json`) handles it. When a Claude session stops, the same hook runs `oxlint --type-aware --fix` on every file changed in the session and reports what's left.
+You never need to think about any of the above. Save the file; the global `turn-check` hook formats it. At the end of each turn the same hook runs `oxlint --type-aware --fix` on every file changed in that turn, by any tool, and reports what's left.
 
 ---
 

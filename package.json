@@ -48,7 +48,7 @@
 	},
 	"devDependencies": {
 		"@commitlint/cli": "^21.0.2",
-		"@marioparaschiv/oxc-config": "github:marioparaschiv/oxc-config#81a45a3",
+		"@marioparaschiv/oxc-config": "^0.2.0",
 		"@semantic-release/exec": "^7.1.0",
 		"@semantic-release/git": "^10.0.1",
 		"@stylistic/eslint-plugin": "^5.10.0",

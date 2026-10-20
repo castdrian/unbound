@@ -67,6 +67,15 @@ export const listAddonsResponseSchema = z.object({
 	nextCursor: z.string().nullable(),
 });
 
+/**
+ * Every listed addon in one snapshot. `revision` changes exactly when the snapshot does, and is served
+ * as the response's `ETag`.
+ */
+export const catalogResponseSchema = z.object({
+	revision: z.string().min(1),
+	addons: z.array(listedAddonSchema),
+});
+
 export const maintainerSchema = userSummarySchema.extend({
 	role: maintainerRoleSchema,
 	addedAt: z.iso.datetime(),
@@ -109,6 +118,7 @@ export type SortOrder = z.infer<typeof sortOrderSchema>;
 export type ListAddonsQuery = z.infer<typeof listAddonsQuerySchema>;
 export type ListedAddon = z.infer<typeof listedAddonSchema>;
 export type ListAddonsResponse = z.infer<typeof listAddonsResponseSchema>;
+export type CatalogResponse = z.infer<typeof catalogResponseSchema>;
 export type Maintainer = z.infer<typeof maintainerSchema>;
 export type AddMaintainerRequest = z.infer<typeof addMaintainerRequestSchema>;
 export type MaintainersResponse = z.infer<typeof maintainersResponseSchema>;
@@ -128,6 +138,7 @@ export default {
 	listAddonsQuerySchema,
 	listedAddonSchema,
 	listAddonsResponseSchema,
+	catalogResponseSchema,
 	maintainerSchema,
 	addMaintainerRequestSchema,
 	maintainersResponseSchema,

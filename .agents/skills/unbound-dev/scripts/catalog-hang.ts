@@ -1,7 +1,9 @@
 // Accepts connections on the catalog port and never answers, to hold the client in its loading state.
+const PORT = Number(process.env.PORT ?? 3200);
+
 Bun.listen({
-	hostname: '100.65.233.54',
-	port: 3200,
+	hostname: '0.0.0.0',
+	port: PORT,
 	socket: {
 		data() {},
 		open() {
@@ -9,4 +11,4 @@ Bun.listen({
 		},
 	},
 });
-console.log('hanging on 3200');
+console.log(`hanging on ${PORT}`);

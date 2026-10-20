@@ -5,22 +5,22 @@ description: Read Discord's mobile JavaScript from its decompiled Hermes bytecod
 
 # Discord's Hermes source
 
-Discord ships Hermes bytecode (version 98 in Discord 349). The decompiled copy of Discord 349, split one file per source module, is at `~/.cache/unbound/discord-349/mods/`, named by original source path (`stores/`, `design/`, `modules/user_profile/native/...`). `main.js` beside it is the whole decompile.
+Decompiled builds live at `~/.cache/unbound/discord-<version>/`: `main.js` is the whole decompile and `mods/` holds one file per source module, named by original path (`stores/`, `design/`, `modules/user_profile/native/...`). Read the build matching the device's Discord version, else the highest version present. If the build you need is missing, decompile it.
 
-## Finding things
+## Decompile a build
 
-Search the source, then confirm live with `ubd eval` (see the `unbound-dev` skill). The source shows names and shapes; only the live runtime proves they still exist.
-
-- **By name**: `grep -rln '<identifier>' ~/.cache/unbound/discord-349/mods`. Strings survive decompilation; local variable names are registers (`r7`).
-- **Flux stores** live at `mods/stores/<Name>Store.tsx`. The name is assigned through a register before `displayName`, so search `= 'UserStore';`. Live: `unbound.metro.findStore('User')`, which appends `Store` unless you pass `{ short: false }`. `unbound.metro.stores` is Unbound's own small set, not Discord's stores.
-- **Modules by props**: find a distinctive export name in the source, then `unbound.metro.findByProps('<name>')` live.
-
-## A new Discord build
-
-Get the IPA (see the `dkrypt` skill), then:
+Get the IPA with the `dkrypt` skill, then:
 
 ```bash
-.agents/skills/hermes/scripts/decompile-discord.sh <discord.ipa> ~/.cache/unbound/discord-<version>
+python3 .agents/skills/hermes/scripts/decompile.py <discord.ipa> ~/.cache/unbound/discord-<version>
 ```
 
-It installs `hermes-dec` into `~/.cache/unbound/hermes-dec` on first run, extracts `main.jsbundle`, decompiles it (warnings about bytecode 98 are expected, in `dec.log`), and splits it into `mods/` with `split-modules.py`. Done when `mods/stores/UserStore.tsx` exists.
+It installs `hermes-dec` on first run (with `uv`, else `python3 -m venv`) and takes about 2 minutes. Bytecode-version warnings in `dec.log` are expected. Done when `mods/stores/UserStore.tsx` exists.
+
+## Find things
+
+Search the source, then confirm live with `ubd eval` from the `unbound-dev` skill. The source shows names and shapes. Only the live runtime proves they still exist.
+
+- **By name.** `grep -rln '<identifier>' ~/.cache/unbound/discord-<version>/mods`. Strings survive decompilation. Local variable names become registers (`r7`).
+- **Flux stores** live at `mods/stores/<Name>Store.tsx`. Search `= 'UserStore';`, since the name is assigned through a register. Live: `unbound.metro.findStore('User')`, which appends `Store` unless you pass `{ short: false }`. `unbound.metro.stores` is Unbound's own small set, not Discord's.
+- **Modules by props.** Find a distinctive export name in the source, then `unbound.metro.findByProps('<name>')` live.

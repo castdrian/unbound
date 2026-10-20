@@ -6,15 +6,15 @@ import {
 	manifest,
 	seedVersion,
 	signInWithDiscord,
-} from '/home/dev/unbound/apps/web/tests/helpers/index';
-import { addon, addonMaintainer, addonVersion } from '/home/dev/unbound/apps/web/src/db/schema';
-import getCatalogEndpoint from '/home/dev/unbound/apps/web/src/endpoints/get-catalog';
-import { toAddonSummary } from '/home/dev/unbound/apps/web/src/lib/addons';
-import { eq } from '/home/dev/unbound/apps/web/node_modules/drizzle-orm';
+} from '../../../../apps/web/tests/helpers/index';
+import getCatalogEndpoint from '../../../../apps/web/src/endpoints/get-catalog';
+import { resolveDevHost } from '../../../../packages/client/scripts/dev-host';
+import { eq } from '../../../../apps/web/node_modules/drizzle-orm/index.js';
+import { addon, addonMaintainer } from '../../../../apps/web/src/db/schema';
+import { toAddonSummary } from '../../../../apps/web/src/lib/addons';
 
-const HOST = '100.65.233.54';
 const PORT = Number(process.env.PORT ?? 3200);
-const ORIGIN = `http://${HOST}:${PORT}`;
+const ORIGIN = `http://${resolveDevHost()}:${PORT}`;
 
 const { ctx } = createTestContext({ CDN_URL: `${ORIGIN}/cdn/` });
 const { userId } = await signInWithDiscord(ctx, {
@@ -127,7 +127,6 @@ for (const [id, version, overrides] of seeds) await approve(id, version, overrid
 const typeOf = new Map(seeds.map(([id, , o]) => [id, (o.type as string) ?? 'plugin']));
 
 Bun.serve({
-	hostname: HOST,
 	port: PORT,
 	async fetch(request) {
 		const url = new URL(request.url);
@@ -176,4 +175,3 @@ Bun.serve({
 });
 
 console.log(`catalog server on ${ORIGIN}`);
-void addonVersion;

@@ -1,5 +1,5 @@
 import type { Addon, AddonManifest, PluginContext } from '@unbound-app/types';
-import type { AddonUpdate } from '@unbound-app/contracts/updates';
+import type { AddonRelease } from '@unbound-app/contracts/updates';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import toError from '@unbound-app/utils/to-error';
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -258,6 +258,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			const entity = this.getEntity(manifest.id);
 
 			if (entity) {
+				this.recordSource(entity.id, url);
 				this.emit('installed', entity);
 			}
 
@@ -276,7 +277,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 * @param entity The addon to update, as its id or the entity itself.
 	 * @param update The release the updater returned for this addon.
 	 */
-	async update(entity: AddonResolveable, update: AddonUpdate): Promise<void> {
+	async update(entity: AddonResolveable, update: AddonRelease): Promise<void> {
 		const resolved = this.resolve(entity);
 
 		if (!resolved) return;
@@ -325,6 +326,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		try {
 			this.unload(resolved);
 			await fs.rm(`Unbound/${ManagerType[this.type]}/${resolved.id}`);
+			this.forgetSource(resolved.id);
 			this.emit('deleted', resolved);
 		} catch (error) {
 			this.logger.error(`Failed to delete addon ${resolved.id}:`, error);

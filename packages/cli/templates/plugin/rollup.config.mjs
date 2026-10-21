@@ -4,7 +4,8 @@ import json from '@rollup/plugin-json';
 
 const globals = {
 	'@unbound-app/api': 'window.unbound',
-	'react': 'window.React',
+	// The bare name reaches the React Unbound passes the bundle, which keeps components' state on hot refresh.
+	'react': 'React',
 	'react-native': 'window.ReactNative',
 	'react-native-reanimated': 'window.unbound.metro.common.Reanimated',
 	'@react-native-clipboard/clipboard': 'window.unbound.metro.common.Clipboard',

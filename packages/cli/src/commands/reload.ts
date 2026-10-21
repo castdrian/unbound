@@ -26,7 +26,7 @@ const reloadCommand: CommandDefinition<typeof schema> = {
 	description:
 		'Reload the JavaScript bundle on the connected device and wait until the fresh bundle ' +
 		'reconnects to the debugger. The fresh bundle is told apart by a token the old one carried.',
-	surfaces: { cli: true, mcp: true },
+	surfaces: { cli: 'root', mcp: true },
 	schema,
 	async handler({ timeout }, { client }) {
 		const token = crypto.randomUUID();

@@ -1,5 +1,5 @@
-import type { ESTree } from 'rolldown/utils';
 import { parseAst } from 'rolldown/parseAst';
+import type { ESTree } from 'rolldown/utils';
 import type { Plugin } from 'rolldown';
 import { relative } from 'node:path';
 
@@ -99,7 +99,9 @@ function hookCalls(component: FunctionNode) {
 						? callee.property.name
 						: '';
 
-			if (HOOK_NAME.test(name)) hooks.push(name);
+			if (HOOK_NAME.test(name)) {
+				hooks.push(name);
+			}
 		}
 
 		const children = childNodes(node).filter((child) => !isFunction(child));
@@ -115,7 +117,9 @@ function childNodes(node: Node) {
 
 	for (const value of Object.values(node)) {
 		for (const item of Array.isArray(value) ? value : [value]) {
-			if (isNode(item)) children.push(item);
+			if (isNode(item)) {
+				children.push(item);
+			}
 		}
 	}
 
@@ -141,7 +145,9 @@ function exportsOnly(program: Program, components: Set<string>) {
 
 	for (const statement of program.body) {
 		if (statement.type === 'ExportAllDeclaration') {
-			if (statement.exportKind !== 'type') return false;
+			if (statement.exportKind !== 'type') {
+				return false;
+			}
 
 			continue;
 		}
@@ -149,7 +155,9 @@ function exportsOnly(program: Program, components: Set<string>) {
 		if (statement.type === 'ExportDefaultDeclaration') {
 			const value = statement.declaration;
 
-			if (value.type !== 'Identifier' || !components.has(value.name)) return false;
+			if (value.type !== 'Identifier' || !components.has(value.name)) {
+				return false;
+			}
 
 			exported++;
 			continue;
@@ -166,15 +174,21 @@ function exportsOnly(program: Program, components: Set<string>) {
 				continue;
 			}
 
-			if (declaration.type !== 'FunctionDeclaration') return false;
+			if (declaration.type !== 'FunctionDeclaration') {
+				return false;
+			}
 
-			if (!components.has(declaration.id?.name ?? '')) return false;
+			if (!components.has(declaration.id?.name ?? '')) {
+				return false;
+			}
 
 			exported++;
 			continue;
 		}
 
-		if (statement.source) return false;
+		if (statement.source) {
+			return false;
+		}
 
 		for (const specifier of statement.specifiers) {
 			if (specifier.exportKind === 'type') {
@@ -183,7 +197,9 @@ function exportsOnly(program: Program, components: Set<string>) {
 
 			const local = specifier.local;
 
-			if (local.type !== 'Identifier' || !components.has(local.name)) return false;
+			if (local.type !== 'Identifier' || !components.has(local.name)) {
+				return false;
+			}
 
 			exported++;
 		}

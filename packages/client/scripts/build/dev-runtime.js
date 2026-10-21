@@ -1,6 +1,4 @@
-// Rolldown's dev-mode module runtime (`experimental.devMode.implement`), prepended to the dev bundle.
-// The hoisted bundle registers each module's live exports here; hot patches register factories that
-// re-run a module against those exports. Kept dependency-free: it runs before any bundled module.
+// Rolldown's `experimental.devMode.implement`: holds each module's live exports for hot patches.
 globalThis.__rolldown_runtime__ = (() => {
 	const modules = new Map();
 	const factories = new Map();
@@ -27,7 +25,9 @@ globalThis.__rolldown_runtime__ = (() => {
 	}
 
 	function copyProps(to, from, except) {
-		if (!from || (typeof from !== 'object' && typeof from !== 'function')) return to;
+		if (!from || (typeof from !== 'object' && typeof from !== 'function')) {
+			return to;
+		}
 
 		for (const key of Object.getOwnPropertyNames(from)) {
 			if (key === except || Object.prototype.hasOwnProperty.call(to, key)) {
@@ -51,7 +51,9 @@ globalThis.__rolldown_runtime__ = (() => {
 	}
 
 	function toCommonJS(mod) {
-		if (Object.hasOwn(mod, 'module.exports')) return mod['module.exports'];
+		if (Object.hasOwn(mod, 'module.exports')) {
+			return mod['module.exports'];
+		}
 
 		return copyProps(Object.defineProperty({}, '__esModule', { value: true }), mod);
 	}
@@ -96,7 +98,9 @@ globalThis.__rolldown_runtime__ = (() => {
 				imports.set(id, targets);
 
 				for (const target of targets) {
-					if (!importers.has(target)) importers.set(target, new Set());
+					if (!importers.has(target)) {
+						importers.set(target, new Set());
+					}
 
 					importers.get(target).add(id);
 				}
@@ -142,13 +146,18 @@ globalThis.__rolldown_runtime__ = (() => {
 		// Evaluates a patch and re-runs the modules its changes reach. Returns false when the change
 		// reaches a module that can't take it in place, and the app needs a full reload instead.
 		applyPatch(code, changedIds) {
+			// Patches arrive as source text from the dev server; evaluating them is the point.
+			// oxlint-disable-next-line no-eval
 			(0, eval)(code);
 
 			const ids = affected(changedIds);
 
-			if (!ids) return false;
+			if (!ids) {
+				return false;
+			}
 
 			for (const id of ids) this.removeModuleCache(id);
+
 			for (const id of ids) this.initModule(id);
 
 			return true;
@@ -160,7 +169,9 @@ globalThis.__rolldown_runtime__ = (() => {
 		__reExport: (target, mod, second) => {
 			copyProps(target, mod, 'default');
 
-			if (second) copyProps(second, mod, 'default');
+			if (second) {
+				copyProps(second, mod, 'default');
+			}
 		},
 	};
 })();

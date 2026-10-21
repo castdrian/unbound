@@ -8,11 +8,12 @@ export type ClientTracker = {
 	registerClient(clientId: string): Promise<void>;
 	removeClient(clientId: string): Promise<void>;
 	notifyPayloadDelivered(filename: string): Promise<void>;
+	ensureLatestBuildOutput(): Promise<void>;
 };
 
 type SocketData = { clientId: string };
 
-type ClientMessage = { type: 'applied'; filename: string };
+type ClientMessage = { type: 'applied'; filename: string } | { type: 'reload' };
 
 const logger = Logger.create('Serve', 'Refresh');
 
@@ -41,11 +42,14 @@ export function upgrade(req: Request, server: Server<SocketData>): Response | un
 }
 
 /**
- * @description Sends an update to the device it was built for, or a reload to every device.
+ * @description Sends a patch to the device it was built for, or a reload to every device once the rebuild is on disk.
  * @param update The dev engine's update.
+ * @returns Resolves once the update is sent.
  */
-export function deliver(update: HotUpdate) {
+export async function deliver(update: HotUpdate) {
 	if (update.type === 'reload') {
+		await tracker?.ensureLatestBuildOutput();
+
 		for (const socket of sockets.values()) socket.send(JSON.stringify(update));
 
 		return;
@@ -72,7 +76,13 @@ export const websocket: WebSocketHandler<SocketData> = {
 
 		if (message.type === 'applied') {
 			await tracker?.notifyPayloadDelivered(message.filename);
+
+			return;
 		}
+
+		// The device couldn't take a patch; answer once the rebuild it will fetch is on disk.
+		await tracker?.ensureLatestBuildOutput();
+		socket.send(JSON.stringify({ type: 'reload' }));
 	},
 	async close(socket) {
 		const { clientId } = socket.data;

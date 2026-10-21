@@ -1,6 +1,7 @@
 import type { SettingsEntry } from '@unbound-app/types/settings';
 import { createLogger } from '@unbound-app/logger';
 
+import { stableType } from '~/lib/hot/runtime';
 import SettingsStore from '~/stores/settings';
 
 const Logger = createLogger('API', 'Settings');
@@ -17,8 +18,19 @@ export function registerSettings(...entries: SettingsEntry[]) {
 			Logger.warn(`Overwriting existing settings entry: ${entry.key}`);
 		}
 
-		registerSection(entry);
+		registerSection(withStableScreen(entry));
 	}
+}
+
+// Discord's navigator keeps the first component a route returns, so a hot-refreshed plugin page
+// hands out its stable forwarder instead.
+function withStableScreen(entry: SettingsEntry): SettingsEntry {
+	const { getComponent } = entry.screen;
+
+	return {
+		...entry,
+		screen: { ...entry.screen, getComponent: () => stableType(getComponent()) },
+	};
 }
 
 /**

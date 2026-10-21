@@ -19,7 +19,7 @@ const evalCommand: CommandDefinition<typeof schema> = {
 		'its result plus any console output the code produced. Use this to inspect the live runtime: ' +
 		'read globals (e.g. `unbound.metro`), call APIs, and probe Discord internals. The last ' +
 		'expression is the return value; `console.log`/`warn`/`error` are captured separately.',
-	surfaces: { cli: true, mcp: true },
+	surfaces: { cli: 'root', mcp: true },
 	schema,
 	cli: { positionals: ['code'] },
 	handler({ code }, { client }) {

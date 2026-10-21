@@ -100,7 +100,7 @@ export function transformModule(source: string, id: string, root: string, runtim
  * @description Bundles `react-refresh/runtime`'s development build, inlining `process.env.NODE_ENV`
  * there alone so React's own entries stay on their production builds.
  * @param root The package directory `react-refresh` resolves from.
- * @returns A rolldown plugin for dev builds.
+ * @returns A rolldown plugin for every build.
  */
 export function refreshRuntime(root: string): Plugin {
 	const entry = createRequire(join(root, 'package.json')).resolve('react-refresh/runtime');

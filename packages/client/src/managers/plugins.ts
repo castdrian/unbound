@@ -3,9 +3,9 @@ import type { Addon, AddonManifest, Plugin, PluginContext, PluginEntity } from '
 import { createScopedReact, performRefresh, withRefreshScope } from '~/lib/hot/runtime';
 import { createPluginContext } from '~/api/native-runtime';
 import type { ReloadResult } from '~/managers/addons';
+import { reload as reloadApp } from '~/api/native';
 import { ManagerType } from '~/managers/base';
 import { Addons } from '~/managers/addons';
-import { reload as reloadApp } from '~/api/native';
 
 /**
  * @description Manages plugins, building on the base {@link Addons} manager to load and evaluate plugin bundles.

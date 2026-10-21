@@ -1,11 +1,30 @@
 import type { ControllerClient } from '@unbound-app/debugger-protocol/controller';
 import type { CommandOutput } from '@unbound-app/debugger-protocol/registry';
 import type { EvalResult } from '@unbound-app/debugger-protocol';
+import type { UnboundGlobal } from '@unbound-app/api/global';
 
 import { waitForDevice } from '~/lib/context';
 import { formatResult } from '~/lib/format';
 
 export type DeviceClient = Pick<ControllerClient, 'isDeviceConnected' | 'evaluate'>;
+
+/** A JSON value, the only kind of argument that survives the trip to the device. */
+export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+
+/**
+ * @description Serialises a function into device code that calls it with Unbound's global and the given arguments.
+ * @template A The function's arguments after `unbound`.
+ * @template R The function's return type.
+ * @param fn The function to run on the device. It must not close over anything outside its own body.
+ * @param args The arguments to pass after `unbound`, sent as JSON.
+ * @returns The JavaScript to evaluate.
+ */
+export function toDeviceCode<A extends Json[], R>(
+	fn: (unbound: UnboundGlobal, ...args: A) => R,
+	...args: A
+): string {
+	return `(${fn.toString()})(unbound, ${args.map((arg) => JSON.stringify(arg)).join(', ')})`;
+}
 
 /** The answer every device command gives when the bridge has no device. */
 export const NOT_CONNECTED: CommandOutput = {
@@ -46,4 +65,4 @@ export async function runOnDevice(client: DeviceClient, code: string): Promise<C
 	return { ok: result.ok, text: formatResult(result), data: result };
 }
 
-export default { NOT_CONNECTED, evaluateOnDevice, runOnDevice };
+export default { NOT_CONNECTED, toDeviceCode, evaluateOnDevice, runOnDevice };

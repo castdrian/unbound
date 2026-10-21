@@ -2,8 +2,8 @@ import type { CommandDefinition } from '@unbound-app/debugger-protocol/registry'
 import { DEFAULT_BRIDGE_PORT } from '@unbound-app/debugger-protocol';
 import { z } from 'zod';
 
-import { currentRouteCode } from '~/lib/navigation';
-import { runOnDevice } from '~/lib/device';
+import { runOnDevice, toDeviceCode } from '~/lib/device';
+import { currentRoute } from '~/lib/navigation';
 
 const schema = z.object({
 	port: z
@@ -20,7 +20,7 @@ const routeCommand: CommandDefinition<typeof schema> = {
 	surfaces: { cli: 'mcp', mcp: true },
 	schema,
 	handler(_input, { client }) {
-		return runOnDevice(client, currentRouteCode());
+		return runOnDevice(client, toDeviceCode(currentRoute));
 	},
 };
 

@@ -98,9 +98,10 @@ export function handleHot(req: Request): Response {
 /**
  * @description Watches `dist/` for bundle writes and broadcasts a reload when the content hash
  * changes, recomputing it even with no clients connected so a later-connecting client catches up.
+ * @param reloadOnRebuild Whether to broadcast the new hash. Without it, only clients connecting later catch up.
  * @returns The `FSWatcher`, so the caller can close it on shutdown.
  */
-export function watchBundle() {
+export function watchBundle(reloadOnRebuild: boolean = true) {
 	mkdirSync(DIST_DIR, { recursive: true });
 
 	// Debounced because the bundle write can fire `watch` more than once per build.
@@ -120,7 +121,7 @@ export function watchBundle() {
 
 			etag = next;
 
-			if (hotClients.size === 0) return;
+			if (!reloadOnRebuild || hotClients.size === 0) return;
 
 			logger.info(`Bundle changed - reloading ${hotClients.size} client(s).`);
 			broadcast();

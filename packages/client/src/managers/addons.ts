@@ -48,9 +48,10 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	/**
 	 * @description Evaluates an addon's bundle source into a running instance. Implemented by each subclass.
 	 * @param bundle The addon's bundle source.
+	 * @param id The addon's id.
 	 * @returns The addon's instance.
 	 */
-	protected abstract handleBundle(bundle: string): T['instance'];
+	protected abstract handleBundle(bundle: string, id: string): T['instance'];
 
 	/** The manifest `type` value this manager installs; used to reject mismatched installs. */
 	protected abstract get entityType(): NonNullable<AddonManifest['type']>;
@@ -349,7 +350,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			if (recoveryMode) {
 				resolved.instance = { start: noop, stop: noop };
 			} else {
-				const instance = this.handleBundle(resolved.bundle);
+				const instance = this.handleBundle(resolved.bundle, resolved.id);
 
 				resolved.instance = instance;
 			}

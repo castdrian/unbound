@@ -89,7 +89,7 @@ export function transformModule(source: string, id: string, root: string, runtim
 		}
 	}
 
-	if (exportsOnly(program, bound)) {
+	if (exportsOnlyComponents(program, bound)) {
 		edits.push({ at: code.length, text: '\nimport.meta.hot.accept();\n' });
 	}
 
@@ -97,9 +97,8 @@ export function transformModule(source: string, id: string, root: string, runtim
 }
 
 /**
- * @description Bundles `react-refresh/runtime`'s development build. Its entry and its body both check
- * `process.env.NODE_ENV`, which Discord sets to `production`, and the bundle can't define it globally
- * without switching React's own entries to their development builds too.
+ * @description Bundles `react-refresh/runtime`'s development build, inlining `process.env.NODE_ENV`
+ * there alone so React's own entries stay on their production builds.
  * @param root The package directory `react-refresh` resolves from.
  * @returns A rolldown plugin for dev builds.
  */
@@ -120,7 +119,6 @@ export function refreshRuntime(root: string): Plugin {
 	};
 }
 
-// Module-scoped `$RefreshReg$`, so family ids are unique across the bundle.
 function prelude(runtime: string, module: string) {
 	return [
 		`import { register as __hotRegister, canonical as __hotCanonical, createSignatureFunctionForTransform as $RefreshSig$ } from '${runtime}';`,
@@ -129,7 +127,6 @@ function prelude(runtime: string, module: string) {
 	].join('\n');
 }
 
-// The `$RefreshReg$(_c, "Name")` calls oxc appends, mapping each component binding to its `_c` handle.
 function findRegistrations(program: Program) {
 	const bindings = componentBindings(program);
 	const found = new Map<string, string>();
@@ -165,8 +162,6 @@ function findRegistrations(program: Program) {
 	return found;
 }
 
-// Top-level bindings that hold a component itself. A registered call result other than `memo` or
-// `forwardRef` (a zustand store, an HOC) keeps its own identity and static properties.
 function componentBindings(program: Program) {
 	const bindings = new Set<string>();
 
@@ -182,7 +177,7 @@ function componentBindings(program: Program) {
 		}
 
 		for (const { id, init } of declaration.declarations) {
-			if (id.type === 'Identifier' && init && isComponentValue(init)) {
+			if (id.type === 'Identifier' && init && isRebindableComponent(init)) {
 				bindings.add(id.name);
 			}
 		}
@@ -191,13 +186,13 @@ function componentBindings(program: Program) {
 	return bindings;
 }
 
-function isComponentValue(node: ESTree.Expression): boolean {
+function isRebindableComponent(node: ESTree.Expression): boolean {
 	if (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression') {
 		return true;
 	}
 
 	if (node.type === 'AssignmentExpression') {
-		return isComponentValue(node.right);
+		return isRebindableComponent(node.right);
 	}
 
 	if (node.type !== 'CallExpression') {
@@ -210,13 +205,12 @@ function isComponentValue(node: ESTree.Expression): boolean {
 
 	// Oxc wraps a component with hooks in its signature function: `_s(memo(...), "hash")`.
 	if (SIGNATURE_NAME.test(name)) {
-		return first !== void 0 && first.type !== 'SpreadElement' && isComponentValue(first);
+		return first !== void 0 && first.type !== 'SpreadElement' && isRebindableComponent(first);
 	}
 
 	return WRAPPER_NAMES.has(name);
 }
 
-// The component a top-level `_c = Name;` statement captures, if `_c` is its registration handle.
 function capturedName(statement: Statement, registrations: Map<string, string>) {
 	if (statement.type !== 'ExpressionStatement') return;
 
@@ -250,14 +244,12 @@ function isBound(id: ESTree.BindingPattern, bound: Set<string>) {
 	return id.type === 'Identifier' && bound.has(id.name);
 }
 
-// Whether every export is a registered component, so re-running the module changes nothing else.
-function exportsOnly(program: Program, components: Set<string>) {
+function exportsOnlyComponents(program: Program, components: Set<string>) {
 	const names = program.body.flatMap(exportedNames);
 
 	return names.length > 0 && names.every((name) => name !== void 0 && components.has(name));
 }
 
-// The local names a statement exports; `undefined` stands for an export that isn't a plain binding.
 function exportedNames(statement: Statement): (string | undefined)[] {
 	if (statement.type === 'ExportAllDeclaration') {
 		return [void 0];

@@ -14,7 +14,6 @@ const engine = await hotBuild(refresh.deliver);
 
 refresh.attach(engine);
 
-// The client applies each change as a hot patch, so the loader must not also reload after every build.
 const server = startServer(false);
 
 logger.log('Press Ctrl+C to stop');

@@ -278,8 +278,6 @@ async function hotBuild(onUpdate: (update: HotUpdate) => void) {
 
 export { config, build, watchBuild, hotBuild };
 
-// Only dispatch when run directly (`bun scripts/build`); stays inert when the dev orchestrator
-// imports `hotBuild`.
 if (import.meta.main) {
 	if (process.argv.includes('--watch')) {
 		watchBuild();

@@ -63,6 +63,9 @@ const config: RolldownOptions = {
 	],
 
 	plugins: [
+		// Every build carries the refresh runtime: its production entry only throws, and plugins
+		// built by `ubd dev` register their components with it on release clients too.
+		refreshRuntime(root),
 		globals(
 			shimmedModules([
 				'react',
@@ -225,7 +228,7 @@ async function hotBuild(onUpdate: (update: HotUpdate) => void) {
 	const engine = await dev(
 		{
 			...config,
-			plugins: [refresh(root, '~/lib/hot/runtime'), refreshRuntime(root), config.plugins],
+			plugins: [refresh(root, '~/lib/hot/runtime'), config.plugins],
 			experimental: {
 				devMode: {
 					implement: readFileSync(join(__dirname, 'dev-runtime.js'), 'utf8'),

@@ -92,8 +92,8 @@ export function withRefreshScope<T>(scope: string, evaluate: () => T): T {
 }
 
 /**
- * @description Gives a bundle run in {@link withRefreshScope} a React whose `createElement` makes each
- * registered component's stable forwarder, so elements from every run of the bundle match mounted fibers.
+ * @description Creates a React whose `createElement` swaps each component registered in {@link withRefreshScope}
+ * for its stable forwarder, so elements from every run of a bundle match mounted fibers.
  * @returns Discord's React with that `createElement`.
  */
 export function createScopedReact(): typeof React {
@@ -123,7 +123,6 @@ export function stableType<T extends WeakKey>(type: T): T {
 	const id = bundleIds.get(type);
 	const stable = id ? canonicals.get(id) : void 0;
 
-	// `canonical` returns a forwarder for a function and the first object for `memo` / `forwardRef`.
 	return stable ? (stable as T) : type;
 }
 

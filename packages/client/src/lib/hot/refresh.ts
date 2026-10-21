@@ -94,7 +94,9 @@ function findRoots() {
 	for (let tag = 1; tag <= MAX_ROOT_TAG; tag++) {
 		const root = hostRootOf(rootFiber(tag));
 
-		if (root) roots.add(root);
+		if (root) {
+			roots.add(root);
+		}
 	}
 
 	return [...roots];
@@ -124,7 +126,9 @@ function collect(root: FiberRoot, predicate: (fiber: Fiber) => boolean) {
 	let node = root.current;
 
 	while (true) {
-		if (predicate(node)) found.push(node);
+		if (predicate(node)) {
+			found.push(node);
+		}
 
 		if (node.child) {
 			node = node.child;
@@ -132,7 +136,9 @@ function collect(root: FiberRoot, predicate: (fiber: Fiber) => boolean) {
 		}
 
 		while (!node.sibling) {
-			if (!node.return) return found;
+			if (!node.return) {
+				return found;
+			}
 
 			node = node.return;
 		}
@@ -172,7 +178,9 @@ function dispatchOf(fiber: Fiber): Dispatch | undefined {
 	if (!HOOK_FIBERS.has(fiber.tag)) return;
 
 	for (let hook = fiber.memoizedState as Hook | null; hook; hook = hook.next) {
-		if (typeof hook.queue?.dispatch === 'function') return hook.queue.dispatch;
+		if (typeof hook.queue?.dispatch === 'function') {
+			return hook.queue.dispatch;
+		}
 	}
 }
 

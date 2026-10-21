@@ -86,13 +86,13 @@ function handle(socket: WebSocket, message: ServerMessage) {
 	try {
 		if (!globalThis.__rolldown_runtime__?.applyPatch(message.code, message.changedIds)) {
 			Logger.info(`${message.changedIds.join(', ')} can't be patched in place; reloading.`);
-			reload();
+			requestReload(socket);
 
 			return;
 		}
 	} catch (error) {
 		Logger.error(`Failed to patch ${message.changedIds.join(', ')}; reloading:`, error);
-		reload();
+		requestReload(socket);
 
 		return;
 	}
@@ -103,7 +103,7 @@ function handle(socket: WebSocket, message: ServerMessage) {
 
 	if (needsRemount) {
 		Logger.info('A component changed its hooks; reloading.');
-		reload();
+		requestReload(socket);
 
 		return;
 	}
@@ -113,6 +113,11 @@ function handle(socket: WebSocket, message: ServerMessage) {
 	Logger.success(
 		`Patched ${message.changedIds.join(', ')}: ${count} fibers in ${Date.now() - started}ms`,
 	);
+}
+
+// The server answers with a reload once the rebuild is on disk, so the app doesn't fetch the old bundle.
+function requestReload(socket: WebSocket) {
+	socket.send(JSON.stringify({ type: 'reload' }));
 }
 
 export default { start, stop, shouldStart };

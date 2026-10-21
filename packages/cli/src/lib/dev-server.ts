@@ -7,7 +7,6 @@ import type { ResolvedConfig } from '~/lib/config';
 import { discoverAddons } from '~/lib/discovery';
 import { buildAddon } from '~/lib/build-addon';
 
-/** Tells an addon's build it's for `ubd dev`, so the plugin template compiles in React Fast Refresh. */
 const DEV_BUILD_ENV = { UNBOUND_HOT: '1' };
 
 /** How long file changes inside one addon settle before that addon rebuilds. */

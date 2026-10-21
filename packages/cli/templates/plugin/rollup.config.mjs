@@ -11,8 +11,13 @@ const globals = {
 	'moment': 'window.unbound.metro.common.Moment',
 };
 
-// `ubd dev` sets UNBOUND_HOT, so components register for hot refresh and keep their state on save.
 const hot = process.env.UNBOUND_HOT === '1';
+
+function keepIifeUnnamedForUnbound(level, log, handler) {
+	if (log.code !== 'MISSING_NAME_OPTION_FOR_IIFE_EXPORT') {
+		handler(level, log);
+	}
+}
 
 /** @type {import('rollup').RollupOptions} */
 export default {
@@ -26,12 +31,7 @@ export default {
 			jsc: { transform: { react: { refresh: hot, development: hot } } },
 		}),
 	],
-	// Unbound evaluates the bundle as one expression and reads its exports, so the IIFE stays unnamed.
-	onLog(level, log, handler) {
-		if (log.code !== 'MISSING_NAME_OPTION_FOR_IIFE_EXPORT') {
-			handler(level, log);
-		}
-	},
+	onLog: keepIifeUnnamedForUnbound,
 	output: {
 		dir: 'dist',
 		format: 'iife',

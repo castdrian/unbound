@@ -22,8 +22,6 @@ export function registerSettings(...entries: SettingsEntry[]) {
 	}
 }
 
-// Discord's navigator keeps the first component a route returns, so a hot-refreshed plugin page
-// hands out its stable forwarder instead.
 function withStableScreen(entry: SettingsEntry): SettingsEntry {
 	const { getComponent } = entry.screen;
 

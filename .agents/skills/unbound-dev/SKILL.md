@@ -25,7 +25,7 @@ Set `DEV_HOST` on a machine with several networks (Tailscale, Docker). The guess
 
 1. **Start.** `scripts/up.sh` starts the bridge and the dev server in tmux sessions and leaves running ones alone. Add `--restart` after changing configuration.
 2. **Doctor.** `scripts/doctor.sh`. Done when it exits 0. For a `FAIL` line, see [SETUP.md](SETUP.md#recovery).
-3. **Load your build.** A JS reload loses Unbound (see Known faults), so relaunch after every rebuild: vphone `terminate` then `launch` with `bundle_id: com.hammerandchisel.discord`, then `tap_text` `Okay` on the "Missing Safari Extension" alert until `wait` with `gone: true` passes. Done when the doctor's `last device bundle fetch` is newer than your edit.
+3. **Load your build.** The dev server hot-patches component edits in place; other edits reload the app on their own. To load a build by hand, `ubd eval 'unbound.native.reload()'`. With a loader older than `fix/reload-keeps-unbound`, a reload loses Unbound (see Known faults): relaunch instead with vphone `terminate` then `launch` with `bundle_id: com.hammerandchisel.discord`, then `tap_text` `Okay` on the "Missing Safari Extension" alert until `wait` with `gone: true` passes. Done when the doctor's `last device bundle fetch` is newer than your edit.
 4. **Navigate** with `ubd mcp open`, never by tapping through settings.
 5. **Act** with `ubd eval` for state and vphone gestures for input.
 6. **Capture evidence** under `/tmp/<task>-evidence/`: a vphone screenshot after a `wait` for the expected text, plus eval output proving side effects.
@@ -48,7 +48,7 @@ Before calling or patching a Discord API, read how Discord does it with the `her
 
 ## Known faults
 
-- **JS reload loses Unbound.** The loader never resets `gLoaderPrepared` and `gBundleExecutionScheduled` (`loader-ios/sources/Unbound.xm`), so `ubd reload` and hot reload bring Discord back without Unbound. Relaunch instead.
+- **JS reload loses Unbound** on loaders without `fix/reload-keeps-unbound` (`loader-ios`): `prepareLoading` ran once per process, so the reloaded instance never got the bundle. Relaunch instead, or install that branch.
 - **`__c()` wipes Discord's modules** when `modules.js` was not injected: the loader's readiness poll and the client's `ensureModules` (`packages/client/src/lib/loader.ts`) call Metro's `__c()`, which is `clear()`. Symptom: Discord renders but never goes live and `ubd eval` finds no device. Fix: [UnboundResources](SETUP.md#unboundresources).
 - **`Addons.delete`** reports success but leaves the addon folder on disk.
 - **Toasts** never appear on the vphone. Check state through eval.

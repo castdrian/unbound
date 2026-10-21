@@ -5,6 +5,15 @@ import { findByPropsLazy } from '~/api/metro/wrappers';
 /** Any function component; `never` props accept every component's props. */
 export type Component = FunctionComponent<never>;
 
+/** A `memo`, `forwardRef`, context or other React-tagged element type. */
+export type ExoticType = { $$typeof: symbol };
+
+/** What a fiber renders: a component, a React-tagged type, or a host component's name. */
+export type FiberType = Component | ExoticType | string;
+
+/** Picks the type a fiber should render after a hot update, or `null` to leave it alone. */
+export type Resolve = (type: FiberType) => FiberType | null;
+
 type Dispatch = (action: <S>(state: S) => S) => void;
 
 type Hook = {
@@ -14,8 +23,8 @@ type Hook = {
 
 type Fiber = {
 	tag: number;
-	type: Component | null;
-	elementType: Component | null;
+	type: FiberType | null;
+	elementType: FiberType | null;
 	return: Fiber | null;
 	child: Fiber | null;
 	sibling: Fiber | null;
@@ -42,20 +51,44 @@ const HOOK_FIBERS = new Set([0, 11, 15]);
 // React Native hands out root tags 1, 11, 21, ... as surfaces mount; this covers far more than Discord opens.
 const MAX_ROOT_TAG = 200;
 
+// A props key no component reads. `memo` fibers compare props shallowly, so a plain copy would let
+// React render them and then throw the output away as unchanged.
+const STALE_PROPS = '__hotRefresh';
+
 // React's DefaultLane, the lane a state update outside an event is given. `schedule` corrects it from
 // the root if this React build numbers lanes differently.
 const DEFAULT_LANE = 0b100000;
 
 /**
- * @description Re-renders every mounted fiber of the given components in place, keeping their state.
- * @param types The components whose fibers should re-render with their current function.
+ * @description Re-renders the mounted fibers a resolver picks, in place and keeping their state.
+ * @param resolve Returns the type each fiber should now render, or `null` to skip it.
  * @returns How many fibers were scheduled.
  */
-export function rerender(types: Set<Component>): number {
+export function rerender(resolve: Resolve): number {
 	let count = 0;
 
 	for (const root of findRoots()) {
-		const fibers = collect(root, (fiber) => Boolean(fiber.type && types.has(fiber.type)));
+		const next = new Map<Fiber, FiberType>();
+
+		for (const fiber of collect(root, (fiber) => Boolean(fiber.type))) {
+			const type = fiber.type && resolve(fiber.type);
+
+			if (type) {
+				next.set(fiber, type);
+			}
+		}
+
+		// Only `type` changes: parents still create elements of the old type, which React matches
+		// against `elementType`, so the fiber is reused and renders the new function.
+		for (const [fiber, type] of next) {
+			fiber.type = type;
+
+			if (fiber.alternate) {
+				fiber.alternate.type = type;
+			}
+		}
+
+		const fibers = [...next.keys()];
 
 		schedule(root, fibers);
 		count += fibers.length;
@@ -156,7 +189,7 @@ function withAlternates(fibers: Fiber[]) {
 function mark(fibers: Fiber[], lane: number) {
 	for (const fiber of withAlternates(fibers)) {
 		fiber.lanes |= lane;
-		fiber.memoizedProps &&= { ...fiber.memoizedProps };
+		fiber.memoizedProps &&= { ...fiber.memoizedProps, [STALE_PROPS]: true };
 
 		for (let parent = fiber.return; parent; parent = parent.return) {
 			parent.childLanes |= lane;

@@ -19,9 +19,9 @@ import {
 	DEBUGGER_ADDRESS,
 } from './constants';
 import globals, { shimmedModules } from './plugins/globals';
+import refresh, { refreshRuntime } from './plugins/refresh';
 import generateManifest from './plugins/manifest';
 import worklets from './plugins/worklets';
-import refresh from './plugins/refresh';
 
 /** What the dev engine reports after a source change. */
 export type HotUpdate =
@@ -225,7 +225,7 @@ async function hotBuild(onUpdate: (update: HotUpdate) => void) {
 	const engine = await dev(
 		{
 			...config,
-			plugins: [refresh(root, '~/lib/hot/registry'), config.plugins],
+			plugins: [refresh(root, '~/lib/hot/runtime'), refreshRuntime(root), config.plugins],
 			experimental: {
 				devMode: {
 					implement: readFileSync(join(__dirname, 'dev-runtime.js'), 'utf8'),

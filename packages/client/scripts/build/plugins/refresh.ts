@@ -1,218 +1,310 @@
+import { transformSync, type ESTree } from 'rolldown/utils';
+import { dirname, join, relative } from 'node:path';
 import { parseAst } from 'rolldown/parseAst';
-import type { ESTree } from 'rolldown/utils';
+import { createRequire } from 'node:module';
 import type { Plugin } from 'rolldown';
-import { relative } from 'node:path';
 
-type FunctionNode = ESTree.Function;
 type Program = ESTree.Program;
-type Node = ESTree.Node;
+type Statement = ESTree.Program['body'][number];
 
-type Edit = { at: number; text: string };
+type Edit = { at: number; text: string; replace?: number };
 
-type Registration = { name: string; start: number; end: number; signature: string };
-
-const COMPONENT_NAME = /^[A-Z]/;
-const HOOK_NAME = /^use[A-Z]/;
+// Oxc names inner registrations `A$memo` / `A$forwardRef` and anonymous defaults `%default%`.
+const BINDING_NAME = /^[A-Za-z_]\w*$/;
+const SIGNATURE_NAME = /^_s\d*$/;
+const WRAPPER_NAMES = new Set(['memo', 'forwardRef']);
 
 /**
- * @description Registers every top-level component of a `.tsx` module with the client's hot registry, so a
- * hot patch can swap its body in place. A module that exports only components accepts its own updates.
+ * @description Applies React Fast Refresh's transform (oxc's `jsx.refresh`), then rebinds every registered
+ * component to a stable function from the client's hot runtime, so a patch reaches elements Discord made.
  * @param root The directory module ids are made relative to, matching rolldown's dev-mode ids.
- * @param registry The import specifier of the registry module.
+ * @param runtime The import specifier of the hot runtime module.
  * @returns A rolldown plugin for dev builds.
  */
-export default function refresh(root: string, registry: string): Plugin {
+export default function refresh(root: string, runtime: string): Plugin {
 	return {
 		name: 'refresh',
 		transform: {
-			filter: { id: { include: /\.tsx$/, exclude: /node_modules/ } },
-			handler(code, id) {
-				const program = parseAst(code, { lang: 'tsx' }, id);
-				const registrations = findComponents(program);
-
-				if (!registrations.length) return null;
-
-				const module = relative(root, id);
-				const edits: Edit[] = [
-					{ at: 0, text: `import { register as __register } from '${registry}';\n` },
-				];
-
-				for (const { name, start, end, signature } of registrations) {
-					const key = JSON.stringify(`${module}#${name}`);
-
-					edits.push({ at: start, text: `var ${name} = __register(${key}, ` });
-					edits.push({ at: end, text: `, ${JSON.stringify(signature)});` });
-				}
-
-				if (exportsOnly(program, new Set(registrations.map(({ name }) => name)))) {
-					edits.push({ at: code.length, text: '\nimport.meta.hot.accept();\n' });
-				}
-
-				return { code: applyEdits(code, edits), map: null };
+			filter: {
+				id: { include: /\/src\/.*\.[jt]sx?$/, exclude: /node_modules|\/src\/lib\/hot\// },
+			},
+			handler(source, id) {
+				return { code: transformModule(source, id, root, runtime), moduleType: 'js' };
 			},
 		},
 	};
 }
 
-function findComponents(program: Program) {
-	const found: Registration[] = [];
+/**
+ * @description Compiles one source module for hot refresh: JSX and TypeScript to JavaScript, with its
+ * components registered and rebound to their stable forwarders.
+ * @param source The module's source.
+ * @param id The module's absolute path.
+ * @param root The directory module ids are made relative to.
+ * @param runtime The import specifier of the hot runtime module.
+ * @returns The compiled JavaScript.
+ */
+export function transformModule(source: string, id: string, root: string, runtime: string): string {
+	// Classic `React.createElement` resolves to Discord's React. The automatic runtime would bundle
+	// `react/jsx-runtime`, whose development build calls dispatcher methods production React lacks.
+	const transformed = transformSync(id, source, { jsx: { runtime: 'classic', refresh: true } });
+
+	if (transformed.errors.length) {
+		throw new Error(transformed.errors.map((error) => error.message).join('\n'));
+	}
+
+	const code = transformed.code;
+
+	if (!code.includes('$RefreshReg$') && !code.includes('$RefreshSig$')) {
+		return code;
+	}
+
+	const module = relative(root, id);
+	const program = parseAst(code, { lang: 'js' }, id);
+	const registrations = findRegistrations(program);
+	const bound = new Set(registrations.keys());
+	const edits: Edit[] = [{ at: 0, text: prelude(runtime, module) }];
 
 	for (const statement of program.body) {
-		const declaration =
-			statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement;
+		const declaration = declarationOf(statement);
 
-		if (declaration?.type !== 'FunctionDeclaration') {
+		if (declaration?.type !== 'VariableDeclaration' || declaration.kind !== 'const') {
 			continue;
 		}
 
-		const name = declaration.id?.name;
+		if (declaration.declarations.some(({ id }) => isBound(id, bound))) {
+			edits.push({ at: declaration.start, text: 'let', replace: 'const'.length });
+		}
+	}
 
-		if (!name || !COMPONENT_NAME.test(name) || declaration.async || declaration.generator) {
+	// Rebind right after oxc captures the component (`_c = Name;`), before anything else in the
+	// module reads it: `export default Name` copies the value rather than the binding.
+	for (const statement of program.body) {
+		const name = capturedName(statement, registrations);
+
+		if (name) {
+			const key = JSON.stringify(`${module} ${name}`);
+
+			edits.push({ at: statement.end, text: `\n${name} = __hotCanonical(${name}, ${key});` });
+		}
+	}
+
+	if (exportsOnly(program, bound)) {
+		edits.push({ at: code.length, text: '\nimport.meta.hot.accept();\n' });
+	}
+
+	return applyEdits(code, edits);
+}
+
+/**
+ * @description Bundles `react-refresh/runtime`'s development build. Its entry and its body both check
+ * `process.env.NODE_ENV`, which Discord sets to `production`, and the bundle can't define it globally
+ * without switching React's own entries to their development builds too.
+ * @param root The package directory `react-refresh` resolves from.
+ * @returns A rolldown plugin for dev builds.
+ */
+export function refreshRuntime(root: string): Plugin {
+	const entry = createRequire(join(root, 'package.json')).resolve('react-refresh/runtime');
+	const development = join(dirname(entry), 'cjs', 'react-refresh-runtime.development.js');
+
+	return {
+		name: 'refresh-runtime',
+		resolveId(source) {
+			return source === 'react-refresh/runtime' ? development : null;
+		},
+		transform(code, id) {
+			return id === development
+				? code.replaceAll('process.env.NODE_ENV', '"development"')
+				: null;
+		},
+	};
+}
+
+// Module-scoped `$RefreshReg$`, so family ids are unique across the bundle.
+function prelude(runtime: string, module: string) {
+	return [
+		`import { register as __hotRegister, canonical as __hotCanonical, createSignatureFunctionForTransform as $RefreshSig$ } from '${runtime}';`,
+		`var $RefreshReg$ = (type, name) => __hotRegister(type, ${JSON.stringify(module)} + ' ' + name);`,
+		'',
+	].join('\n');
+}
+
+// The `$RefreshReg$(_c, "Name")` calls oxc appends, mapping each component binding to its `_c` handle.
+function findRegistrations(program: Program) {
+	const bindings = componentBindings(program);
+	const found = new Map<string, string>();
+
+	for (const statement of program.body) {
+		if (statement.type !== 'ExpressionStatement') {
 			continue;
 		}
 
-		found.push({
-			name,
-			start: declaration.start,
-			end: declaration.end,
-			signature: hookCalls(declaration).join(','),
-		});
+		const call = statement.expression;
+
+		if (call.type !== 'CallExpression' || call.callee.type !== 'Identifier') {
+			continue;
+		}
+
+		const [handle, name] = call.arguments;
+
+		if (
+			call.callee.name !== '$RefreshReg$' ||
+			handle?.type !== 'Identifier' ||
+			name?.type !== 'Literal'
+		) {
+			continue;
+		}
+
+		const binding = String(name.value);
+
+		if (BINDING_NAME.test(binding) && bindings.has(binding)) {
+			found.set(binding, handle.name);
+		}
 	}
 
 	return found;
 }
 
-// The hooks a component calls directly, in order. Calls inside nested functions belong to those functions.
-function hookCalls(component: FunctionNode) {
-	const hooks: string[] = [];
-	const pending: Node[] = component.body ? [component.body] : [];
-
-	while (pending.length) {
-		const node = pending.pop()!;
-
-		if (node.type === 'CallExpression') {
-			const callee = node.callee;
-			const name =
-				callee.type === 'Identifier'
-					? callee.name
-					: callee.type === 'MemberExpression' && callee.property.type === 'Identifier'
-						? callee.property.name
-						: '';
-
-			if (HOOK_NAME.test(name)) {
-				hooks.push(name);
-			}
-		}
-
-		const children = childNodes(node).filter((child) => !isFunction(child));
-
-		pending.push(...children.reverse());
-	}
-
-	return hooks;
-}
-
-function childNodes(node: Node) {
-	const children: Node[] = [];
-
-	for (const value of Object.values(node)) {
-		for (const item of Array.isArray(value) ? value : [value]) {
-			if (isNode(item)) {
-				children.push(item);
-			}
-		}
-	}
-
-	return children;
-}
-
-// UNKNOWN: walks arbitrary AST property values.
-function isNode(value: unknown): value is Node {
-	return typeof value === 'object' && value !== null && 'type' in value && 'start' in value;
-}
-
-function isFunction(node: Node) {
-	return (
-		node.type === 'FunctionDeclaration' ||
-		node.type === 'FunctionExpression' ||
-		node.type === 'ArrowFunctionExpression'
-	);
-}
-
-// Whether every runtime export is a registered component, so re-running the module changes nothing else.
-function exportsOnly(program: Program, components: Set<string>) {
-	let exported = 0;
+// Top-level bindings that hold a component itself. A registered call result other than `memo` or
+// `forwardRef` (a zustand store, an HOC) keeps its own identity and static properties.
+function componentBindings(program: Program) {
+	const bindings = new Set<string>();
 
 	for (const statement of program.body) {
-		if (statement.type === 'ExportAllDeclaration') {
-			if (statement.exportKind !== 'type') {
-				return false;
-			}
+		const declaration = declarationOf(statement);
 
+		if (declaration?.type === 'FunctionDeclaration' && declaration.id) {
+			bindings.add(declaration.id.name);
+		}
+
+		if (declaration?.type !== 'VariableDeclaration') {
 			continue;
 		}
 
-		if (statement.type === 'ExportDefaultDeclaration') {
-			const value = statement.declaration;
-
-			if (value.type !== 'Identifier' || !components.has(value.name)) {
-				return false;
+		for (const { id, init } of declaration.declarations) {
+			if (id.type === 'Identifier' && init && isComponentValue(init)) {
+				bindings.add(id.name);
 			}
-
-			exported++;
-			continue;
-		}
-
-		if (statement.type !== 'ExportNamedDeclaration' || statement.exportKind === 'type') {
-			continue;
-		}
-
-		const declaration = statement.declaration;
-
-		if (declaration) {
-			if (declaration.type === 'TSTypeAliasDeclaration') {
-				continue;
-			}
-
-			if (declaration.type !== 'FunctionDeclaration') {
-				return false;
-			}
-
-			if (!components.has(declaration.id?.name ?? '')) {
-				return false;
-			}
-
-			exported++;
-			continue;
-		}
-
-		if (statement.source) {
-			return false;
-		}
-
-		for (const specifier of statement.specifiers) {
-			if (specifier.exportKind === 'type') {
-				continue;
-			}
-
-			const local = specifier.local;
-
-			if (local.type !== 'Identifier' || !components.has(local.name)) {
-				return false;
-			}
-
-			exported++;
 		}
 	}
 
-	return exported > 0;
+	return bindings;
+}
+
+function isComponentValue(node: ESTree.Expression): boolean {
+	if (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression') {
+		return true;
+	}
+
+	if (node.type === 'AssignmentExpression') {
+		return isComponentValue(node.right);
+	}
+
+	if (node.type !== 'CallExpression') {
+		return false;
+	}
+
+	const callee = node.callee.type === 'MemberExpression' ? node.callee.property : node.callee;
+	const name = callee.type === 'Identifier' ? callee.name : '';
+	const [first] = node.arguments;
+
+	// Oxc wraps a component with hooks in its signature function: `_s(memo(...), "hash")`.
+	if (SIGNATURE_NAME.test(name)) {
+		return first !== void 0 && first.type !== 'SpreadElement' && isComponentValue(first);
+	}
+
+	return WRAPPER_NAMES.has(name);
+}
+
+// The component a top-level `_c = Name;` statement captures, if `_c` is its registration handle.
+function capturedName(statement: Statement, registrations: Map<string, string>) {
+	if (statement.type !== 'ExpressionStatement') return;
+
+	const assignment = statement.expression;
+
+	if (
+		assignment.type !== 'AssignmentExpression' ||
+		assignment.left.type !== 'Identifier' ||
+		assignment.right.type !== 'Identifier'
+	) {
+		return;
+	}
+
+	const name = assignment.right.name;
+
+	return registrations.get(name) === assignment.left.name ? name : void 0;
+}
+
+function declarationOf(statement: Statement) {
+	if (
+		statement.type === 'ExportNamedDeclaration' ||
+		statement.type === 'ExportDefaultDeclaration'
+	) {
+		return statement.declaration;
+	}
+
+	return statement;
+}
+
+function isBound(id: ESTree.BindingPattern, bound: Set<string>) {
+	return id.type === 'Identifier' && bound.has(id.name);
+}
+
+// Whether every export is a registered component, so re-running the module changes nothing else.
+function exportsOnly(program: Program, components: Set<string>) {
+	const names = program.body.flatMap(exportedNames);
+
+	return names.length > 0 && names.every((name) => name !== void 0 && components.has(name));
+}
+
+// The local names a statement exports; `undefined` stands for an export that isn't a plain binding.
+function exportedNames(statement: Statement): (string | undefined)[] {
+	if (statement.type === 'ExportAllDeclaration') {
+		return [void 0];
+	}
+
+	if (statement.type === 'ExportDefaultDeclaration') {
+		const value = statement.declaration;
+
+		if (value.type === 'Identifier') {
+			return [value.name];
+		}
+
+		return [value.type === 'FunctionDeclaration' ? value.id?.name : void 0];
+	}
+
+	if (statement.type !== 'ExportNamedDeclaration') {
+		return [];
+	}
+
+	if (statement.source) {
+		return [void 0];
+	}
+
+	const declaration = statement.declaration;
+
+	if (!declaration) {
+		return statement.specifiers.map(({ local }) =>
+			local.type === 'Identifier' ? local.name : void 0,
+		);
+	}
+
+	if (declaration.type === 'FunctionDeclaration') {
+		return [declaration.id?.name];
+	}
+
+	if (declaration.type !== 'VariableDeclaration') {
+		return [void 0];
+	}
+
+	return declaration.declarations.map(({ id }) => (id.type === 'Identifier' ? id.name : void 0));
 }
 
 function applyEdits(code: string, edits: Edit[]) {
 	let result = code;
 
-	for (const { at, text } of edits.toSorted((a, b) => b.at - a.at)) {
-		result = result.slice(0, at) + text + result.slice(at);
+	for (const { at, text, replace = 0 } of edits.toSorted((a, b) => b.at - a.at)) {
+		result = result.slice(0, at) + text + result.slice(at + replace);
 	}
 
 	return result;

@@ -1,8 +1,7 @@
 import { createLogger } from '@unbound-app/logger';
 
 import { DEV, DEV_SERVER_URL } from '~/lib/constants';
-import { takeUpdates } from '~/lib/hot/registry';
-import { rerender } from '~/lib/hot/refresh';
+import { performRefresh } from '~/lib/hot/runtime';
 import { reload } from '~/api/native';
 
 /** The dev runtime from `scripts/build/dev-runtime.js`, present only in hot dev builds. */
@@ -99,7 +98,7 @@ function handle(socket: WebSocket, message: ServerMessage) {
 
 	socket.send(JSON.stringify({ type: 'applied', filename: message.filename }));
 
-	const { components, needsRemount } = takeUpdates();
+	const { count, needsRemount } = performRefresh();
 
 	if (needsRemount) {
 		Logger.info('A component changed its hooks; reloading.');
@@ -107,8 +106,6 @@ function handle(socket: WebSocket, message: ServerMessage) {
 
 		return;
 	}
-
-	const count = rerender(components);
 
 	Logger.success(
 		`Patched ${message.changedIds.join(', ')}: ${count} fibers in ${Date.now() - started}ms`,

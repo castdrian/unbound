@@ -1,82 +1,77 @@
+// Each function here runs on the device through `toDeviceCode`, so none may reach outside its own body.
+import type { UnboundGlobal } from '@unbound-app/api/global';
+
 /** Route parameters passed to a settings screen, as JSON. */
 export type ScreenParams = Record<string, string | number | boolean | null>;
 
-/** Discord's root React Navigation container; settings screens live in its `settings` stack. */
-const ROOT_REF = `unbound.metro.findByProps('getRootNavigationRef').getRootNavigationRef()`;
+/** A route on Discord's React Navigation stack, with the nested stack it hosts. */
+type Route = { name: string; params?: ScreenParams; state?: NavigationState };
+
+type NavigationState = { index?: number; routes: Route[] };
+
+/** What the device reports for `ubd mcp route`. */
+export type CurrentRoute = { name: string; params: ScreenParams; path: string[] };
 
 /**
- * @description Builds the device code that opens a settings screen from anywhere in the app. The name
- * resolves against the live `SETTING_RENDERER_CONFIG`: an exact route key first, then an Unbound
- * route whose key matches ignoring case, underscores and the `UNBOUND_` prefix (`Marketplace` →
- * `UNBOUND_MARKETPLACE`), then any Discord route matched the same way.
- * @param screen A `Screens` key such as `Marketplace`, or any settings route key.
+ * @description Opens a settings screen from anywhere in the app, through Discord's root navigation ref.
+ * @param unbound Unbound's global on the device.
+ * @param name A route key, or a name matching one ignoring case, underscores and `UNBOUND_` (`Marketplace` → `UNBOUND_MARKETPLACE`).
  * @param params Route parameters for the screen.
- * @returns The JavaScript to evaluate; it returns the opened route key or throws listing Unbound's.
+ * @returns The route key it opened. Throws, listing Unbound's screens, when nothing matches.
  */
-export function openScreenCode(screen: string, params: ScreenParams = {}): string {
-	return `(() => {
-	const name = ${JSON.stringify(screen)};
-	const config = unbound.metro.findByProps('SETTING_RENDERER_CONFIG').SETTING_RENDERER_CONFIG;
-	const keys = Object.keys(config);
-	const normalize = (key) => key.toLowerCase().replace(/^unbound_/, '').replace(/[^a-z0-9]/g, '');
-	const own = keys.filter((key) => key.startsWith('UNBOUND_'));
-	const route = keys.includes(name)
-		? name
-		: own.find((key) => normalize(key) === normalize(name)) ??
-			keys.find((key) => normalize(key) === normalize(name));
+export function openScreen(unbound: UnboundGlobal, name: string, params: ScreenParams): string {
+	const { SETTING_RENDERER_CONFIG } = unbound.metro.findByProps('SETTING_RENDERER_CONFIG');
+	const { getRootNavigationRef } = unbound.metro.findByProps('getRootNavigationRef');
 
-	if (!route) {
-		throw new Error('No settings screen matches ' + name + '. Unbound screens: ' + own.join(', '));
+	function normalize(key: string) {
+		return key
+			.toLowerCase()
+			.replace(/^unbound_/, '')
+			.replace(/[^a-z0-9]/g, '');
 	}
 
-	${ROOT_REF}.navigate('settings', { screen: route, params: ${JSON.stringify(params)} });
+	const keys = Object.keys(SETTING_RENDERER_CONFIG);
+	const own = keys.filter((key) => key.startsWith('UNBOUND_'));
+	const wanted = normalize(name);
+	const route = keys.includes(name)
+		? name
+		: (own.find((key) => normalize(key) === wanted) ??
+			keys.find((key) => normalize(key) === wanted));
+
+	if (!route) {
+		throw new Error(`No settings screen matches ${name}. Unbound screens: ${own.join(', ')}`);
+	}
+
+	getRootNavigationRef().navigate('settings', { screen: route, params });
 
 	return route;
-})()`;
 }
 
 /**
- * @description Builds the device code that reads the focused route and the stack leading to it.
- * @returns The JavaScript to evaluate; it returns `{ name, params, path }` as a JSON string.
+ * @description Reads the focused route and the stack of route names leading to it.
+ * @param unbound Unbound's global on the device.
+ * @returns The route as a JSON string of {@link CurrentRoute}.
  */
-export function currentRouteCode(): string {
-	return `(() => {
-	const ref = ${ROOT_REF};
-	const path = [];
-	let state = ref.getRootState();
+export function currentRoute(unbound: UnboundGlobal): string {
+	const ref = unbound.metro.findByProps('getRootNavigationRef').getRootNavigationRef();
+	const path: string[] = [];
+	let state: NavigationState | undefined = ref.getRootState();
 
 	while (state) {
 		const route = state.routes[state.index ?? state.routes.length - 1];
+
+		if (!route) {
+			break;
+		}
 
 		path.push(route.name);
 		state = route.state;
 	}
 
-	const { name, params } = ref.getCurrentRoute();
+	const { name, params }: Route = ref.getCurrentRoute();
+	const result: CurrentRoute = { name, params: params ?? {}, path };
 
-	return JSON.stringify({ name, params: params ?? {}, path });
-})()`;
+	return JSON.stringify(result);
 }
 
-/**
- * @description Builds the device code that tags the running bundle with a token, then reloads it once
- * the eval has answered. A fresh bundle no longer carries the token.
- * @param token The marker to set on `globalThis`.
- * @returns The JavaScript to evaluate.
- */
-export function reloadCode(token: string): string {
-	return `globalThis.__UBD_RELOAD__ = ${JSON.stringify(token)};
-setTimeout(() => unbound.native.reload(), 100);
-'reloading'`;
-}
-
-/**
- * @description Builds the device code that tells the reloaded bundle from the one that was tagged.
- * @param token The marker {@link reloadCode} set.
- * @returns The JavaScript to evaluate; it returns `fresh` once the bundle no longer carries the token.
- */
-export function bundleFreshnessCode(token: string): string {
-	return `globalThis.__UBD_RELOAD__ === ${JSON.stringify(token)} ? 'stale' : 'fresh'`;
-}
-
-export default { openScreenCode, currentRouteCode, reloadCode, bundleFreshnessCode };
+export default { openScreen, currentRoute };

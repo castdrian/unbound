@@ -3,9 +3,9 @@ import { DEFAULT_BRIDGE_PORT } from '@unbound-app/debugger-protocol';
 import toError from '@unbound-app/utils/to-error';
 import { z } from 'zod';
 
+import { runOnDevice, toDeviceCode } from '~/lib/device';
 import type { ScreenParams } from '~/lib/navigation';
-import { openScreenCode } from '~/lib/navigation';
-import { runOnDevice } from '~/lib/device';
+import { openScreen } from '~/lib/navigation';
 
 const schema = z.object({
 	screen: z
@@ -47,7 +47,7 @@ const openCommand: CommandDefinition<typeof schema> = {
 			};
 		}
 
-		return runOnDevice(client, openScreenCode(screen, parsed));
+		return runOnDevice(client, toDeviceCode(openScreen, screen, parsed));
 	},
 };
 

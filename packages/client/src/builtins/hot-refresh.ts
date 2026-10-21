@@ -4,9 +4,8 @@ import { DEV, DEV_SERVER_URL } from '~/lib/constants';
 import { performRefresh } from '~/lib/hot/runtime';
 import { reload } from '~/api/native';
 
-/** The dev runtime from `scripts/build/dev-runtime.js`, present only in hot dev builds. */
 type DevRuntime = {
-	applyPatch(code: string, changedIds: string[]): boolean;
+	applyPatch(code: string, changedIds: string[]): 'applied' | 'needs-reload';
 };
 
 type ServerMessage =
@@ -83,15 +82,20 @@ function handle(socket: WebSocket, message: ServerMessage) {
 	const started = Date.now();
 
 	try {
-		if (!globalThis.__rolldown_runtime__?.applyPatch(message.code, message.changedIds)) {
+		const outcome = globalThis.__rolldown_runtime__?.applyPatch(
+			message.code,
+			message.changedIds,
+		);
+
+		if (outcome !== 'applied') {
 			Logger.info(`${message.changedIds.join(', ')} can't be patched in place; reloading.`);
-			requestReload(socket);
+			rejectPatch(socket);
 
 			return;
 		}
 	} catch (error) {
 		Logger.error(`Failed to patch ${message.changedIds.join(', ')}; reloading:`, error);
-		requestReload(socket);
+		rejectPatch(socket);
 
 		return;
 	}
@@ -102,7 +106,7 @@ function handle(socket: WebSocket, message: ServerMessage) {
 
 	if (needsRemount) {
 		Logger.info('A component changed its hooks; reloading.');
-		requestReload(socket);
+		rejectPatch(socket);
 
 		return;
 	}
@@ -112,9 +116,8 @@ function handle(socket: WebSocket, message: ServerMessage) {
 	);
 }
 
-// The server answers with a reload once the rebuild is on disk, so the app doesn't fetch the old bundle.
-function requestReload(socket: WebSocket) {
-	socket.send(JSON.stringify({ type: 'reload' }));
+function rejectPatch(socket: WebSocket) {
+	socket.send(JSON.stringify({ type: 'rejected' }));
 }
 
 export default { start, stop, shouldStart };

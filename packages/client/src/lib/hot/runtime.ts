@@ -1,4 +1,4 @@
-import type { RefreshType } from 'react-refresh/runtime';
+import type { Family, RefreshType } from 'react-refresh/runtime';
 import * as Refresh from 'react-refresh/runtime';
 
 import type { Component, FiberType } from '~/lib/hot/refresh';
@@ -6,7 +6,6 @@ import { rerender } from '~/lib/hot/refresh';
 
 export { register, createSignatureFunctionForTransform } from 'react-refresh/runtime';
 
-/** What applying the registrations since the last refresh did. */
 type RefreshResult = {
 	count: number;
 	needsRemount: boolean;
@@ -18,9 +17,8 @@ type ForwardRefType = { $$typeof: symbol; render: RefreshType };
 const MEMO = Symbol.for('react.memo');
 const FORWARD_REF = Symbol.for('react.forward_ref');
 
-// The value each component binding is rebound to, and the family id behind it.
 const canonicals = new Map<string, RefreshType>();
-const ids = new Map<FiberType, string>();
+const familyIds = new Map<FiberType, string>();
 
 /**
  * @description Returns the value a module's component binding should hold: the same one on every run of
@@ -37,7 +35,7 @@ export function canonical<T extends RefreshType>(value: T, id: string): T {
 		const stable = isComponent(value) ? forward(id, value) : value;
 
 		canonicals.set(id, stable);
-		ids.set(stable, id);
+		familyIds.set(stable, id);
 
 		return stable as T;
 	}
@@ -69,20 +67,22 @@ export function performRefresh(): RefreshResult {
 		return { count: 0, needsRemount: true };
 	}
 
-	const count = rerender((type) => {
-		// Host components (`RCTView`) are named by string and never registered.
-		if (typeof type === 'string') return null;
-
-		const id = ids.get(type);
-		const family = id ? Refresh.getFamilyByID(id) : Refresh.getFamilyByType(type);
-
-		if (!family || !update.updatedFamilies.has(family)) return null;
-
-		// A stable binding already calls the latest version; anything else takes it directly.
-		return id ? type : family.current;
-	});
+	const count = rerender((type) => latestType(type, update.updatedFamilies));
 
 	return { count, needsRemount: false };
+}
+
+// A stable forwarder already calls its family's latest version, so it stays; any other registered
+// type is replaced by the latest version. Host components (strings) are never registered.
+function latestType(type: FiberType, updated: Set<Family>): FiberType | null {
+	if (typeof type === 'string') return null;
+
+	const id = familyIds.get(type);
+	const family = id ? Refresh.getFamilyByID(id) : Refresh.getFamilyByType(type);
+
+	if (!family || !updated.has(family)) return null;
+
+	return id ? type : family.current;
 }
 
 function forward(id: string, initial: Component): Component {

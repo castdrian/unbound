@@ -13,7 +13,7 @@ export type ClientTracker = {
 
 type SocketData = { clientId: string };
 
-type ClientMessage = { type: 'applied'; filename: string } | { type: 'reload' };
+type ClientMessage = { type: 'applied'; filename: string } | { type: 'rejected' };
 
 const logger = Logger.create('Serve', 'Refresh');
 
@@ -80,7 +80,6 @@ export const websocket: WebSocketHandler<SocketData> = {
 			return;
 		}
 
-		// The device couldn't take a patch; answer once the rebuild it will fetch is on disk.
 		await tracker?.ensureLatestBuildOutput();
 		socket.send(JSON.stringify({ type: 'reload' }));
 	},

@@ -1,4 +1,3 @@
-// Rolldown's `experimental.devMode.implement`: holds each module's live exports for hot patches.
 globalThis.__rolldown_runtime__ = (() => {
 	const modules = new Map();
 	const factories = new Map();
@@ -58,9 +57,7 @@ globalThis.__rolldown_runtime__ = (() => {
 		return copyProps(Object.defineProperty({}, '__esModule', { value: true }), mod);
 	}
 
-	// The modules to re-run for a change: every importer up to a module that accepts its own updates.
-	// Reaching a module nothing imports without one means the change needs a full reload, so null.
-	function affected(changed) {
+	function modulesToRerun(changed) {
 		const visited = new Set();
 		const pending = [...changed];
 
@@ -143,24 +140,21 @@ globalThis.__rolldown_runtime__ = (() => {
 				invalidate() {},
 			};
 		},
-		// Evaluates a patch and re-runs the modules its changes reach. Returns false when the change
-		// reaches a module that can't take it in place, and the app needs a full reload instead.
 		applyPatch(code, changedIds) {
-			// Patches arrive as source text from the dev server; evaluating them is the point.
 			// oxlint-disable-next-line no-eval
 			(0, eval)(code);
 
-			const ids = affected(changedIds);
+			const ids = modulesToRerun(changedIds);
 
 			if (!ids) {
-				return false;
+				return 'needs-reload';
 			}
 
 			for (const id of ids) this.removeModuleCache(id);
 
 			for (const id of ids) this.initModule(id);
 
-			return true;
+			return 'applied';
 		},
 		__exportAll: exportAll,
 		__toESM: toESM,

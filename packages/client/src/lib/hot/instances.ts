@@ -8,7 +8,7 @@ export type Owner = Callback | typeof ORIGINAL;
 
 /** A wrapped patch callback, with the hook objects each of its segments used in its last render. */
 export type Callback = {
-	counts: (number | null)[];
+	untrackedCounts: (number | null)[];
 };
 
 /** A run of consecutive hooks in a component's hook list; `count` is `null` when unknown. */

@@ -5,12 +5,12 @@ import type { Instance, Layout } from '~/lib/hot/instances';
 
 import { createFiber } from './helpers/fiber';
 
-const a = { counts: [] };
-const b = { counts: [] };
+const a = { untrackedCounts: [] };
+const b = { untrackedCounts: [] };
 
 function layout(...counts: (number | null)[]): Layout {
 	return counts.map((count, index) => ({
-		owner: index === 1 ? ORIGINAL : { counts: [] },
+		owner: index === 1 ? ORIGINAL : { untrackedCounts: [] },
 		count,
 	}));
 }

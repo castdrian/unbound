@@ -90,7 +90,7 @@ export function reconcile(visit: Visit): number {
 
 		for (const fiber of collect(root, (fiber) => Boolean(fiber.type))) {
 			const decision = visit(fiber);
-			const target = decision === 'remount' ? remount(fiber) : decision && fiber;
+			const target = decision === 'remount' ? markForRemount(fiber) : decision && fiber;
 
 			if (target) {
 				targets.add(target);
@@ -208,9 +208,8 @@ function collect(root: FiberRoot, predicate: (fiber: Fiber) => boolean) {
 	}
 }
 
-// Returns the fiber whose parent must re-render for the remount to happen. A memo fiber reuses its
-// child whatever the child's elementType, so the memo fiber itself is the one replaced.
-function remount(fiber: Fiber) {
+// A memo fiber reuses its child whatever the child's elementType, so the memo fiber itself is the one replaced.
+function markForRemount(fiber: Fiber) {
 	let target = fiber;
 
 	while (target.return?.tag === MEMO) target = target.return;

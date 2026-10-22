@@ -18,40 +18,34 @@ import type { Decision, Fiber, FiberType } from '~/lib/hot/refresh';
 import type { Instance, Layout } from '~/lib/hot/instances';
 import type { Budget } from '~/lib/hot/hooks';
 
-/** One patch callback added through Unbound's patcher, wrapped so mounted components pick it up. */
-type Live = {
+type LivePatch = {
 	phase: PatchType;
 	parent: PatchParent;
 	method: string;
 	callback: PatchCallback;
 	once: boolean;
-	/** The hook objects each of its segments used in its last render, for components that aren't tracked. */
-	counts: (number | null)[];
+	untrackedCounts: (number | null)[];
 };
 
-/** The hook calls of one wrapper call: one per possess `ctx`. */
-type Scope = {
+type CallScope = {
 	instance: Instance | null;
-	/** Where tracked instances read budgets from; `null` reads each callback's last counts. */
-	budgets: Layout | null;
+	held: Layout | null;
 	mount: boolean;
 	strict: boolean;
 	record: Layout;
-	/** How many segments each callback has opened in this call. */
-	opened: Map<Live, number>;
+	opened: Map<LivePatch, number>;
 	active: Active | null;
 	original: Called | null;
 };
 
 type Active = {
-	live: Live;
+	live: LivePatch;
 	budget: Budget;
 	index: number;
 };
 
 type Called = { result: ReactNode };
 
-/** What a trampoline is rendering right now. */
 type RenderContext = {
 	instance: Instance;
 	render: Render;
@@ -60,34 +54,28 @@ type RenderContext = {
 	claimed: boolean;
 };
 
-/** The patches made since the last flush. */
 type Batch = {
-	/** Each touched (parent, method) and its value before the batch. */
-	touched: Map<PatchParent, Map<string, Renderable>>;
-	removed: Set<Live>;
+	previousValues: Map<PatchParent, Map<string, Renderable>>;
+	removed: Set<LivePatch>;
 	remounts: Set<Instance>;
 };
 
-/** What a flush does, derived from a batch. */
 type Plan = {
 	swaps: Map<Renderable, Renderable>;
-	/** Every value a touched (parent, method) held before or after the batch. */
-	values: Set<Renderable>;
+	beforeAndAfter: Set<Renderable>;
 	parents: Set<PatchParent>;
-	touched: Batch['touched'];
-	removed: Set<Live>;
+	previousValues: Batch['previousValues'];
+	removed: Set<LivePatch>;
 	remounts: Set<Instance>;
 };
 
 type Render = (props: Props, secondArg?: SecondArg) => ReactNode;
 
-/** A component's props; the trampoline passes them through unread. */
 type Props = { children?: ReactNode };
 
 /** A forwardRef's ref, or a function component's legacy context; passed through unread. */
 type SecondArg = ForwardedRef<Element>;
 
-/** A fiber type that is not a host component's name. */
 type Renderable = Exclude<FiberType, string>;
 
 type ForwardRef = { $$typeof: symbol; render: Render };
@@ -110,12 +98,11 @@ const PATCHERS: Record<PatchType, Patcher> = {
 
 const logger = createLogger('Patcher', 'Live');
 
-const lives = new WeakMap<PatchCallback, Live>();
-const scopes = new WeakMap<PatchContext, Scope>();
+const lives = new WeakMap<PatchCallback, LivePatch>();
+const scopes = new WeakMap<PatchContext, CallScope>();
 const trampolines = new WeakMap<Renderable, Instance>();
 
-// The layout each patched function last rendered with outside a trampoline, keyed by the wrapper.
-const untracked = new WeakMap<Renderable, Layout>();
+const untrackedLayouts = new WeakMap<Renderable, Layout>();
 
 let rendering: RenderContext | null = null;
 let batch: Batch | null = null;
@@ -136,7 +123,14 @@ export function patch(
 	callback: PatchCallback,
 	options: PatchOptions = {},
 ): () => void {
-	const live: Live = { phase, parent, method, callback, once: Boolean(options.once), counts: [] };
+	const live: LivePatch = {
+		phase,
+		parent,
+		method,
+		callback,
+		once: Boolean(options.once),
+		untrackedCounts: [],
+	};
 	const run = createRun(live);
 	const value = Reflect.get(parent, method);
 	const unpatch = PATCHERS[phase](parent, method, run, options);
@@ -202,14 +196,18 @@ export function flush(): number {
 
 		return 0;
 	} finally {
-		// Every fiber that rendered with these layouts is tracked now; later mounts record fresh ones.
-		for (const value of plan.values) {
-			untracked.delete(value);
-		}
+		forgetUntrackedLayouts(plan);
 	}
 }
 
-function createRun(live: Live): PatchCallback {
+// Every fiber that rendered with these layouts is tracked after a flush, so only later mounts record new ones.
+function forgetUntrackedLayouts(plan: Plan) {
+	for (const value of plan.beforeAndAfter) {
+		untrackedLayouts.delete(value);
+	}
+}
+
+function createRun(live: LivePatch): PatchCallback {
 	return function run(
 		// UNKNOWN: possess calls patch callbacks with the patched method's `this`.
 		this: unknown,
@@ -255,7 +253,7 @@ function createRun(live: Live): PatchCallback {
 	};
 }
 
-function scopeOf(ctx: PatchContext, live: Live, mount: boolean) {
+function scopeOf(ctx: PatchContext, live: LivePatch, mount: boolean) {
 	const existing = scopes.get(ctx);
 
 	if (existing) {
@@ -265,9 +263,9 @@ function scopeOf(ctx: PatchContext, live: Live, mount: boolean) {
 	const wrapper = Reflect.get(live.parent, live.method);
 	const context =
 		rendering && !rendering.claimed && rendering.render === wrapper ? rendering : null;
-	const scope: Scope = {
+	const scope: CallScope = {
 		instance: context?.instance ?? null,
-		budgets: context ? budgetsOf(context) : null,
+		held: context ? heldLayoutOf(context) : null,
 		mount,
 		strict: context?.strict ?? false,
 		record: context?.record ?? [],
@@ -279,7 +277,7 @@ function scopeOf(ctx: PatchContext, live: Live, mount: boolean) {
 	if (context) {
 		context.claimed = true;
 	} else {
-		untracked.set(wrapper, scope.record);
+		untrackedLayouts.set(wrapper, scope.record);
 	}
 
 	// The first wrapped callback to run is an `after` one, so the original has already run.
@@ -293,7 +291,7 @@ function scopeOf(ctx: PatchContext, live: Live, mount: boolean) {
 	return scope;
 }
 
-function budgetsOf(context: RenderContext) {
+function heldLayoutOf(context: RenderContext) {
 	const { instance, strict } = context;
 
 	return strict ? (instance.pending?.layout ?? instance.layout) : instance.layout;
@@ -301,7 +299,7 @@ function budgetsOf(context: RenderContext) {
 
 // possess reads `ctx.original` when it calls it, so each call records a segment of the original's hooks
 // and splits the running callback's segment around it.
-function wrapOriginal(ctx: PatchContext, scope: Scope) {
+function wrapOriginal(ctx: PatchContext, scope: CallScope) {
 	const original = ctx.original;
 
 	ctx.original = (...args) => {
@@ -327,15 +325,15 @@ function wrapOriginal(ctx: PatchContext, scope: Scope) {
 	};
 }
 
-function originalResult(ctx: PatchContext, scope: Scope) {
+function originalResult(ctx: PatchContext, scope: CallScope) {
 	return scope.original ? scope.original.result : ctx.original(...ctx.args);
 }
 
-function createBudget(scope: Scope): Budget {
+function createBudget(scope: CallScope): Budget {
 	return { limit: null, used: 0, unknown: false, strict: scope.strict };
 }
 
-function begin(scope: Scope, active: Active) {
+function begin(scope: CallScope, active: Active) {
 	const { live, budget } = active;
 	const index = scope.opened.get(live) ?? 0;
 
@@ -343,29 +341,28 @@ function begin(scope: Scope, active: Active) {
 	active.index = index;
 	budget.used = 0;
 	budget.unknown = false;
-	budget.limit = scope.mount ? null : limitOf(scope, live, index);
+	budget.limit = scope.mount ? null : heldHooks(scope, live, index);
 }
 
-function end(scope: Scope, active: Active) {
+function end(scope: CallScope, active: Active) {
 	const { live, budget, index } = active;
 
 	settle(budget);
 
 	const count = budget.unknown ? null : budget.used;
 
-	live.counts[index] = count;
+	live.untrackedCounts[index] = count;
 	scope.record.push({ owner: live, count });
 }
 
-// The hooks this component holds for a callback's nth segment: 0 when it is new to the component.
-function limitOf(scope: Scope, live: Live, index: number) {
-	if (!scope.budgets) {
-		return index < live.counts.length ? live.counts[index] : 0;
+function heldHooks(scope: CallScope, live: LivePatch, index: number) {
+	if (!scope.held) {
+		return index < live.untrackedCounts.length ? live.untrackedCounts[index] : 0;
 	}
 
 	let seen = 0;
 
-	for (const segment of scope.budgets) {
+	for (const segment of scope.held) {
 		if (segment.owner !== live) {
 			continue;
 		}
@@ -478,27 +475,29 @@ function visit(fiber: Fiber, plan: Plan): Decision {
 
 	if (!affects(plan, type)) return null;
 
-	const layout = initialLayout(plan, type, length);
+	const layout = layoutFromLastUntrackedRender(plan, type, length);
 
 	return layout ? update(track(fiber, type, layout), plan, length) : 'remount';
 }
 
 function affects(plan: Plan, type: Renderable) {
-	return plan.values.has(type) || plan.parents.has(type);
+	return plan.beforeAndAfter.has(type) || plan.parents.has(type);
 }
 
-// Untracked fibers mounted with the callbacks their wrapper had then, so its last untracked render
-// describes them; a function no wrapped callback rendered in holds only the original's hooks.
-function initialLayout(plan: Plan, type: Renderable, length: number): Layout | null {
+function layoutFromLastUntrackedRender(
+	plan: Plan,
+	type: Renderable,
+	length: number,
+): Layout | null {
 	const render = isForwardRef(type)
-		? (plan.touched.get(type)?.get('render') ?? type.render)
+		? (plan.previousValues.get(type)?.get('render') ?? type.render)
 		: type;
 
 	if (typeof render !== 'function' || !(PATCH_SYMBOL in render)) {
 		return [{ owner: ORIGINAL, count: length }];
 	}
 
-	const recorded = untracked.get(render);
+	const recorded = untrackedLayouts.get(render);
 
 	if (!recorded) {
 		return [{ owner: ORIGINAL, count: length }];
@@ -508,7 +507,7 @@ function initialLayout(plan: Plan, type: Renderable, length: number): Layout | n
 }
 
 function update(instance: Instance, plan: Plan, length: number): Decision {
-	const removal = cut(instance.layout, (owner) => plan.removed.has(owner as Live), length);
+	const removal = cut(instance.layout, (owner) => plan.removed.has(owner as LivePatch), length);
 
 	if (!removal) {
 		return 'remount';
@@ -538,23 +537,23 @@ function update(instance: Instance, plan: Plan, length: number): Decision {
 function createPlan(current: Batch): Plan {
 	const plan: Plan = {
 		swaps: new Map(),
-		values: new Set(),
+		beforeAndAfter: new Set(),
 		parents: new Set(),
-		touched: current.touched,
+		previousValues: current.previousValues,
 		removed: current.removed,
 		remounts: current.remounts,
 	};
 
 	const changes: Change[] = [];
 
-	for (const [parent, methods] of current.touched) {
+	for (const [parent, methods] of current.previousValues) {
 		plan.parents.add(parent);
 
 		for (const [method, previous] of methods) {
 			const next: Renderable = Reflect.get(parent, method);
 
-			plan.values.add(previous);
-			plan.values.add(next);
+			plan.beforeAndAfter.add(previous);
+			plan.beforeAndAfter.add(next);
 
 			if (typeof previous === 'function' && typeof next === 'function' && previous !== next) {
 				changes.push({ previous, next, order: orderOf(parent, method) });
@@ -562,17 +561,23 @@ function createPlan(current: Batch): Plan {
 		}
 	}
 
-	// A function patched under two parents goes to the wrapper possess registered first; a parent that
-	// renders the other one makes React remount it, which is safe.
-	changes.sort((a, b) => a.order - b.order);
+	plan.swaps = swapToFirstRegistered(changes);
 
-	for (const { previous, next } of changes) {
-		if (!plan.swaps.has(previous)) {
-			plan.swaps.set(previous, next);
+	return plan;
+}
+
+// A function patched under two parents can't tell which one a mounted instance's parent reads, so it takes
+// the wrapper possess registered first. A parent rendering the other one makes React remount it.
+function swapToFirstRegistered(changes: Change[]) {
+	const swaps = new Map<Renderable, Renderable>();
+
+	for (const { previous, next } of [...changes].sort((a, b) => a.order - b.order)) {
+		if (!swaps.has(previous)) {
+			swaps.set(previous, next);
 		}
 	}
 
-	return plan;
+	return swaps;
 }
 
 type Change = {
@@ -590,12 +595,12 @@ function orderOf(parent: PatchParent, method: string) {
 }
 
 function touch(parent: PatchParent, method: string, value: Renderable) {
-	const { touched } = open();
-	let methods = touched.get(parent);
+	const { previousValues } = open();
+	let methods = previousValues.get(parent);
 
 	if (!methods) {
 		methods = new Map();
-		touched.set(parent, methods);
+		previousValues.set(parent, methods);
 	}
 
 	if (!methods.has(method)) {
@@ -603,14 +608,14 @@ function touch(parent: PatchParent, method: string, value: Renderable) {
 	}
 }
 
-function remove(live: Live) {
+function remove(live: LivePatch) {
 	touch(live.parent, live.method, Reflect.get(live.parent, live.method));
 	open().removed.add(live);
 }
 
 function open() {
 	if (!batch) {
-		batch = { touched: new Map(), removed: new Set(), remounts: new Set() };
+		batch = { previousValues: new Map(), removed: new Set(), remounts: new Set() };
 		queueMicrotask(flush);
 	}
 

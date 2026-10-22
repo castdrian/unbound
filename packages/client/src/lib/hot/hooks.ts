@@ -89,9 +89,13 @@ export class LateHook extends Error {
 export function dispatcherKind(): DispatcherKind {
 	const dispatcher = internals.H;
 
-	if (!dispatcher || dispatcher.useState === dispatcher.useEffect) return 'idle';
+	if (!dispatcher || dispatcher.useState === dispatcher.useEffect) {
+		return 'idle';
+	}
 
-	if (bases.has(dispatcher)) return 'budgeted';
+	if (bases.has(dispatcher)) {
+		return 'budgeted';
+	}
 
 	if (isMount(dispatcher)) {
 		mount ??= dispatcher;
@@ -113,7 +117,9 @@ export function dispatcherKind(): DispatcherKind {
 export function runWithBudget<T>(budget: Budget, run: () => T): T {
 	const base = internals.H;
 
-	if (!base) return run();
+	if (!base) {
+		return run();
+	}
 
 	frames.push({ budget, base });
 	internals.H = shimFor(base);
@@ -140,7 +146,9 @@ export function runUnbudgeted<T>(run: () => T): T {
 	const shim = internals.H;
 	const base = shim && bases.get(shim);
 
-	if (!shim || !base) return run();
+	if (!shim || !base) {
+		return run();
+	}
 
 	internals.H = base;
 
@@ -241,7 +249,9 @@ function isMount(dispatcher: Dispatcher) {
 function shimFor(base: Dispatcher) {
 	const cached = shims.get(base);
 
-	if (cached) return cached;
+	if (cached) {
+		return cached;
+	}
 
 	const shim: Dispatcher = {};
 

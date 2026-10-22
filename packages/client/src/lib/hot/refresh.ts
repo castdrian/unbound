@@ -233,8 +233,7 @@ export function withAlternates(fibers: Fiber[]): Fiber[] {
 	return fibers.flatMap((fiber) => (fiber.alternate ? [fiber, fiber.alternate] : [fiber]));
 }
 
-// A fiber re-renders when its lanes overlap the render's lanes and every ancestor's childLanes lead
-// to it; the props copy stops React bailing out of the re-render as if nothing changed. Host fibers
+// The props copy stops React bailing out of the re-render as if nothing changed. Host fibers
 // reconcile their children from the lane alone, and a stray prop would reach the native view.
 function mark(fibers: Fiber[], lane: number) {
 	for (const fiber of withAlternates(fibers)) {

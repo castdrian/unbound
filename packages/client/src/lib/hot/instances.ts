@@ -4,7 +4,12 @@ import type { Component, ExoticType, Fiber } from '~/lib/hot/refresh';
 export const ORIGINAL = Symbol('original');
 
 /** Whatever called a run of hooks: a patch callback, or the patched function itself. */
-export type Owner = object | typeof ORIGINAL;
+export type Owner = Callback | typeof ORIGINAL;
+
+/** A wrapped patch callback, with the hook objects each of its segments used in its last render. */
+export type Callback = {
+	counts: (number | null)[];
+};
 
 /** A run of consecutive hooks in a component's hook list; `count` is `null` when unknown. */
 export type Segment = {
@@ -77,7 +82,9 @@ export function resolve(layout: Layout, length: number): Layout {
 	const copy = layout.map((segment) => ({ ...segment }));
 	const unknown = copy.filter((segment) => segment.count === null);
 
-	if (unknown.length !== 1 || !fits(copy, length)) return copy;
+	if (unknown.length !== 1 || !fits(copy, length)) {
+		return copy;
+	}
 
 	const known = copy.reduce((sum, segment) => sum + (segment.count ?? 0), 0);
 
@@ -112,7 +119,9 @@ export function commit(instance: Instance, length: number): void {
 export function offsetOf(layout: Layout, index: number, length: number): number | null {
 	const head = sum(layout.slice(0, index));
 
-	if (head !== null) return head;
+	if (head !== null) {
+		return head;
+	}
 
 	const tail = sum(layout.slice(index));
 

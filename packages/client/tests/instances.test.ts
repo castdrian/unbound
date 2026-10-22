@@ -5,11 +5,14 @@ import type { Instance, Layout } from '~/lib/hot/instances';
 
 import { createFiber } from './helpers/fiber';
 
-const a = { name: 'a' };
-const b = { name: 'b' };
+const a = { counts: [] };
+const b = { counts: [] };
 
 function layout(...counts: (number | null)[]): Layout {
-	return counts.map((count, index) => ({ owner: index === 1 ? ORIGINAL : { index }, count }));
+	return counts.map((count, index) => ({
+		owner: index === 1 ? ORIGINAL : { counts: [] },
+		count,
+	}));
 }
 
 function createInstance(committed: Layout): Instance {

@@ -47,6 +47,15 @@ export function toCleyeCommand(definition: CommandDefinition<z.ZodObject<z.ZodRa
 			description: definition.description,
 			parameters: positionalNames.map((name) => `[${name}]`),
 			flags,
+			// Tools under `ubd mcp` run through a second cleye instance, whose usage line would drop `mcp`.
+			help:
+				definition.surfaces.cli === 'mcp'
+					? {
+							usage: ['ubd mcp', definition.name, '[flags...]']
+								.concat(positionalNames.map((name) => `[${name}]`))
+								.join(' '),
+						}
+					: void 0,
 		},
 		async (parsed) => {
 			const { json, ...flagInput } = parsed.flags;

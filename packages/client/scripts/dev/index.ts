@@ -6,18 +6,22 @@ const logger = Logger.create('Dev');
 // server URL into the bundle. Dynamic imports below keep this assignment ahead of that read.
 process.env.UNBOUND_DEV = '1';
 
-const { watchBuild } = await import('../build');
+const { hotBuild } = await import('../build');
 const { startServer } = await import('../serve');
+const refresh = await import('../serve/refresh');
 
-const watcher = watchBuild();
-const server = startServer();
+const engine = await hotBuild(refresh.deliver);
+
+refresh.attach(engine);
+
+const server = startServer(false);
 
 logger.log('Press Ctrl+C to stop');
 
 process.on('SIGINT', async () => {
 	logger.newLine();
 	logger.log('Shutting down...');
-	await watcher.close();
+	await engine.close();
 	server.stop();
 	logger.success('Stopped');
 	process.exit(0);

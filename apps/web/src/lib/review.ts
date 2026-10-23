@@ -189,7 +189,8 @@ async function requirePendingReview(
 // b2/staging-lifecycle.json hides staged objects after 14 days, so re-read the pinned blob
 // instead of failing.
 async function refetchBundle(ctx: AppContext, row: SourcedSubmissionRow): Promise<Uint8Array> {
-	const token = await getGitHubToken(ctx, row.authorId);
+	// The repository is public, so an author whose GitHub link lapsed must not block the approval.
+	const token = await getGitHubToken(ctx, row.authorId).catch(() => undefined);
 	const github = createGitHubClient(ctx.env, token ?? null);
 
 	return github.readBlob(row.repository, row.source.bundleBlobSha);

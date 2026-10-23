@@ -13,11 +13,11 @@ import { LATEST_VERSION, refreshAddonSummary, toAddonSummary } from '~/lib/addon
 import type { SourcedSubmissionRow, SubmissionRow } from '~/lib/submissions';
 import { getArtifactKeys, toAddonVersion } from '~/lib/artifacts';
 import { requireSourced, toSubmission } from '~/lib/submissions';
+import { createGitHubClient, getGitHubToken } from '~/lib/github';
 import { recordReviewDecision } from '~/lib/moderation-events';
 import { requirePermission } from '~/lib/api/caller';
 import type { Permissions } from '~/lib/auth/access';
 import { hasPermission } from '~/lib/auth/access';
-import { createGitHubClient } from '~/lib/github';
 import { toVersionKey } from '~/lib/version-key';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
@@ -189,12 +189,8 @@ async function requirePendingReview(
 // b2/staging-lifecycle.json hides staged objects after 14 days, so re-read the pinned blob
 // instead of failing.
 async function refetchBundle(ctx: AppContext, row: SourcedSubmissionRow): Promise<Uint8Array> {
-	const linked = await ctx.db.query.account.findFirst({
-		where: { userId: row.authorId, providerId: 'github' },
-		columns: { accessToken: true },
-	});
-
-	const github = createGitHubClient(ctx.env, linked?.accessToken ?? null);
+	const token = await getGitHubToken(ctx, row.authorId);
+	const github = createGitHubClient(ctx.env, token ?? null);
 
 	return github.readBlob(row.repository, row.source.bundleBlobSha);
 }

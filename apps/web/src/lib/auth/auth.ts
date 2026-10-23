@@ -60,6 +60,12 @@ export function createAuth(db: Database, env: Env, storage: Storage): Auth {
 		secret: env.BETTER_AUTH_SECRET,
 		trustedOrigins: [env.PUBLIC_URL],
 		database: drizzleAdapter(db, { provider: 'sqlite', schema }),
+		session: {
+			// No re-sign-in gate on sensitive routes such as unlinking; sessions last 30 days and roll on use.
+			freshAge: 0,
+			expiresIn: 60 * 60 * 24 * 30,
+			updateAge: 60 * 60 * 24,
+		},
 		socialProviders: {
 			discord: {
 				clientId: env.DISCORD_CLIENT_ID,

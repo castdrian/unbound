@@ -4,6 +4,7 @@ import type {
 	RepositoryRelease,
 } from '@unbound-app/contracts/source';
 import { commitShaSchema } from '@unbound-app/contracts/source';
+import { APIError } from 'better-auth/api';
 import { z } from 'zod';
 
 import { consumeRateLimit } from '~/lib/rate-limit';
@@ -109,6 +110,10 @@ const MAX_TAGS = 20;
 const MAX_TAG_DEPTH = 5;
 const SYMLINK_MODE = '120000';
 
+function linkExpired(): ApiError {
+	return new ApiError('github_not_linked', 'Your GitHub link has expired. Link GitHub again.');
+}
+
 function unavailable(reason: string): ApiError {
 	return new ApiError(
 		'github_unavailable',
@@ -135,7 +140,7 @@ async function send(env: Env, token: string | null, path: string): Promise<Respo
 	}
 
 	if (response.status === 401) {
-		throw new ApiError('github_not_linked', 'Your GitHub link has expired. Link GitHub again.');
+		throw linkExpired();
 	}
 
 	if (response.ok || response.status === 404) {
@@ -421,6 +426,35 @@ export function createGitHubClient(env: Env, token: string | null) {
 }
 
 /**
+ * @description Reads the user's linked GitHub token, refreshing it first when it has expired.
+ * @param ctx The application context.
+ * @param userId The user.
+ * @returns The token, `undefined` when no GitHub account is linked; `github_not_linked` when GitHub refuses the refresh.
+ */
+export async function getGitHubToken(ctx: AppContext, userId: string): Promise<string | undefined> {
+	const linked = await ctx.db.query.account.findFirst({
+		where: { userId, providerId: 'github' },
+		columns: { id: true },
+	});
+
+	if (!linked) return;
+
+	try {
+		const { accessToken } = await ctx.auth.api.getAccessToken({
+			body: { accountId: linked.id, userId },
+		});
+
+		return accessToken || undefined;
+	} catch (error) {
+		if (!(error instanceof APIError)) {
+			throw error;
+		}
+
+		throw linkExpired();
+	}
+}
+
+/**
  * @description Loads the user's linked GitHub token, counting the request against the user's
  * `GITHUB_RATE_LIMIT_MAX` budget so nobody can spend a user's GitHub quota through us.
  * @param ctx The application context.
@@ -434,16 +468,13 @@ export async function connectGitHub(ctx: AppContext, userId: string): Promise<Gi
 		max: ctx.env.GITHUB_RATE_LIMIT_MAX,
 	});
 
-	const linked = await ctx.db.query.account.findFirst({
-		where: { userId, providerId: 'github' },
-		columns: { accessToken: true },
-	});
+	const token = await getGitHubToken(ctx, userId);
 
-	if (!linked?.accessToken) {
+	if (!token) {
 		throw new ApiError('github_not_linked', 'Link your GitHub account to publish from GitHub.');
 	}
 
-	return createGitHubClient(ctx.env, linked.accessToken);
+	return createGitHubClient(ctx.env, token);
 }
 
-export default { gitBlobSha, createGitHubClient, connectGitHub };
+export default { gitBlobSha, createGitHubClient, getGitHubToken, connectGitHub };

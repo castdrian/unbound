@@ -69,6 +69,10 @@ const uiUnmounted: NativeUIHandle[] = [];
 const javaReleased: NativeJavaHandle[] = [];
 const javaHandle: NativeJavaHandle = Object.create(null);
 const javaInvokeResult: NativeJavaValue = { type: 'string', value: 'invoked' };
+const javaInvokeFailure = {
+	__nativeFailure: { code: 'NATIVE_BRIDGE_ERROR', message: 'No method noSuchMethod' },
+};
+let javaInvokeOutcome: NativeJavaValue | typeof javaInvokeFailure = javaInvokeResult;
 const nativeHandle: NativeUIHandle = Object.create(null);
 const capabilities = [
 	'native.objc.classes',
@@ -183,7 +187,7 @@ const bridge: NativePluginBridge = {
 		className: () => ({ type: 'string', value: 'java.lang.Class' }),
 		construct: () => javaHandle,
 		respondsTo: () => ({ type: 'boolean', value: true }),
-		invoke: () => ({ type: 'string', value: 'invoked' }),
+		invoke: () => javaInvokeOutcome as NativeJavaValue,
 		invokeAsync: () => cancellable(Promise.resolve(javaInvokeResult), 'java-invoke'),
 		getField: () => ({ type: 'int', value: 7 }),
 		setField: () => undefined,
@@ -256,6 +260,7 @@ const nativePlatformBridge: NativePlatformBridge = {
 
 const {
 	NativePluginCapabilityError,
+	NativeJavaError,
 	NativePluginDisposedError,
 	NativePluginPlatformError,
 	NativePluginUnsupportedPlatformError,
@@ -892,6 +897,25 @@ describe('native plugin negotiation', () => {
 		expect(() => context.native.java.getClass('java.lang.Integer')).toThrow(
 			NativePluginDisposedError,
 		);
+	});
+
+	test('turns a tagged native failure into a Java error', () => {
+		Object.assign(nativePlatformBridge.device, { platform: 'android' });
+		Object.assign(nativePlatformBridge, { platform: 'android' });
+		javaInvokeOutcome = javaInvokeFailure;
+
+		const context = createPluginContext({
+			...manifest,
+			platforms: ['android'],
+			capabilities: ['native.java.invoke'],
+		});
+
+		const call = () => context.native.java.invoke(nativeHandle, 'noSuchMethod');
+
+		expect(call).toThrow(NativeJavaError);
+		expect(call).toThrow('No method noSuchMethod');
+		javaInvokeOutcome = javaInvokeResult;
+		context.dispose();
 	});
 
 	test('rejects a plugin that does not support the host platform', () => {

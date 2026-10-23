@@ -9,6 +9,7 @@ import { formatDate } from '~/components/admin/format-date';
 import VersionTable from '~/components/admin/version-table';
 import StatusPill from '~/components/dashboard/status-pill';
 import DetailFact from '~/components/admin/detail-fact';
+import StaffNotes from '~/components/admin/staff-notes';
 import { fetchAdminAddon } from '~/lib/admin-functions';
 import { STAFF_SECTIONS } from '~/lib/auth/staff-areas';
 import EventLog from '~/components/admin/event-log';
@@ -21,11 +22,12 @@ import Tag from '~/components/tag';
 function AdminAddonPage() {
 	const { user: viewer } = Route.useRouteContext();
 	const view = Route.useLoaderData();
-	const { addon, maintainers, versions, submissions, events } = view;
+	const { addon, maintainers, versions, submissions, events, notes } = view;
 	const canEdit = hasPermission(viewer.role, { addon: ['edit'] });
 	const canDelist = hasPermission(viewer.role, { addon: ['delist'] });
 	const canTransfer = hasPermission(viewer.role, { addon: ['transfer'] });
 	const canServe = hasPermission(viewer.role, { addon: ['rollback'] });
+	const canWriteNotes = hasPermission(viewer.role, { note: ['write'] });
 
 	return (
 		<div className='flex flex-col gap-8'>
@@ -102,6 +104,14 @@ function AdminAddonPage() {
 
 			<DetailSection title='Submissions'>
 				<SubmissionHistory submissions={submissions} label='author' />
+			</DetailSection>
+
+			<DetailSection title='Staff notes'>
+				<StaffNotes
+					subject={{ type: 'addon', id: addon.id }}
+					notes={notes}
+					canWrite={canWriteNotes}
+				/>
 			</DetailSection>
 
 			<DetailSection title='Moderation log'>

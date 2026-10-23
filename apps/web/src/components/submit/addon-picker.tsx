@@ -12,7 +12,6 @@ import Tag from '~/components/tag';
 
 type AddonPickerProps = {
 	listing: ListRepositoryAddonsResponse;
-	/** Only this addon may be picked, when republishing it. */
 	addonId?: string;
 	selected: string | null;
 	disabled: boolean;

@@ -65,8 +65,8 @@ async function deleteOrphans(ctx: AppContext): Promise<number> {
 
 /**
  * @description Deletes every staged object no open submission owns, except those younger than
- * `STAGING_ORPHAN_GRACE_SECONDS`: create stages a bundle just before inserting the row that owns it.
- * @param ctx The application context; its clock decides which objects are old enough.
+ * `STAGING_ORPHAN_GRACE_SECONDS`.
+ * @param ctx The application context.
  * @returns How many orphaned objects were deleted.
  */
 export async function sweepStaging(ctx: AppContext): Promise<SweepResult> {

@@ -54,7 +54,6 @@ export const envSchema = z.object({
 	/** How long a reviewer's presigned download of a staged bundle stays valid. */
 	REVIEW_ARTIFACT_URL_TTL_SECONDS: positiveInt.default(600),
 	STAGING_SWEEP_INTERVAL_SECONDS: positiveInt.default(3600),
-	/** Staged objects younger than this are never orphans: create writes the object before its row. */
 	STAGING_ORPHAN_GRACE_SECONDS: positiveInt.default(3600),
 	UPDATES_RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(60),
 	UPDATES_RATE_LIMIT_MAX: positiveInt.default(30),

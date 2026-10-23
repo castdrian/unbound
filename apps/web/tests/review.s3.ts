@@ -179,7 +179,6 @@ describe('approval', () => {
 		const moderator = await signUp('moderator');
 		const id = await publish(author, 'review.tampered', 'original');
 
-		// Same size, different bytes: what a write to the staging bucket after submission would leave.
 		await ctx.storage.staging.write(findRow(id).stagingKey, 'replaced');
 
 		expect(await failure(review(moderator, id, { decision: 'approved' }))).toEqual({

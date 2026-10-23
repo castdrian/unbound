@@ -29,9 +29,7 @@ import Text from '~/components/ui/text';
 
 type SubmitFormProps = {
 	githubLinked: boolean;
-	/** Restricts the form to this addon, when republishing it. */
 	addonId?: string;
-	/** Where the addon was submitted from before; its repository is read straight away. */
 	initial?: PendingSource;
 	onSubmitted: (submission: Submission) => void;
 };
@@ -124,7 +122,6 @@ function SubmitForm({ githubLinked, addonId, initial, onSubmitted }: SubmitFormP
 		run(() => fetchPreview(listing, addon));
 	}
 
-	// Republishing reads the same directory again and previews it if it can be submitted as it is.
 	function reopen(source: PendingSource) {
 		run(async () => {
 			const found = await fetchListing(source.repository);

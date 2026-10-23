@@ -10,7 +10,6 @@ import Input from '~/components/ui/input';
 import Text from '~/components/ui/text';
 import Tag from '~/components/tag';
 
-/** The details an author may change before submitting, as typed. */
 export type DetailsDraft = {
 	homepage: string;
 	tags: string;

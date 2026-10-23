@@ -33,6 +33,7 @@ export const apiErrorCodeSchema = z.enum([
 	'invalid_changelog',
 	'sync_conflict',
 	'sync_document_too_large',
+	'edit_conflict',
 	'sponsorship_required',
 	'badge_rejected',
 	'perk_revoked',

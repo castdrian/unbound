@@ -46,6 +46,7 @@ export declare const NATIVE_PLUGIN_CAPABILITIES: readonly [
 	'native.java.fields',
 	'native.java.invoke',
 	'native.java.invokeAsync',
+	'native.java.hooks',
 	'native.ui.lookup',
 	'native.ui.mount',
 	'native.ui.layout',
@@ -58,6 +59,7 @@ export declare const NATIVE_PLUGIN_PLATFORM_CAPABILITIES: {
 		'native.java.construct',
 		'native.java.fields',
 		'native.java.invoke',
+		'native.java.hooks',
 		'native.java.invokeAsync',
 		'native.runtime.events',
 		'native.ui.layout',
@@ -494,6 +496,41 @@ export type NativeJavaBridge = {
 	release(handle: NativeJavaHandle): void;
 };
 export type NativeJavaHandle = NativeHandle;
+export type NativeJavaHookEvent = {
+	self: NativeJavaValue;
+	args: NativeJavaValue[];
+};
+export type NativeJavaHookOptions = {
+	/** Replace the method's result with a cached value when one matches. */
+	replace?: boolean;
+	/** Notify the listener on every call; on by default. */
+	notify?: boolean;
+};
+export type NativeJavaHookToken = {
+	readonly id: string;
+};
+export type NativeJavaHooksBridge = {
+	hook(
+		className: string,
+		methodName: string,
+		parameterTypes: string[],
+		options?: NativeJavaHookOptions,
+		listener?: (event: NativeJavaHookEvent) => void,
+	): NativeJavaHookToken;
+	setReturnValue(
+		token: NativeJavaHookToken,
+		self: NativeJavaValue,
+		args: NativeJavaValue[],
+		value: NativeJavaValue,
+	): void;
+	removeReturnValue(
+		token: NativeJavaHookToken,
+		self: NativeJavaValue,
+		args: NativeJavaValue[],
+	): void;
+	clearReturnValues(token: NativeJavaHookToken): void;
+	remove(token: NativeJavaHookToken): void;
+};
 export type NativeJavaValue =
 	| {
 			type: 'null';
@@ -649,6 +686,7 @@ export type NativePluginBridge = {
 	readonly runtime: NativeRuntimeBridge;
 	readonly ui: NativeUIBridge;
 	readonly java: NativeJavaBridge;
+	readonly hooks: NativeJavaHooksBridge;
 	readonly media: NativeMediaBridge;
 };
 export type NativePluginCapability = (typeof NATIVE_PLUGIN_CAPABILITIES)[number];

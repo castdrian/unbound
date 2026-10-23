@@ -2,7 +2,7 @@ import {
 	listRepositoryAddonsResponseSchema,
 	pushableRepositoriesResponseSchema,
 } from '@unbound-app/contracts/source';
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, spyOn, test } from 'bun:test';
 
 import listGitHubRepositoriesEndpoint from '~/endpoints/list-github-repositories';
 import listRepositoryAddonsEndpoint from '~/endpoints/list-repository-addons';
@@ -10,6 +10,7 @@ import type { AppContext } from '~/lib/context';
 import { createApiClient } from '~/api/client';
 import type { Api } from '~/api';
 
+import type { ExpiringGitHubToken } from './helpers/context';
 import { createTestContext, linkGitHub, signInWithDiscord } from './helpers/context';
 import { failure, serveEndpoints } from './helpers/server';
 import { serveGitHub } from './helpers/github';
@@ -89,7 +90,36 @@ const server = serveEndpoints(ctx, {
 });
 const client = createApiClient<Api>({ baseUrl: server.url.href });
 
+// Better Auth's GitHub provider hard-codes this endpoint, so the refresh is answered at fetch.
+const GITHUB_TOKEN_ENDPOINT = 'https://github.com/login/oauth/access_token';
+const REFRESH_TOKEN = 'refresh-owner';
+const realFetch = globalThis.fetch;
+const refreshes: URLSearchParams[] = [];
+const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+	if (String(input) !== GITHUB_TOKEN_ENDPOINT) {
+		return realFetch(input, init);
+	}
+
+	const form = new URLSearchParams(String(init?.body));
+
+	refreshes.push(form);
+
+	// GitHub answers a bad refresh token with a 200 and an error body.
+	if (form.get('refresh_token') !== REFRESH_TOKEN) {
+		return Response.json({ error: 'bad_refresh_token' });
+	}
+
+	return Response.json({
+		access_token: 'owner',
+		token_type: 'bearer',
+		expires_in: 28800,
+		refresh_token: 'refresh-owner-renewed',
+		refresh_token_expires_in: 15897600,
+	});
+});
+
 afterAll(async () => {
+	fetchSpy.mockRestore();
 	await server.stop(true);
 	await github.stop();
 	base.close();
@@ -97,7 +127,11 @@ afterAll(async () => {
 
 let users = 0;
 
-async function signIn(target: AppContext = ctx, token: string | null = 'owner') {
+async function signIn(
+	target: AppContext = ctx,
+	token: string | null = 'owner',
+	expiring?: ExpiringGitHubToken,
+) {
 	users += 1;
 
 	const { userId, headers } = await signInWithDiscord(target, {
@@ -107,7 +141,7 @@ async function signIn(target: AppContext = ctx, token: string | null = 'owner') 
 	});
 
 	if (token) {
-		await linkGitHub(target, userId, token);
+		await linkGitHub(target, userId, token, expiring);
 	}
 
 	return headers;
@@ -144,6 +178,44 @@ describe('GET /api/v1/github/repositories', () => {
 		});
 
 		expect(await failure(request)).toEqual({ status: 403, code: 'github_not_linked' });
+	});
+
+	test('refreshes an expired GitHub token before calling GitHub', async () => {
+		const expired = new Date(Date.now() - 60_000);
+		const headers = await signIn(ctx, 'expired', {
+			accessTokenExpiresAt: expired,
+			refreshToken: REFRESH_TOKEN,
+		});
+
+		const listed = await client('GET /api/v1/github/repositories', {
+			headers,
+			response: pushableRepositoriesResponseSchema,
+		});
+
+		expect(listed.repositories.map((entry) => entry.repository)).toContain(MONOREPO);
+		expect(refreshes.at(-1)?.get('grant_type')).toBe('refresh_token');
+		expect(refreshes.at(-1)?.get('client_id')).toBe(ctx.env.GITHUB_CLIENT_ID);
+
+		const stored = await ctx.db.query.account.findFirst({
+			where: { accessToken: 'owner', refreshToken: 'refresh-owner-renewed' },
+			columns: { accessTokenExpiresAt: true },
+		});
+
+		expect(stored?.accessTokenExpiresAt?.getTime()).toBeGreaterThan(Date.now());
+	});
+
+	test('asks to link GitHub again when the refresh token is refused', async () => {
+		const headers = await signIn(ctx, 'expired', {
+			accessTokenExpiresAt: new Date(Date.now() - 60_000),
+			refreshToken: 'refresh-revoked',
+		});
+		const request = client('GET /api/v1/github/repositories', {
+			headers,
+			response: pushableRepositoriesResponseSchema,
+		});
+
+		expect(await failure(request)).toEqual({ status: 403, code: 'github_not_linked' });
+		expect(refreshes.at(-1)?.get('refresh_token')).toBe('refresh-revoked');
 	});
 });
 

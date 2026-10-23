@@ -35,7 +35,7 @@ function LineRow({ line }: LineRowProps) {
 			<td className={NUMBER_CLASS}>{line.before}</td>
 			<td className={NUMBER_CLASS}>{line.after}</td>
 			<td className='px-2 w-0 whitespace-pre align-top select-none'>{style.sign}</td>
-			<td className='pr-3 break-all whitespace-pre-wrap'>{line.text}</td>
+			<td className='pr-3 wrap-anywhere whitespace-pre-wrap'>{line.text}</td>
 		</tr>
 	);
 }

@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
-import { API_KEY_HEADER, CLI_CLIENT_ID } from '~/api/client';
 import { account, rateLimit, session, user } from '~/db/schema';
+import { API_KEY_HEADER, CLI_CLIENT_ID } from '~/api/client';
 import me from '~/endpoints/me';
 
 import { authRequest, createTestContext, linkGitHub, signInWithDiscord } from './helpers/context';

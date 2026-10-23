@@ -10,7 +10,6 @@ import type { AppContext } from '~/lib/context';
 import { createApiClient } from '~/api/client';
 import type { Api } from '~/api';
 
-import type { ExpiringGitHubToken } from './helpers/context';
 import { createTestContext, linkGitHub, signInWithDiscord } from './helpers/context';
 import { failure, serveEndpoints } from './helpers/server';
 import { serveGitHub } from './helpers/github';
@@ -95,12 +94,15 @@ const GITHUB_TOKEN_ENDPOINT = 'https://github.com/login/oauth/access_token';
 const REFRESH_TOKEN = 'refresh-owner';
 const realFetch = globalThis.fetch;
 const refreshes: URLSearchParams[] = [];
-const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-	if (String(input) !== GITHUB_TOKEN_ENDPOINT) {
+
+async function answerTokenRefresh(input: string | URL | Request, init?: RequestInit) {
+	const url = input instanceof Request ? input.url : input.toString();
+
+	if (url !== GITHUB_TOKEN_ENDPOINT) {
 		return realFetch(input, init);
 	}
 
-	const form = new URLSearchParams(String(init?.body));
+	const form = new URLSearchParams(typeof init?.body === 'string' ? init.body : undefined);
 
 	refreshes.push(form);
 
@@ -116,7 +118,11 @@ const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(async (input, ini
 		refresh_token: 'refresh-owner-renewed',
 		refresh_token_expires_in: 15897600,
 	});
-});
+}
+
+const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+	Object.assign(answerTokenRefresh, { preconnect: realFetch.preconnect }),
+);
 
 afterAll(async () => {
 	fetchSpy.mockRestore();
@@ -130,7 +136,7 @@ let users = 0;
 async function signIn(
 	target: AppContext = ctx,
 	token: string | null = 'owner',
-	expiring?: ExpiringGitHubToken,
+	expiring?: Parameters<typeof linkGitHub>[3],
 ) {
 	users += 1;
 

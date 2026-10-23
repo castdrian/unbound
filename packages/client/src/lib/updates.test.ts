@@ -26,10 +26,12 @@ function release(id: string, version: string): AddonUpdate {
 		bundleUrl: `https://cdn.example/${id}/${version}/index.js`,
 		sha256: '0'.repeat(64),
 		changelog: `Changes in ${version}.`,
+		changes: null,
 		changelogs: [
 			{
 				version,
 				changelog: `Changes in ${version}.`,
+				changes: null,
 				publishedAt: '2026-10-17T12:00:00.000Z',
 			},
 		],

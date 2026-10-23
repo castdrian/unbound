@@ -11,21 +11,22 @@ import type {
 	MyAddonsResponse,
 } from '@unbound-app/contracts/addons';
 import { addonIdSchema, type PublishedManifest } from '@unbound-app/contracts/manifest';
+import type { RepositoryDetails } from '@unbound-app/contracts/source';
 import type { PinnableField } from '@unbound-app/contracts/admin';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { OPEN_SUBMISSION_STATUSES, toSubmission } from '~/lib/submissions';
+import type { AddonVersionRow, VersionSubmission } from '~/lib/artifacts';
 import { afterKey, decodeCursor, toKeysetPage } from '~/lib/keyset';
+import { VERSION_SOURCE, toAddonVersion } from '~/lib/artifacts';
 import { MAINTAINERS, toMaintainers } from '~/lib/maintainers';
 import type { ActionMeta } from '~/lib/moderation-events';
-import type { AddonVersionRow } from '~/lib/artifacts';
 import { appendEvent } from '~/lib/moderation-events';
 import { requirePermission } from '~/lib/api/caller';
 import { likeContains } from '~/lib/like-contains';
 import { addon, addonVersion } from '~/db/schema';
 import type { Transaction } from '~/db/database';
-import { toAddonVersion } from '~/lib/artifacts';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
 import type { CursorKey } from '~/lib/keyset';
@@ -44,10 +45,16 @@ export type AddonDetails = {
 	/** Newest first, withdrawn ones left out; the first is served. */
 	versions: AddonVersion[];
 	maintainers: Maintainer[];
+	/** The newest version's ADDON.md, or `null` when it has none or predates GitHub sources. */
+	addonMd: string | null;
+	/** The newest version's GitHub details, or `null` when it predates GitHub sources. */
+	details: RepositoryDetails | null;
 };
 
+type SourcedVersionRow = AddonVersionRow & { submission: VersionSubmission | null };
+
 type ListedAddonRow = Pick<AddonRow, 'id' | 'type' | 'name' | 'description'> & {
-	versions: AddonVersionRow[];
+	versions: SourcedVersionRow[];
 };
 
 type PinnableColumn = (typeof addon)[PinnableField];
@@ -78,7 +85,12 @@ export const LIVE_VERSIONS = { withdrawnBy: { isNull: true } } as const;
 
 /** The relational `with` that loads the version an addon serves: its newest live version. */
 export const LATEST_VERSION = {
-	versions: { where: LIVE_VERSIONS, orderBy: { versionKey: 'desc' }, limit: 1 },
+	versions: {
+		where: LIVE_VERSIONS,
+		orderBy: { versionKey: 'desc' },
+		limit: 1,
+		with: VERSION_SOURCE,
+	},
 } as const;
 
 /**
@@ -289,7 +301,7 @@ function toListedAddons(ctx: AppContext, rows: ListedAddonRow[]): ListedAddon[] 
 						type: row.type,
 						name: row.name,
 						description: row.description,
-						latestVersion: toAddonVersion(ctx.env, latest),
+						latestVersion: toAddonVersion(ctx.env, latest, latest.submission),
 					},
 				]
 			: [];
@@ -346,12 +358,18 @@ export async function getAddonDetails(
 	const row = await ctx.db.query.addon.findFirst({
 		where: { id, delistedAt: { isNull: true } },
 		with: {
-			versions: { where: LIVE_VERSIONS, orderBy: { versionKey: 'desc' } },
+			versions: {
+				where: LIVE_VERSIONS,
+				orderBy: { versionKey: 'desc' },
+				with: VERSION_SOURCE,
+			},
 			maintainers: MAINTAINERS,
 		},
 	});
 
 	if (!row) return;
+
+	const latest = row.versions[0]?.submission?.source;
 
 	return {
 		id: row.id,
@@ -359,8 +377,12 @@ export async function getAddonDetails(
 		name: row.name,
 		description: row.description,
 		createdAt: row.createdAt.toISOString(),
-		versions: row.versions.map((version) => toAddonVersion(ctx.env, version)),
+		versions: row.versions.map((version) =>
+			toAddonVersion(ctx.env, version, version.submission),
+		),
 		maintainers: toMaintainers(row.maintainers),
+		addonMd: latest?.addonMd ?? null,
+		details: latest?.details ?? null,
 	};
 }
 
@@ -399,7 +421,7 @@ export async function listMyAddons(ctx: AppContext, caller: Caller): Promise<MyA
 			{
 				...toAddon(row),
 				role,
-				latestVersion: latest ? toAddonVersion(ctx.env, latest) : null,
+				latestVersion: latest ? toAddonVersion(ctx.env, latest, latest.submission) : null,
 				openSubmissions: open
 					.filter((entry) => entry.addonId === row.id && entry.kind === 'update')
 					.map(toSubmission),

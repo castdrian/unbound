@@ -40,6 +40,11 @@ export const envSchema = z.object({
 	SPONSOR_PERK_GRACE_DAYS: z.coerce.number().int().nonnegative().default(7),
 
 	ADDON_MAX_BYTES: positiveInt.default(25 * 1024 * 1024),
+	/** The largest ADDON.md and CHANGELOG.md read from a repository. */
+	ADDON_TEXT_MAX_BYTES: positiveInt.default(100 * 1024),
+	/** Per user, across the endpoints that read GitHub with the user's token. */
+	GITHUB_RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(600),
+	GITHUB_RATE_LIMIT_MAX: positiveInt.default(60),
 	SUBMISSION_UPLOAD_TTL_SECONDS: positiveInt.default(900),
 	SUBMISSION_MAX_PENDING_LISTINGS: positiveInt.default(2),
 	SUBMISSION_MAX_PENDING_UPDATES: positiveInt.default(1),

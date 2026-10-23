@@ -1,3 +1,7 @@
+import type { PublishedManifest } from '@unbound-app/contracts/manifest';
+import type { RepositoryDetails } from '@unbound-app/contracts/source';
+import { eq } from 'drizzle-orm';
+
 import {
 	addon,
 	addonMaintainer,
@@ -6,10 +10,6 @@ import {
 	submissionSource,
 	user,
 } from '~/db/schema';
-import type { PublishedManifest } from '@unbound-app/contracts/manifest';
-import type { RepositoryDetails } from '@unbound-app/contracts/source';
-import { eq } from 'drizzle-orm';
-
 import { refreshAddonSummary, toAddonSummary } from '~/lib/addons';
 import type { SubmissionRow } from '~/lib/submissions';
 import type { AppContext } from '~/lib/context';

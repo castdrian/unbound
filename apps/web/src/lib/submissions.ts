@@ -31,7 +31,8 @@ type LinkedAccount = {
 	accessToken: string | null;
 };
 
-/** What submitting a manifest would do, decided by the claim and cap checks. */
+type ClaimReader = Pick<Transaction, 'select'>;
+
 type Claim = {
 	kind: SubmissionKind;
 	replaced: SubmissionRow | undefined;
@@ -132,10 +133,9 @@ async function verifyRepository(
 	);
 }
 
-// Reads only, so a preview can run it alone; `reserve` runs it before writing in the same transaction.
 function checkClaim(
 	ctx: AppContext,
-	tx: Transaction,
+	tx: ClaimReader,
 	caller: Caller,
 	manifest: PublishedManifest,
 ): Claim {
@@ -236,49 +236,52 @@ function checkClaim(
 	return { kind: approved ? 'update' : 'listing', replaced };
 }
 
-/**
- * Runs inside an immediate transaction so the claim and cap checks and the insert see no
- * concurrent submission.
- */
 function reserve(
 	ctx: AppContext,
-	tx: Transaction,
 	caller: Caller,
 	request: CreateSubmissionRequest,
 	now: Date,
 ): Reservation {
 	const { manifest } = request;
-	const { kind, replaced } = checkClaim(ctx, tx, caller, manifest);
 
-	if (replaced) {
-		tx.update(submission)
-			.set({ status: 'superseded' })
-			.where(eq(submission.id, replaced.id))
-			.run();
-	}
+	return ctx.db.transaction(
+		(tx) => {
+			const { kind, replaced } = checkClaim(ctx, tx, caller, manifest);
 
-	const id = Bun.randomUUIDv7();
-	const created = tx
-		.insert(submission)
-		.values({
-			id,
-			addonId: manifest.id,
-			authorId: caller.user.id,
-			kind,
-			status: 'awaiting_upload',
-			version: manifest.version,
-			manifest,
-			changelog: request.changelog ?? null,
-			repository: request.repository ?? null,
-			bundleSize: request.bundleSize,
-			stagingKey: `submissions/${id}/bundle`,
-			uploadExpiresAt: new Date(now.getTime() + ctx.env.SUBMISSION_UPLOAD_TTL_SECONDS * 1000),
-			createdAt: now,
-		})
-		.returning()
-		.get();
+			if (replaced) {
+				tx.update(submission)
+					.set({ status: 'superseded' })
+					.where(eq(submission.id, replaced.id))
+					.run();
+			}
 
-	return { created, replaced };
+			const id = Bun.randomUUIDv7();
+			const created = tx
+				.insert(submission)
+				.values({
+					id,
+					addonId: manifest.id,
+					authorId: caller.user.id,
+					kind,
+					status: 'awaiting_upload',
+					version: manifest.version,
+					manifest,
+					changelog: request.changelog ?? null,
+					repository: request.repository ?? null,
+					bundleSize: request.bundleSize,
+					stagingKey: `submissions/${id}/bundle`,
+					uploadExpiresAt: new Date(
+						now.getTime() + ctx.env.SUBMISSION_UPLOAD_TTL_SECONDS * 1000,
+					),
+					createdAt: now,
+				})
+				.returning()
+				.get();
+
+			return { created, replaced };
+		},
+		{ behavior: 'immediate' },
+	);
 }
 
 /**
@@ -317,10 +320,7 @@ export async function createSubmission(
 		await verifyRepository(ctx, find('github'), request.repository);
 	}
 
-	const { created, replaced } = ctx.db.transaction(
-		(tx) => reserve(ctx, tx, caller, request, now),
-		{ behavior: 'immediate' },
-	);
+	const { created, replaced } = reserve(ctx, caller, request, now);
 
 	if (replaced) {
 		await ctx.storage.staging.delete(replaced.stagingKey);

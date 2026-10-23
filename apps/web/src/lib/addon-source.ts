@@ -22,7 +22,13 @@ import { addonManifestSchema } from '@unbound-app/contracts/manifest';
 import type { Changelog } from '@unbound-app/contracts/changelog';
 import { z } from 'zod';
 
-import type { GitHubClient, GitHubRepository, GitTree, RepositoryExtras } from '~/lib/github';
+import type {
+	GitHubClient,
+	GitHubRepository,
+	GitTree,
+	RepositoryExtras,
+	TreeEntry,
+} from '~/lib/github';
 import type { AppContext } from '~/lib/context';
 import { ApiError } from '~/lib/api/errors';
 import type { Env } from '~/lib/env';
@@ -49,14 +55,14 @@ type OpenedCommit = {
 
 type Texts = Map<string, string>;
 
-/** Where a directory stands in its repository: registered under a workspace config, or why not. */
-type Location = { config: WorkspaceConfig } | { reason: string };
+type WorkspaceMembership =
+	| { kind: 'bare'; config: WorkspaceConfig }
+	| { kind: 'member'; config: WorkspaceConfig }
+	| { kind: 'excluded'; reason: string };
 
-type CheckedAddon = {
-	manifest: PublishedManifest | undefined;
-	/** Every reason the addon cannot be submitted, most fundamental first. */
-	errors: ApiError[];
-};
+type CheckedAddon =
+	| { blocker: undefined; manifest: PublishedManifest; bundle: TreeEntry; issues: [] }
+	| { blocker: ApiError; manifest: PublishedManifest | undefined; issues: ApiError[] };
 
 const ADDON_MD = 'ADDON.md';
 const CHANGELOG_MD = 'CHANGELOG.md';
@@ -152,27 +158,32 @@ function workspaceRootOf(tree: GitTree, dir: string): string | undefined {
 	return findWorkspaceRoot(dir, (candidate) => tree.has(childPath(candidate, CONFIG_FILENAME)));
 }
 
-// The nearest config decides, as `ubd` decides when run from the directory; no config is a bare addon.
-function locate(
+function findNearestWorkspaceConfig(
 	dir: string,
 	root: string | undefined,
 	configs: Map<string, WorkspaceConfig | string>,
-): Location {
+): WorkspaceMembership {
 	if (root === undefined) {
-		return { config: DEFAULT_CONFIG };
+		return { kind: 'bare', config: DEFAULT_CONFIG };
 	}
 
 	const config = configs.get(root);
 
 	if (config === undefined || typeof config === 'string') {
-		return { reason: config ?? `${childPath(root, CONFIG_FILENAME)} could not be read` };
+		return {
+			kind: 'excluded',
+			reason: config ?? `${childPath(root, CONFIG_FILENAME)} could not be read`,
+		};
 	}
 
 	if (matchAddonDirs(config, false, [relativeTo(dir, root)]).length === 0) {
-		return { reason: `${childPath(root, CONFIG_FILENAME)} does not list it in "addons"` };
+		return {
+			kind: 'excluded',
+			reason: `${childPath(root, CONFIG_FILENAME)} does not list it in "addons"`,
+		};
 	}
 
-	return { config };
+	return { kind: 'member', config };
 }
 
 async function readConfigs(
@@ -219,7 +230,61 @@ function checkTextSize(env: Env, tree: GitTree, path: string): ApiError | undefi
 	);
 }
 
-// The rules both the listing and a submission apply, from the tree alone plus the manifest text.
+function parseManifest(addon: WorkspaceAddon, manifestText: string): PublishedManifest | ApiError {
+	const parsed = addonManifestSchema.safeParse(JSON.parse(manifestText));
+
+	if (!parsed.success) {
+		return new ApiError(
+			'invalid_manifest',
+			`${childPath(addon.path, 'manifest.json')} is not a valid manifest:\n${z.prettifyError(parsed.error)}`,
+		);
+	}
+
+	return { ...parsed.data, main: getBundleName(addon.static, parsed.data.main) };
+}
+
+function checkBundle(
+	env: Env,
+	tree: GitTree,
+	addon: WorkspaceAddon,
+	commitSha: string,
+): TreeEntry | ApiError {
+	const bundle = tree.get(addon.bundle);
+
+	if (!bundle) {
+		return new ApiError(
+			'artifact_missing',
+			`${addon.bundle} is not committed at ${shortSha(commitSha)}. Commit the build output, or push it to a release branch, and submit that commit.`,
+		);
+	}
+
+	if (bundle.size === 0) {
+		return new ApiError(
+			'artifact_missing',
+			`${addon.bundle} is empty at ${shortSha(commitSha)}.`,
+		);
+	}
+
+	if (bundle.size > env.ADDON_MAX_BYTES) {
+		return new ApiError(
+			'artifact_too_large',
+			`${addon.bundle} is ${bundle.size} bytes; bundles may be at most ${env.ADDON_MAX_BYTES} bytes.`,
+		);
+	}
+
+	return bundle;
+}
+
+function blocked(
+	blocker: ApiError,
+	manifest: PublishedManifest | undefined,
+	rest: (TreeEntry | ApiError | undefined)[],
+): CheckedAddon {
+	const issues = rest.filter((issue) => issue instanceof ApiError);
+
+	return { blocker, manifest, issues: [blocker, ...issues] };
+}
+
 function checkAddon(
 	env: Env,
 	tree: GitTree,
@@ -227,56 +292,25 @@ function checkAddon(
 	manifestText: string,
 	commitSha: string,
 ): CheckedAddon {
-	const errors: ApiError[] = [];
-	const manifestPath = childPath(addon.path, 'manifest.json');
-	const parsed = addonManifestSchema.safeParse(JSON.parse(manifestText));
+	const manifest = parseManifest(addon, manifestText);
+	const bundle = checkBundle(env, tree, addon, commitSha);
+	const [textIssue, ...textIssues] = [ADDON_MD, CHANGELOG_MD]
+		.map((name) => checkTextSize(env, tree, childPath(addon.path, name)))
+		.filter((issue) => issue !== undefined);
 
-	if (!parsed.success) {
-		errors.push(
-			new ApiError(
-				'invalid_manifest',
-				`${manifestPath} is not a valid manifest:\n${z.prettifyError(parsed.error)}`,
-			),
-		);
+	if (manifest instanceof ApiError) {
+		return blocked(manifest, undefined, [bundle, textIssue, ...textIssues]);
 	}
 
-	const bundle = tree.get(addon.bundle);
-
-	if (!bundle) {
-		errors.push(
-			new ApiError(
-				'artifact_missing',
-				`${addon.bundle} is not committed at ${shortSha(commitSha)}. Commit the build output, or push it to a release branch, and submit that commit.`,
-			),
-		);
-	} else if (bundle.size === 0) {
-		errors.push(
-			new ApiError('artifact_missing', `${addon.bundle} is empty at ${shortSha(commitSha)}.`),
-		);
-	} else if (bundle.size > env.ADDON_MAX_BYTES) {
-		errors.push(
-			new ApiError(
-				'artifact_too_large',
-				`${addon.bundle} is ${bundle.size} bytes; bundles may be at most ${env.ADDON_MAX_BYTES} bytes.`,
-			),
-		);
+	if (bundle instanceof ApiError) {
+		return blocked(bundle, manifest, [textIssue, ...textIssues]);
 	}
 
-	for (const name of [ADDON_MD, CHANGELOG_MD]) {
-		const error = checkTextSize(env, tree, childPath(addon.path, name));
-
-		if (error) {
-			errors.push(error);
-		}
+	if (textIssue) {
+		return blocked(textIssue, manifest, textIssues);
 	}
 
-	if (!parsed.success) {
-		return { manifest: undefined, errors };
-	}
-
-	const main = getBundleName(addon.static, parsed.data.main);
-
-	return { manifest: { ...parsed.data, main }, errors };
+	return { blocker: undefined, manifest, bundle, issues: [] };
 }
 
 function readChangelog(path: string, text: string | undefined, version: string): Changelog | null {
@@ -328,7 +362,7 @@ function toRepositoryAddon(
 	manifestText: string,
 	commitSha: string,
 ): RepositoryAddon {
-	const { manifest, errors } = checkAddon(env, tree, addon, manifestText, commitSha);
+	const { manifest, issues } = checkAddon(env, tree, addon, manifestText, commitSha);
 
 	return {
 		id: addon.id,
@@ -340,7 +374,7 @@ function toRepositoryAddon(
 		bundle: addon.bundle,
 		hasAddonMd: tree.has(childPath(addon.path, ADDON_MD)),
 		hasChangelog: tree.has(childPath(addon.path, CHANGELOG_MD)),
-		issues: errors.map((error) => error.message),
+		issues: issues.map((issue) => issue.message),
 	};
 }
 
@@ -382,12 +416,12 @@ export async function listRepositoryAddons(
 	const located: { dir: string; config: WorkspaceConfig }[] = [];
 
 	for (const { dir, root } of candidates) {
-		const location = locate(dir, root, configs);
+		const membership = findNearestWorkspaceConfig(dir, root, configs);
 
-		if ('reason' in location) {
-			skipped.push({ path: dir, reason: location.reason });
+		if (membership.kind === 'excluded') {
+			skipped.push({ path: dir, reason: membership.reason });
 		} else {
-			located.push({ dir, config: location.config });
+			located.push({ dir, config: membership.config });
 		}
 	}
 
@@ -466,31 +500,32 @@ export async function readAddonSource(
 
 	const root = workspaceRootOf(tree, path);
 	const configs = await readConfigs(github, repository, tree, [root]);
-	const location = locate(path, root, configs);
+	const membership = findNearestWorkspaceConfig(path, root, configs);
 	const notFound = (reason: string) =>
 		new ApiError(
 			'addon_not_found',
 			`${repository}@${shortSha(commitSha)} has no addon at ${describeDir(path)}: ${reason}.`,
 		);
 
-	if ('reason' in location) {
-		throw notFound(location.reason);
+	if (membership.kind === 'excluded') {
+		throw notFound(membership.reason);
 	}
 
 	const texts = await readAddonFiles(github, repository, tree, [path]);
-	const addon = readAddon(path, { read: (file) => texts.get(file) }, location.config);
+	const addon = readAddon(path, { read: (file) => texts.get(file) }, membership.config);
 
 	if (!isWorkspaceAddon(addon)) {
 		throw notFound(addon.reason);
 	}
 
 	const manifestText = texts.get(childPath(path, 'manifest.json')) ?? '';
-	const { manifest, errors } = checkAddon(ctx.env, tree, addon, manifestText, commitSha);
-	const bundleEntry = tree.get(addon.bundle);
+	const checked = checkAddon(ctx.env, tree, addon, manifestText, commitSha);
 
-	if (errors[0] || !manifest || !bundleEntry) {
-		throw errors[0] ?? notFound('its bundle could not be read');
+	if (checked.blocker) {
+		throw checked.blocker;
 	}
+
+	const { manifest, bundle: bundleEntry } = checked;
 
 	const changelogPath = childPath(path, CHANGELOG_MD);
 	const addonMdPath = childPath(path, ADDON_MD);

@@ -22,16 +22,17 @@ function SubmitAddonPage() {
 				<Text variant='heading-lg'>Submit Addon</Text>
 				<Text variant='text-md' color='muted'>
 					Submit a new theme or plugin, or an update to one you maintain, for review. This
-					is the same flow as ubd publish.
+					is the same flow as ubd publish: reviewers see exactly the files at the commit
+					you pick.
 				</Text>
 			</div>
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Built Addon</CardTitle>
+					<CardTitle>From GitHub</CardTitle>
 					<CardDescription>
-						Pick the manifest and the bundle ubd build produced. Fields marked with *
-						are required.
+						Pick a repository, then the addon and the commit to submit. Its built bundle
+						must be committed.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>

@@ -43,6 +43,8 @@ function listing(id: string, options: ListingOptions = {}): ListedAddon {
 				type,
 			},
 			changelog: null,
+			changes: null,
+			source: null,
 			bundleSize: 10,
 			sha256: 'a'.repeat(64),
 			publishedAt,

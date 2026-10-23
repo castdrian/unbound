@@ -134,7 +134,7 @@ export async function listReviewQueue(
 			submittedAt: submittedAt.toISOString(),
 			submitter: { id: author.id, name: author.name, image: author.image ?? null },
 			selfReview: author.id === caller.user.id || maintained.has(row.addonId),
-			previousVersion: version ? toAddonVersion(ctx.env, version) : null,
+			previousVersion: version ? toAddonVersion(ctx.env, version, version.submission) : null,
 			artifact: {
 				url: ctx.storage.staging.presign(row.stagingKey, { method: 'GET', expiresIn }),
 				expiresAt,

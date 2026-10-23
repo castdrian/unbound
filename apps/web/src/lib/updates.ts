@@ -6,8 +6,9 @@ import type {
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, max, or } from 'drizzle-orm';
 import { MAX_UPDATE_CHANGELOGS } from '@unbound-app/contracts/updates';
 
-import { getArtifactKeys, getCdnUrl } from '~/lib/artifacts';
-import { addon, addonVersion } from '~/db/schema';
+import { getArtifactKeys, getCdnUrl, toVersionChangelog } from '~/lib/artifacts';
+import { addon, addonVersion, submissionSource } from '~/db/schema';
+import type { SubmissionSourceRow } from '~/lib/artifacts';
 import { toVersionKey } from '~/lib/version-key';
 import type { AppContext } from '~/lib/context';
 
@@ -26,6 +27,7 @@ export function newestCompatibleVersions(ctx: AppContext, request: UpdatesReques
 			versionKey: max(addonVersion.versionKey),
 			manifest: addonVersion.manifest,
 			changelog: addonVersion.changelog,
+			submissionId: addonVersion.submissionId,
 			sha256: addonVersion.sha256,
 		})
 		.from(addonVersion)
@@ -56,21 +58,31 @@ type InstalledVersion = {
 	key: string;
 };
 
+type SkippedVersion = {
+	version: string;
+	changelog: string | null;
+	submissionId: string;
+	publishedAt: Date;
+};
+
+type SourceChangelog = Pick<SubmissionSourceRow, 'changelog'>;
+
 /**
- * @description Reads the changelog of every live version each update skips over, in one statement.
+ * @description Reads every live version each update skips over, in one statement.
  * @param ctx The application context.
  * @param ranges The version range of each update.
- * @returns The changelogs keyed by addon id, newest first, at most `MAX_UPDATE_CHANGELOGS` each.
+ * @returns The versions keyed by addon id, newest first, at most `MAX_UPDATE_CHANGELOGS` each.
  */
-async function changelogsFor(
+async function skippedVersions(
 	ctx: AppContext,
 	ranges: UpdateRange[],
-): Promise<Map<string, VersionChangelog[]>> {
+): Promise<Map<string, SkippedVersion[]>> {
 	const rows = await ctx.db
 		.select({
 			addonId: addonVersion.addonId,
 			version: addonVersion.version,
 			changelog: addonVersion.changelog,
+			submissionId: addonVersion.submissionId,
 			publishedAt: addonVersion.publishedAt,
 		})
 		.from(addonVersion)
@@ -90,23 +102,40 @@ async function changelogsFor(
 		)
 		.orderBy(addonVersion.addonId, desc(addonVersion.versionKey));
 
-	const changelogs = new Map<string, VersionChangelog[]>();
+	const skipped = new Map<string, SkippedVersion[]>();
 
-	for (const row of rows) {
-		const list = changelogs.get(row.addonId) ?? [];
+	for (const { addonId, ...row } of rows) {
+		const list = skipped.get(addonId) ?? [];
 
 		if (list.length < MAX_UPDATE_CHANGELOGS) {
-			list.push({
-				version: row.version,
-				changelog: row.changelog,
-				publishedAt: row.publishedAt.toISOString(),
-			});
+			list.push(row);
 		}
 
-		changelogs.set(row.addonId, list);
+		skipped.set(addonId, list);
 	}
 
-	return changelogs;
+	return skipped;
+}
+
+/**
+ * @description Reads the source changelogs of the given submissions, in one keyed statement.
+ * @param ctx The application context.
+ * @param submissionIds The submissions the listed versions were approved from.
+ * @returns The source rows keyed by submission id; legacy uploads have none.
+ */
+async function sourceChangelogs(
+	ctx: AppContext,
+	submissionIds: string[],
+): Promise<Map<string, SourceChangelog>> {
+	const rows = await ctx.db
+		.select({
+			submissionId: submissionSource.submissionId,
+			changelog: submissionSource.changelog,
+		})
+		.from(submissionSource)
+		.where(inArray(submissionSource.submissionId, submissionIds));
+
+	return new Map(rows.map((row) => [row.submissionId, row]));
 }
 
 /**
@@ -175,15 +204,34 @@ export async function findUpdates(
 		}
 	}
 
-	const [changelogs, withdrawn] = await Promise.all([
-		newer.length > 0 ? changelogsFor(ctx, newer) : new Map<string, VersionChangelog[]>(),
+	const [skipped, withdrawn] = await Promise.all([
+		newer.length > 0 ? skippedVersions(ctx, newer) : new Map<string, SkippedVersion[]>(),
 		ahead.length > 0 ? withdrawnInstalls(ctx, ahead) : new Set<string>(),
 	]);
 	const newerIds = new Set(newer.map((range) => range.addonId));
 	const offered = rows.filter((row) => newerIds.has(row.addonId) || withdrawn.has(row.addonId));
 
+	if (offered.length === 0) {
+		return { updates: [] };
+	}
+
+	// Keyed by rows the live filters above already chose, so a withdrawn version's changes never leak.
+	const sources = await sourceChangelogs(ctx, [
+		...offered.map((row) => row.submissionId),
+		...[...skipped.values()].flat().map((row) => row.submissionId),
+	]);
+
+	function changelogOf(row: Pick<SkippedVersion, 'changelog' | 'submissionId'>) {
+		return toVersionChangelog(row.changelog, sources.get(row.submissionId) ?? null);
+	}
+
 	const updates = offered.map((row) => {
 		const keys = getArtifactKeys(row.addonId, row.version, row.manifest.main);
+		const changelogs = (skipped.get(row.addonId) ?? []).map((version): VersionChangelog => ({
+			version: version.version,
+			...changelogOf(version),
+			publishedAt: version.publishedAt.toISOString(),
+		}));
 
 		return {
 			id: row.addonId,
@@ -191,8 +239,8 @@ export async function findUpdates(
 			manifestUrl: getCdnUrl(ctx.env, keys.manifest),
 			bundleUrl: getCdnUrl(ctx.env, keys.bundle),
 			sha256: row.sha256,
-			changelog: row.changelog,
-			changelogs: changelogs.get(row.addonId) ?? [],
+			...changelogOf(row),
+			changelogs,
 		};
 	});
 

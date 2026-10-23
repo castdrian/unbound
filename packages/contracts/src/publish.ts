@@ -1,3 +1,11 @@
+import {
+	addonPathSchema,
+	commitShaSchema,
+	gitRefSchema,
+	repositoryDetailsSchema,
+	repositoryInputSchema,
+	repositorySchema,
+} from './source';
 import { addonIdSchema, addonManifestSchema } from './manifest';
 import { z } from './zod';
 
@@ -23,16 +31,6 @@ export const openSubmissionStatusSchema = z.enum([
 	'pending_review',
 	'changes_requested',
 ] satisfies SubmissionStatus[]);
-
-/** A GitHub repository as `owner/name`. */
-export const repositorySchema = z
-	.string()
-	.check(
-		z.regex(
-			/^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/,
-			'Must be a GitHub owner/name.',
-		),
-	);
 
 /** The statuses a reviewer's decision moves a pending submission to. */
 export const reviewDecisionSchema = z.enum([
@@ -74,6 +72,22 @@ export const createSubmissionRequestSchema = z.object({
 	changelog: z.optional(z.string().check(z.maxLength(MAX_CHANGELOG_LENGTH))),
 });
 
+/** The details an author may override; omitted fields keep what GitHub says. */
+export const submissionDetailsOverridesSchema = z.object({
+	homepage: z.optional(repositoryDetailsSchema.shape.homepage),
+	tags: z.optional(repositoryDetailsSchema.shape.tags),
+});
+
+/** One addon directory of a public repository at the commit the author previewed. */
+export const submitFromRepositoryRequestSchema = z.object({
+	repository: repositoryInputSchema,
+	path: addonPathSchema,
+	/** The branch, tag or SHA the author named; it must still resolve to `commitSha`. */
+	ref: gitRefSchema,
+	commitSha: commitShaSchema,
+	details: z.optional(submissionDetailsOverridesSchema),
+});
+
 /** A presigned upload for the bundle; send exactly `bundleSize` bytes with `headers` before `expiresAt`. */
 export const submissionUploadSchema = z.object({
 	url: z.url(),
@@ -101,6 +115,8 @@ export type ReviewDecision = z.infer<typeof reviewDecisionSchema>;
 export type SubmissionReview = z.infer<typeof submissionReviewSchema>;
 export type Submission = z.infer<typeof submissionSchema>;
 export type CreateSubmissionRequest = z.infer<typeof createSubmissionRequestSchema>;
+export type SubmissionDetailsOverrides = z.infer<typeof submissionDetailsOverridesSchema>;
+export type SubmitFromRepositoryRequest = z.infer<typeof submitFromRepositoryRequestSchema>;
 export type SubmissionUpload = z.infer<typeof submissionUploadSchema>;
 export type CreateSubmissionResponse = z.infer<typeof createSubmissionResponseSchema>;
 export type FinalizeSubmissionRequest = z.infer<typeof finalizeSubmissionRequestSchema>;
@@ -111,11 +127,12 @@ export default {
 	submissionKindSchema,
 	submissionStatusSchema,
 	openSubmissionStatusSchema,
-	repositorySchema,
 	reviewDecisionSchema,
 	submissionReviewSchema,
 	submissionSchema,
 	createSubmissionRequestSchema,
+	submissionDetailsOverridesSchema,
+	submitFromRepositoryRequestSchema,
 	submissionUploadSchema,
 	createSubmissionResponseSchema,
 	finalizeSubmissionRequestSchema,

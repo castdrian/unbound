@@ -1,5 +1,6 @@
 import { IconMoodEmpty, IconPalette, IconPlug } from '@tabler/icons-react';
 import { createFileRoute, Link, notFound } from '@tanstack/react-router';
+import { CHANGE_LABELS } from '@unbound-app/contracts/changelog';
 
 import {
 	Empty,
@@ -22,6 +23,8 @@ import Text from '~/components/ui/text';
 type AddonProps = {
 	addon: MarketplaceAddonDetails;
 };
+
+type VersionChangelogProps = Pick<MarketplaceVersion, 'changelog' | 'changes'>;
 
 type VersionEntryProps = {
 	version: MarketplaceVersion;
@@ -59,6 +62,38 @@ function DetailRow({ label, value }: DetailRowProps) {
 	);
 }
 
+function VersionChangelog({ changelog, changes }: VersionChangelogProps) {
+	if (changes && changes.sections.length > 0) {
+		return (
+			<div className='flex flex-col gap-2'>
+				{changes.sections.map((section) => (
+					<div key={section.type} className='flex flex-col gap-1'>
+						<Text variant='text-sm' className='font-medium'>
+							{CHANGE_LABELS[section.type]}
+						</Text>
+						<Text
+							as='ul'
+							variant='text-sm'
+							color='muted'
+							className='flex flex-col gap-1 ml-4 list-disc'
+						>
+							{section.items.map((item) => (
+								<li key={item}>{item}</li>
+							))}
+						</Text>
+					</div>
+				))}
+			</div>
+		);
+	}
+
+	return (
+		<Text variant='text-sm' color='muted' className='whitespace-pre-wrap'>
+			{changelog ?? 'No changelog.'}
+		</Text>
+	);
+}
+
 function VersionEntry({ version, latest }: VersionEntryProps) {
 	return (
 		<div className='flex flex-col gap-2'>
@@ -75,9 +110,7 @@ function VersionEntry({ version, latest }: VersionEntryProps) {
 					{formatDate(version.publishedAt)}
 				</Text>
 			</div>
-			<Text variant='text-sm' color='muted' className='whitespace-pre-wrap'>
-				{version.changelog ?? 'No changelog.'}
-			</Text>
+			<VersionChangelog changelog={version.changelog} changes={version.changes} />
 		</div>
 	);
 }

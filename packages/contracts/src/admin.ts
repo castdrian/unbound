@@ -1,4 +1,5 @@
-import { repositorySchema, reviewDecisionSchema, submissionKindSchema } from './publish';
+import { reviewDecisionSchema, submissionKindSchema } from './publish';
+import { repositorySchema } from './source';
 import { addonTypeSchema, maintainerRoleSchema, sortOrderSchema } from './addons';
 import { userSummarySchema } from './account';
 import { semverSchema } from './manifest';

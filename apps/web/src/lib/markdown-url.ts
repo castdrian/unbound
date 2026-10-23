@@ -21,7 +21,9 @@ function hasControlCharacter(text: string): boolean {
 	for (let i = 0, len = text.length; i < len; i++) {
 		const code = text.charCodeAt(i);
 
-		if (code < 0x20 || code === 0x7f) return true;
+		if (code < 0x20 || code === 0x7f) {
+			return true;
+		}
 	}
 
 	return false;

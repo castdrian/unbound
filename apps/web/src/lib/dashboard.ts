@@ -144,7 +144,6 @@ const URGENCY: Record<OpenSubmissionStatus, number> = {
 
 const IDLE = Object.keys(URGENCY).length;
 
-// A superseded submission shows the decision it kept; an expired one never reached a decision.
 const OUTCOMES: Record<SubmissionStatus, TimelineOutcome | 'kept_decision' | null> = {
 	pending_review: 'pending_review',
 	changes_requested: 'changes_requested',

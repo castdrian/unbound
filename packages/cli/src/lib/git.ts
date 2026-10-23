@@ -45,7 +45,7 @@ function readRepository(dir: string, override: string | undefined): string {
 
 /**
  * @description Reads the GitHub source of an addon directory from its git checkout. Refuses a
- * directory with uncommitted changes, since the server reads the committed files.
+ * directory with uncommitted changes.
  * @param dir The addon directory.
  * @param overrides The repository and ref to name instead of what git says.
  * @returns The repository, the directory relative to the repository root, the ref and HEAD's SHA.

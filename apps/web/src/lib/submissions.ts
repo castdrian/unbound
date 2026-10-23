@@ -25,7 +25,6 @@ import { ApiError } from '~/lib/api/errors';
 
 export type SubmissionRow = typeof submission.$inferSelect;
 
-/** A submission with the source row it was read from; `null` only on legacy uploads. */
 export type SourcedSubmissionRow = SubmissionRow & {
 	source: SubmissionSourceRow | null;
 };
@@ -57,8 +56,7 @@ export const REPLACEABLE_SUBMISSION_STATUSES = [
 ] as const satisfies OpenSubmissionStatus[];
 
 /**
- * @description Renders a submission row as the wire contract. Only legacy uploads lack a source, and
- * none of them is open, so callers never pass one.
+ * @description Renders a submission row as the wire contract.
  * @param row The submission row with its source.
  * @returns The submission as API responses carry it.
  */
@@ -286,8 +284,6 @@ function reserve(
 	);
 }
 
-// The bundle is staged before its row exists, so a refused claim deletes it here and a crash in
-// between leaves an orphan the sweeper deletes once it is older than STAGING_ORPHAN_GRACE_SECONDS.
 async function stageAndReserve(
 	ctx: AppContext,
 	caller: Caller,
@@ -309,11 +305,8 @@ async function stageAndReserve(
 }
 
 /**
- * @description Submits one addon of a GitHub repository for review. Checks the submission rate and the
- * Discord account age, then reads and verifies every file at the previewed commit and stages the
- * bundle, all before any row is written, so a refusal costs no quota. Then, in one transaction, claims
- * the addon id (new listing) or checks maintainership (update), enforces the pending caps, supersedes
- * the caller's own submission with changes requested and records the submission with its source.
+ * @description Submits one addon of a GitHub repository for review, superseding the caller's own
+ * submission with changes requested.
  * @param ctx The application context.
  * @param caller The submitting user.
  * @param request The repository, addon path, ref, commit and detail overrides.

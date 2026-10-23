@@ -185,8 +185,6 @@ async function requirePendingReview(
 	return row;
 }
 
-// B2 hides staged objects after 14 days. The pinned blob is content-addressed, so reading it again
-// gives the same bytes; `readBlob` checks them against the blob id and the caller checks the SHA-256.
 async function refetchBundle(ctx: AppContext, row: SourcedSubmissionRow): Promise<Uint8Array> {
 	if (!row.repository || !row.source) {
 		throw new ApiError('artifact_mismatch', `The staged bundle of ${row.id} is missing.`);
@@ -202,8 +200,6 @@ async function refetchBundle(ctx: AppContext, row: SourcedSubmissionRow): Promis
 	return github.readBlob(row.repository, row.source.bundleBlobSha);
 }
 
-// Re-checks the bundle against the size limit and the size and SHA-256 recorded when it was read from
-// its source, so what goes public is what reviewers downloaded, then publishes it and its manifest.
 async function publishArtifact(ctx: AppContext, row: SourcedSubmissionRow): Promise<string> {
 	const staged = ctx.storage.staging.file(row.stagingKey);
 	const bundle = (await staged.exists()) ? await staged.bytes() : await refetchBundle(ctx, row);
@@ -322,12 +318,7 @@ function decide(
 
 /**
  * @description Approves, rejects or requests changes on a pending submission. Reviewers need the
- * review permission for its kind and may not maintain the addon. Approval re-verifies the staged
- * bundle (read again from its pinned blob when the staging bucket no longer has it), publishes it to
- * `addons/{id}/{version}/`, then in one transaction marks the submission approved and writes the live
- * version and the addon's repository (plus, for a first listing, the addon, its owner and the
- * author's `developer` role); the staged bundle is deleted last. Rejection deletes the staged bundle,
- * which also frees a new listing's id. Requesting changes keeps it until the author republishes.
+ * review permission for its kind and may not maintain the addon.
  * @param ctx The application context.
  * @param caller The reviewer.
  * @param id The submission id.

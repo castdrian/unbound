@@ -7,7 +7,6 @@ import { loadDashboard } from '~/lib/dashboard';
 import app from '~/lib/app';
 
 export type SubmitOverview = {
-	/** Submitting reads the addon from GitHub through the linked account, which needs push access. */
 	githubLinked: boolean;
 };
 

@@ -21,7 +21,6 @@ type SubmitDialogProps = {
 	addonId: string;
 	intent: SubmitIntent;
 	githubLinked: boolean;
-	/** Where the pending submission was read from, to read it again. */
 	source?: PendingSource | null;
 	variant?: 'default' | 'outline';
 };

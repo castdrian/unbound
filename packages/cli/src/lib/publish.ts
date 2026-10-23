@@ -28,7 +28,6 @@ function readVersion(addon: DiscoveredAddon): string {
 	return parsed.data.version;
 }
 
-// The server runs the same parser on the committed file; failing here saves a round trip.
 function checkChangelog(addon: DiscoveredAddon, source: GitSource) {
 	const file = join(addon.dir, 'CHANGELOG.md');
 

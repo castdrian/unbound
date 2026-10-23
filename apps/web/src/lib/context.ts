@@ -11,7 +11,6 @@ export type AppContext = {
 	db: Database;
 	auth: Auth;
 	storage: Storage;
-	/** The clock for account age, rate windows and the staging grace; tests pin it instead of sleeping. */
 	now: () => Date;
 };
 

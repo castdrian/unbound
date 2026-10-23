@@ -8,10 +8,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { addMaintainer, removeMaintainer, transferAddon } from '~/lib/maintainers';
-import { createSubmission } from '~/lib/submissions';
 import { MIGRATIONS_FOLDER, migrateDatabase } from '~/db/migrate';
 import { listEvents, queryEvents } from '~/lib/moderation-events';
 import { delistAddon, relistAddon } from '~/lib/addons';
+import { createSubmission } from '~/lib/submissions';
 import { moderationEvent, user } from '~/db/schema';
 import type { AppContext } from '~/lib/context';
 import { reviewSubmission } from '~/lib/review';

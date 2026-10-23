@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
-import { createSubmission } from '~/lib/submissions';
 import { delistAddon, relistAddon } from '~/lib/addons';
+import { createSubmission } from '~/lib/submissions';
 import { getAdminAddon } from '~/lib/admin-addon';
 import { addMaintainer } from '~/lib/maintainers';
 import { getAdminUser } from '~/lib/admin-users';

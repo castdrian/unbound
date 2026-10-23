@@ -16,7 +16,7 @@ import type { PinnableField } from '@unbound-app/contracts/admin';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { OPEN_SUBMISSION_STATUSES, toSubmission } from '~/lib/submissions';
+import { OPEN_SUBMISSION_STATUSES, requireSourced, toSubmission } from '~/lib/submissions';
 import type { AddonVersionRow, VersionSubmission } from '~/lib/artifacts';
 import { afterKey, decodeCursor, toKeysetPage } from '~/lib/keyset';
 import { VERSION_SOURCE, toAddonVersion } from '~/lib/artifacts';
@@ -402,7 +402,7 @@ export async function listMyAddons(ctx: AppContext, caller: Caller): Promise<MyA
 	});
 
 	const ids = memberships.map((membership) => membership.addonId);
-	const open = await ctx.db.query.submission.findMany({
+	const loaded = await ctx.db.query.submission.findMany({
 		where: {
 			status: { in: OPEN_SUBMISSION_STATUSES },
 			OR: [{ addonId: { in: ids } }, { authorId: userId, kind: 'listing' }],
@@ -411,6 +411,7 @@ export async function listMyAddons(ctx: AppContext, caller: Caller): Promise<MyA
 		orderBy: { createdAt: 'asc' },
 	});
 
+	const open = loaded.map(requireSourced);
 	const addons = memberships.flatMap(({ addon: row, role }) => {
 		if (!row) {
 			return [];

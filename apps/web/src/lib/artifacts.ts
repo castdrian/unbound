@@ -72,15 +72,12 @@ export function toVersionChangelog(
 }
 
 /**
- * @description Builds the source pin of a submission from its repository and source row.
- * @param submission The submission's repository and source row.
- * @returns The pin, or `null` for a legacy upload.
+ * @description Builds a source pin from a repository and the source row read from it.
+ * @param repository The `owner/name` repository.
+ * @param source The source row.
+ * @returns The pin.
  */
-export function toSourcePin(submission: VersionSubmission | null): SourcePin | null {
-	const { repository, source } = submission ?? {};
-
-	if (!repository || !source) return null;
-
+export function pinSource(repository: string, source: SubmissionSourceRow): SourcePin {
 	return {
 		repository,
 		repositoryId: source.repositoryId,
@@ -90,6 +87,19 @@ export function toSourcePin(submission: VersionSubmission | null): SourcePin | n
 		bundlePath: source.bundlePath,
 		bundleBlobSha: source.bundleBlobSha,
 	};
+}
+
+/**
+ * @description Builds the source pin of a submission from its repository and source row.
+ * @param submission The submission's repository and source row.
+ * @returns The pin, or `null` for a legacy upload.
+ */
+export function toSourcePin(submission: VersionSubmission | null): SourcePin | null {
+	const { repository, source } = submission ?? {};
+
+	if (!repository || !source) return null;
+
+	return pinSource(repository, source);
 }
 
 /**
@@ -124,6 +134,7 @@ export default {
 	getArtifactKeys,
 	getCdnUrl,
 	toVersionChangelog,
+	pinSource,
 	toSourcePin,
 	toAddonVersion,
 };

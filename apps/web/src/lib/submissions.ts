@@ -19,14 +19,22 @@ import type { Transaction } from '~/db/database';
 import { getSnowflakeDate } from '~/lib/discord';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
-import { toSourcePin } from '~/lib/artifacts';
+import { pinSource } from '~/lib/artifacts';
 import { connectGitHub } from '~/lib/github';
 import { ApiError } from '~/lib/api/errors';
 
 export type SubmissionRow = typeof submission.$inferSelect;
 
-export type SourcedSubmissionRow = SubmissionRow & {
+/** A submission as a relational query loads it with `with: { source: true }`. */
+export type SubmissionWithSource = SubmissionRow & {
 	source: SubmissionSourceRow | null;
+};
+
+/** A submission read from GitHub; legacy uploads, which lack these, never narrow to it. */
+export type SourcedSubmissionRow = SubmissionRow & {
+	repository: string;
+	sha256: string;
+	source: SubmissionSourceRow;
 };
 
 type ClaimReader = Pick<Transaction, 'select'>;
@@ -56,24 +64,34 @@ export const REPLACEABLE_SUBMISSION_STATUSES = [
 ] as const satisfies OpenSubmissionStatus[];
 
 /**
+ * @description Narrows a submission loaded with its source to one read from GitHub.
+ * @template T The loaded row, with any further relations.
+ * @param row The submission with its source.
+ * @returns The row, typed as sourced.
+ */
+export function requireSourced<T extends SubmissionWithSource>(row: T): T & SourcedSubmissionRow {
+	const { repository, sha256, source } = row;
+
+	if (!repository || !sha256 || !source) {
+		throw new Error(`Submission ${row.id} is a legacy upload without a GitHub source.`);
+	}
+
+	return { ...row, repository, sha256, source };
+}
+
+/**
  * @description Renders a submission row as the wire contract.
  * @param row The submission row with its source.
  * @returns The submission as API responses carry it.
  */
 export function toSubmission(row: SourcedSubmissionRow): Submission {
-	const source = toSourcePin(row);
-
-	if (!source) {
-		throw new Error(`Submission ${row.id} has no GitHub source.`);
-	}
-
 	return {
 		id: row.id,
 		addonId: row.addonId,
 		version: row.version,
 		kind: row.kind,
 		status: row.status,
-		source,
+		source: pinSource(row.repository, row.source),
 		review:
 			row.reviewDecision && row.reviewedAt
 				? {
@@ -278,7 +296,15 @@ function reserve(
 				.returning()
 				.get();
 
-			return { created: { ...created, source: row }, replaced };
+			return {
+				created: {
+					...created,
+					repository: pin.repository,
+					sha256: source.sha256,
+					source: row,
+				},
+				replaced,
+			};
 		},
 		{ behavior: 'immediate' },
 	);
@@ -293,6 +319,7 @@ async function stageAndReserve(
 	const id = Bun.randomUUIDv7();
 	const staged = { id, stagingKey: `submissions/${id}/bundle` };
 
+	// Until the row exists, only STAGING_ORPHAN_GRACE_SECONDS keeps the sweeper off this object.
 	await ctx.storage.staging.write(staged.stagingKey, source.bundle);
 
 	try {
@@ -369,6 +396,7 @@ export async function previewSubmission(
 export default {
 	OPEN_SUBMISSION_STATUSES,
 	REPLACEABLE_SUBMISSION_STATUSES,
+	requireSourced,
 	toSubmission,
 	createSubmission,
 	previewSubmission,

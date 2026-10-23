@@ -27,7 +27,6 @@ type PlanStep = {
 	detail: string;
 };
 
-// Matched by name, not timestamp, so regenerating the migration on a rebase keeps this test valid.
 const EVENTS_MIGRATION_SUFFIX = '_moderation_events';
 
 const s3 = serveMemoryS3();
@@ -328,7 +327,6 @@ describe('events migration', () => {
 				`INSERT INTO user (id, name, email, role) VALUES ('a', 'A', 'a@example.com', 'user'), ('m', 'M', 'm@example.com', 'moderator')`,
 			);
 
-			// The changes-requested listing was republished, so only its superseded row keeps the decision.
 			const submissions = [
 				['s-changes', 'listing', 'superseded', 'changes_requested', 'Add a README.', 1000],
 				['s-approved', 'listing', 'approved', 'approved', 'Thanks.', 2000],

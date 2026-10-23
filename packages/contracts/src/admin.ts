@@ -97,18 +97,27 @@ export const moderationEventPageRequestSchema = z.object({
 	before: z.optional(z.int()),
 });
 
-// ---- Admin lists: keyset paging and search (also the admin routes' `validateSearch`) ----
-
 /** Which way to page from `cursor`: `next` reads the rows after it, `prev` the rows before it. */
 export const pageDirectionSchema = z.enum(['next', 'prev']);
 
-/** Matches a substring of the indexed text, case-insensitively. The trigram index needs 3 characters. */
+/** The shortest search the trigram index can match. */
+export const ADMIN_SEARCH_MIN_LENGTH = 3;
+
+export const ADMIN_SEARCH_MAX_LENGTH = 100;
+
+/** Matches a substring of the indexed text, case-insensitively. */
 export const adminSearchTextSchema = z
 	.string()
 	.check(
 		z.trim(),
-		z.minLength(3, 'Search for at least 3 characters.'),
-		z.maxLength(100, 'Search for at most 100 characters.'),
+		z.minLength(
+			ADMIN_SEARCH_MIN_LENGTH,
+			`Search for at least ${ADMIN_SEARCH_MIN_LENGTH} characters.`,
+		),
+		z.maxLength(
+			ADMIN_SEARCH_MAX_LENGTH,
+			`Search for at most ${ADMIN_SEARCH_MAX_LENGTH} characters.`,
+		),
 	);
 
 const keysetSearch = {
@@ -176,6 +185,8 @@ export default {
 	moderationEventPageSchema,
 	moderationEventPageRequestSchema,
 	pageDirectionSchema,
+	ADMIN_SEARCH_MIN_LENGTH,
+	ADMIN_SEARCH_MAX_LENGTH,
 	adminSearchTextSchema,
 	adminUsersSearchSchema,
 	adminAddonStatusSchema,

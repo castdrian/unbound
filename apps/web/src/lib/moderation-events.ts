@@ -34,7 +34,7 @@ export type EventRow = typeof moderationEvent.$inferSelect & {
 };
 
 export type EventTimeline = ModerationEventPage & {
-	/** The users the events name only by id, such as the members of a maintainer change, by id. */
+	/** The users the events name only by id, such as the members of a maintainer change. */
 	users: Record<string, UserSummary>;
 };
 

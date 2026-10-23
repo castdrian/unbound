@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "beb29a42-5fa1-4af7-b540-39b7a6ec8c31",
+  "id": "3e157296-8c51-45ed-bb8b-da03841f73cc",
   "prevIds": [
     "6178a862-f479-418f-9b43-39c2bebc0db5"
   ],
@@ -16,10 +16,6 @@
     },
     {
       "name": "sponsorship",
-      "entityType": "tables"
-    },
-    {
-      "name": "submission_source",
       "entityType": "tables"
     },
     {
@@ -40,6 +36,10 @@
     },
     {
       "name": "loader_release",
+      "entityType": "tables"
+    },
+    {
+      "name": "moderation_event",
       "entityType": "tables"
     },
     {
@@ -273,106 +273,6 @@
       "name": "updated_at",
       "entityType": "columns",
       "table": "sponsorship"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "submission_id",
-      "entityType": "columns",
-      "table": "submission_source"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "repository_id",
-      "entityType": "columns",
-      "table": "submission_source"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "path",
-      "entityType": "columns",
-      "table": "submission_source"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "ref",
-      "entityType": "columns",
-      "table": "submission_source"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "commit_sha",
-      "entityType": "columns",
-      "table": "submission_source"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "bundle_path",
-      "entityType": "columns",
-      "table": "submission_source"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "bundle_blob_sha",
-      "entityType": "columns",
-      "table": "submission_source"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "addon_md",
-      "entityType": "columns",
-      "table": "submission_source"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "changelog",
-      "entityType": "columns",
-      "table": "submission_source"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "details",
-      "entityType": "columns",
-      "table": "submission_source"
     },
     {
       "type": "text",
@@ -843,6 +743,86 @@
       "name": "published_at",
       "entityType": "columns",
       "table": "loader_release"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "moderation_event"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "subject_type",
+      "entityType": "columns",
+      "table": "moderation_event"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "subject_id",
+      "entityType": "columns",
+      "table": "moderation_event"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "actor_id",
+      "entityType": "columns",
+      "table": "moderation_event"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "moderation_event"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "data",
+      "entityType": "columns",
+      "table": "moderation_event"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "reason",
+      "entityType": "columns",
+      "table": "moderation_event"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "moderation_event"
     },
     {
       "type": "text",
@@ -1666,21 +1646,6 @@
     },
     {
       "columns": [
-        "submission_id"
-      ],
-      "tableTo": "submission",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "nameExplicit": false,
-      "name": "fk_submission_source_submission_id_submission_id_fk",
-      "entityType": "fks",
-      "table": "submission_source"
-    },
-    {
-      "columns": [
         "addon_id"
       ],
       "tableTo": "addon",
@@ -1783,6 +1748,21 @@
       "name": "fk_loader_release_published_by_user_id_fk",
       "entityType": "fks",
       "table": "loader_release"
+    },
+    {
+      "columns": [
+        "actor_id"
+      ],
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_moderation_event_actor_id_user_id_fk",
+      "entityType": "fks",
+      "table": "moderation_event"
     },
     {
       "columns": [
@@ -1889,15 +1869,6 @@
     },
     {
       "columns": [
-        "submission_id"
-      ],
-      "nameExplicit": false,
-      "name": "submission_source_pk",
-      "table": "submission_source",
-      "entityType": "pks"
-    },
-    {
-      "columns": [
         "id"
       ],
       "nameExplicit": false,
@@ -1912,6 +1883,15 @@
       "nameExplicit": false,
       "name": "submission_pk",
       "table": "submission",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "moderation_event_pk",
+      "table": "moderation_event",
       "entityType": "pks"
     },
     {
@@ -2237,6 +2217,24 @@
       "name": "loader_release_platform_versionKey_idx",
       "entityType": "indexes",
       "table": "loader_release"
+    },
+    {
+      "columns": [
+        {
+          "value": "subject_type",
+          "isExpression": false
+        },
+        {
+          "value": "subject_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "moderation_event_subject_idx",
+      "entityType": "indexes",
+      "table": "moderation_event"
     },
     {
       "columns": [

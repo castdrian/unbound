@@ -1,40 +1,24 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { getRequestHeaders } from '@tanstack/react-start/server';
+import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router';
+import { adminUsersSearchSchema } from '@unbound-app/contracts/admin';
 import { IconBan, IconUserCheck } from '@tabler/icons-react';
-import { createServerFn } from '@tanstack/react-start';
 
-import { pageSearchSchema, toPageSearch } from '~/lib/page-search';
+import { formatDate } from '~/components/admin/format-date';
 import UserActions from '~/components/admin/user-actions';
 import AdminTable from '~/components/admin/admin-table';
 import SearchForm from '~/components/admin/search-form';
+import { fetchAdminUsers } from '~/lib/admin-functions';
 import { STAFF_SECTIONS } from '~/lib/auth/staff-areas';
-import { listAdminUsers } from '~/lib/admin-users';
 import UserAvatar from '~/components/user-avatar';
 import { hasPermission } from '~/lib/auth/access';
 import Text from '~/components/ui/text';
-import app from '~/lib/app';
-
-// Fixed to UTC so the server render and the hydrated page print the same day.
-const DATE_FORMAT = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' });
 
 const COLUMNS = ['User', 'Email', 'Role', 'Status', 'Joined'];
 
-const fetchUsers = createServerFn({ method: 'GET' })
-	.validator(pageSearchSchema)
-	.handler(({ data }) =>
-		listAdminUsers(app, getRequestHeaders(), {
-			search: data.search ?? '',
-			page: data.page ?? 1,
-		}),
-	);
-
 function UsersPage() {
 	const { user: viewer } = Route.useRouteContext();
-	const { users, total, pageSize } = Route.useLoaderData();
-	const params = Route.useSearch();
+	const { items: users, next, prev } = Route.useLoaderData();
+	const search = Route.useSearch().q ?? '';
 	const navigate = useNavigate({ from: Route.fullPath });
-	const search = params.search ?? '';
-	const page = params.page ?? 1;
 	const canSetRole = hasPermission(viewer.role, { user: ['set-role'] });
 	const canBan = hasPermission(viewer.role, { user: ['ban'] });
 
@@ -50,28 +34,39 @@ function UsersPage() {
 			<SearchForm
 				key={search}
 				search={search}
-				placeholder='Search by name...'
-				onSearch={(value) => navigate({ search: toPageSearch(value, 1) })}
+				placeholder='Search by id, name or email...'
+				onSearch={(value) => navigate({ search: { q: value || undefined } })}
 			/>
 
 			<AdminTable
 				columns={COLUMNS}
 				empty={users.length === 0}
-				page={page}
-				pageSize={pageSize}
-				total={total}
 				noun='users'
-				onPageChange={(next) => navigate({ search: toPageSearch(search, next) })}
+				next={next}
+				prev={prev}
+				onPageChange={(cursor, dir) =>
+					navigate({
+						search: (current) => ({
+							...current,
+							cursor,
+							dir: dir === 'prev' ? dir : undefined,
+						}),
+					})
+				}
 			>
 				{users.map((user) => (
 					<tr key={user.id} className='hover:bg-muted/30'>
 						<td className='px-4 py-3'>
-							<div className='flex items-center gap-3'>
+							<Link
+								to='/admin/users/$id'
+								params={{ id: user.id }}
+								className='flex items-center gap-3 hover:underline'
+							>
 								<UserAvatar src={user.image} name={user.name} size='sm' />
 								<span className='max-w-[150px] font-medium truncate'>
 									{user.name}
 								</span>
-							</div>
+							</Link>
 						</td>
 						<td className='px-4 py-3 text-muted-foreground text-sm'>
 							<span className='block max-w-[200px] truncate'>{user.email}</span>
@@ -98,7 +93,7 @@ function UsersPage() {
 							)}
 						</td>
 						<td className='px-4 py-3 text-muted-foreground text-sm whitespace-nowrap'>
-							{DATE_FORMAT.format(user.createdAt)}
+							{formatDate(user.createdAt)}
 						</td>
 						<td className='px-4 py-3 whitespace-nowrap'>
 							<UserActions
@@ -115,15 +110,15 @@ function UsersPage() {
 	);
 }
 
-export const Route = createFileRoute('/_site/_staff/admin/users')({
+export const Route = createFileRoute('/_site/_staff/admin/users/')({
 	head: () => ({ meta: [{ title: 'Unbound | Users' }] }),
-	validateSearch: pageSearchSchema,
+	validateSearch: adminUsersSearchSchema,
 	beforeLoad: ({ context }) => {
 		if (!hasPermission(context.user.role, STAFF_SECTIONS.users.permissions)) {
 			throw redirect({ to: '/' });
 		}
 	},
 	loaderDeps: ({ search }) => search,
-	loader: ({ deps }) => fetchUsers({ data: deps }),
+	loader: ({ deps }) => fetchAdminUsers({ data: deps }),
 	component: UsersPage,
 });

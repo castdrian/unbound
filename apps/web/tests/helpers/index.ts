@@ -1,4 +1,4 @@
-export { default as finalizeSubmissionEndpoint } from '~/endpoints/finalize-submission';
+export { default as previewSubmissionEndpoint } from '~/endpoints/preview-submission';
 export { default as createSubmissionEndpoint } from '~/endpoints/create-submission';
 export { default as checkUpdatesEndpoint } from '~/endpoints/check-updates';
 export { default as meEndpoint } from '~/endpoints/me';
@@ -8,3 +8,4 @@ export * from './context';
 export * from './addons';
 export * from './github';
 export * from './server';
+export * from './storage';

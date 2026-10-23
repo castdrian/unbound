@@ -63,12 +63,39 @@ export function manifest(
 	};
 }
 
+function insertSource(ctx: AppContext, row: SubmissionRow, source: SourceSeed) {
+	const { repository, ...columns } = source;
+	const path = columns.path ?? 'plugins/hello';
+
+	ctx.db
+		.insert(submissionSource)
+		.values({
+			submissionId: row.id,
+			repositoryId: 1,
+			path,
+			ref: 'main',
+			commitSha: sha1(row.id),
+			bundlePath: `${path}/dist/index.js`,
+			bundleBlobSha: sha1(`${row.id}/bundle`),
+			addonMd: `# ${row.manifest.name}`,
+			changelog: {
+				date: '2026-10-17',
+				sections: [{ type: 'added', items: [`Changes in ${row.version}.`] }],
+			},
+			details: REPOSITORY_DETAILS,
+			...columns,
+		})
+		.run();
+}
+
 /**
- * @description Stores a finalized submission row directly, without touching object storage.
+ * @description Stores a submission read from GitHub, pending review, directly, without touching
+ * object storage or GitHub.
  * @param ctx The application context.
  * @param authorId The submitting user.
  * @param published The submitted manifest.
  * @param overrides Columns to replace, e.g. `kind` and `status`.
+ * @param source The GitHub source; `null` stores a legacy upload with a text changelog.
  * @returns The submission row.
  */
 export async function seedSubmission(
@@ -76,6 +103,7 @@ export async function seedSubmission(
 	authorId: string,
 	published: PublishedManifest,
 	overrides: Partial<SubmissionInsert> = {},
+	source: SourceSeed | null = {},
 ): Promise<SubmissionRow> {
 	const id = Bun.randomUUIDv7();
 
@@ -89,10 +117,10 @@ export async function seedSubmission(
 			status: 'pending_review',
 			version: published.version,
 			manifest: published,
-			changelog: `Changes in ${published.version}.`,
+			changelog: source ? null : `Changes in ${published.version}.`,
+			repository: source ? (source.repository ?? 'acme/addons') : null,
 			bundleSize: 1024,
 			stagingKey: `submissions/${id}/bundle`,
-			uploadExpiresAt: ctx.now(),
 			sha256: new Bun.CryptoHasher('sha256').update(id).digest('hex'),
 			createdAt: ctx.now(),
 			submittedAt: ctx.now(),
@@ -102,6 +130,10 @@ export async function seedSubmission(
 
 	if (!row) {
 		throw new Error(`Submission ${id} was not stored.`);
+	}
+
+	if (source) {
+		insertSource(ctx, row, source);
 	}
 
 	return row;
@@ -126,40 +158,18 @@ export async function seedVersion(
 	sha256: string = new Bun.CryptoHasher('sha256').update(published.version).digest('hex'),
 	source?: SourceSeed,
 ): Promise<SubmissionRow> {
-	const { repository = 'acme/addons', ...columns } = source ?? {};
-	const row = await seedSubmission(ctx, authorId, published, {
-		status: 'approved',
-		sha256,
-		...(source ? { repository, changelog: null } : {}),
-	});
-	const path = columns.path ?? 'plugins/hello';
+	const row = await seedSubmission(
+		ctx,
+		authorId,
+		published,
+		{ status: 'approved', sha256 },
+		source ?? null,
+	);
 
 	ctx.db.transaction((tx) => {
 		tx.insert(addonVersion)
 			.values(toVersionRow(row, sha256, ctx.now()))
 			.run();
-
-		if (source) {
-			tx.insert(submissionSource)
-				.values({
-					submissionId: row.id,
-					repositoryId: 1,
-					path,
-					ref: 'main',
-					commitSha: sha1(row.id),
-					bundlePath: `${path}/dist/index.js`,
-					bundleBlobSha: sha1(`${row.id}/bundle`),
-					addonMd: `# ${published.name}`,
-					changelog: {
-						date: '2026-10-17',
-						sections: [{ type: 'added', items: [`Changes in ${published.version}.`] }],
-					},
-					details: REPOSITORY_DETAILS,
-					...columns,
-				})
-				.run();
-		}
-
 		refreshAddonSummary(tx, published.id);
 	});
 

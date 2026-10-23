@@ -71,7 +71,12 @@ export function toVersionChangelog(
 	return { changelog: changes ? formatChangelogText(changes) : null, changes };
 }
 
-function toSourcePin(submission: VersionSubmission | null): SourcePin | null {
+/**
+ * @description Builds the source pin of a submission from its repository and source row.
+ * @param submission The submission's repository and source row.
+ * @returns The pin, or `null` for a legacy upload.
+ */
+export function toSourcePin(submission: VersionSubmission | null): SourcePin | null {
 	const { repository, source } = submission ?? {};
 
 	if (!repository || !source) return null;
@@ -114,4 +119,11 @@ export function toAddonVersion(
 	};
 }
 
-export default { VERSION_SOURCE, getArtifactKeys, getCdnUrl, toVersionChangelog, toAddonVersion };
+export default {
+	VERSION_SOURCE,
+	getArtifactKeys,
+	getCdnUrl,
+	toVersionChangelog,
+	toSourcePin,
+	toAddonVersion,
+};

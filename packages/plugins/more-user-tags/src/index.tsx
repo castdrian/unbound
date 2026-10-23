@@ -91,13 +91,29 @@ function isTagEnabled(name: string): boolean {
 	return STORE.get(`tag.${name}`, true);
 }
 
-function resolveColors(tag: TagDefinition, guild: any, user: any): RoleColorAppearance {
-	if (STORE.get('useRoleColor', true) && guild && members) {
-		const member = members.getMember?.(guild.id, user?.id);
+function resolveColors(
+	tag: TagDefinition,
+	guild: any,
+	user: any,
+	message: any,
+): RoleColorAppearance {
+	if (STORE.get('useRoleColor', true)) {
+		const member = guild && members?.getMember?.(guild.id, user?.id);
 		if (member) {
 			const appearance = getRoleColorAppearance(
 				member.colorStrings,
 				member.colorString,
+				STORE.get('useEnhancedRoleColors', true),
+			);
+			if (appearance.colors.length > 0) return appearance;
+		}
+
+		const messageColorStrings = message?.colorStrings;
+		const messageColor = message?.colorString;
+		if (messageColorStrings || messageColor) {
+			const appearance = getRoleColorAppearance(
+				messageColorStrings,
+				messageColor,
 				STORE.get('useEnhancedRoleColors', true),
 			);
 			if (appearance.colors.length > 0) return appearance;
@@ -232,7 +248,7 @@ export default {
 				const tag = resolveTag(message, user, guild, channel);
 				if (!tag) return;
 
-				const appearance = resolveColors(tag, guild, user);
+				const appearance = resolveColors(tag, guild, user, message);
 				const { colors } = appearance;
 				const background = colors[0];
 				const { processColor } = metro.common.ReactNative;

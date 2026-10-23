@@ -123,7 +123,6 @@ export function refreshAddonSummary(tx: Transaction, addonId: string) {
 		.run();
 }
 
-// Moving to the state the addon is already in changes nothing and records nothing.
 function setDelistedAt(
 	ctx: AppContext,
 	caller: Caller,

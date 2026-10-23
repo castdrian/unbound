@@ -1,0 +1,173 @@
+import {
+	adminAddonsSearchSchema,
+	adminUsersSearchSchema,
+	editAddonRequestSchema,
+	createStaffNoteRequestSchema,
+	deleteStaffNoteRequestSchema,
+	editStaffNoteRequestSchema,
+	moderationEventPageRequestSchema,
+	serveVersionRequestSchema,
+} from '@unbound-app/contracts/admin';
+import { userSummarySchema } from '@unbound-app/contracts/account';
+import type { UserSummary } from '@unbound-app/contracts/account';
+import { getRequestHeaders } from '@tanstack/react-start/server';
+import { addonIdSchema } from '@unbound-app/contracts/manifest';
+import { createServerFn } from '@tanstack/react-start';
+import { z } from 'zod/mini';
+
+import { createStaffNote, deleteStaffNote, editStaffNote } from '~/lib/staff-notes';
+import { getAdminUser, getUserSummary, listAdminUsers } from '~/lib/admin-users';
+import type { AdminUserView, AdminUsersPage } from '~/lib/admin-users';
+import { editAddon, getAdminAddon } from '~/lib/admin-addon';
+import type { EventTimeline } from '~/lib/moderation-events';
+import { getEventTimeline } from '~/lib/moderation-events';
+import type { AdminAddonsPage } from '~/lib/admin-addons';
+import type { ServeVersionResult } from '~/lib/rollback';
+import type { AdminAddonView } from '~/lib/admin-addon';
+import { listAdminAddons } from '~/lib/admin-addons';
+import type { StaffNote } from '~/lib/staff-notes';
+import { requireCaller } from '~/lib/api/caller';
+import { serveVersion } from '~/lib/rollback';
+import app from '~/lib/app';
+
+export type AdminAddonsView = AdminAddonsPage & {
+	/** The user the `maintainer` filter names, for the filter bar; `null` without one or for an unknown id. */
+	maintainer: UserSummary | null;
+};
+
+/**
+ * @description Loads one page of the admin users list for the signed-in staff member.
+ * @returns The page and the cursors on either side of it.
+ */
+export const fetchAdminUsers = createServerFn({ method: 'GET' })
+	.validator(adminUsersSearchSchema)
+	.handler(async ({ data }): Promise<AdminUsersPage> => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		return listAdminUsers(app, caller, data);
+	});
+
+/**
+ * @description Loads one page of the admin addons list for the signed-in staff member, with the user
+ * its maintainer filter names.
+ * @returns The page, the cursors on either side of it and the filtered maintainer.
+ */
+export const fetchAdminAddons = createServerFn({ method: 'GET' })
+	.validator(adminAddonsSearchSchema)
+	.handler(async ({ data }): Promise<AdminAddonsView> => {
+		const caller = await requireCaller(app, getRequestHeaders());
+		const [page, maintainer] = await Promise.all([
+			listAdminAddons(app, caller, data),
+			data.maintainer ? getUserSummary(app, caller, data.maintainer) : undefined,
+		]);
+
+		return { ...page, maintainer: maintainer ?? null };
+	});
+
+/**
+ * @description Loads the admin page of one addon for the signed-in staff member.
+ * @returns The addon's view, or `null` when no approved addon has the id.
+ */
+export const fetchAdminAddon = createServerFn({ method: 'GET' })
+	.validator(addonIdSchema)
+	.handler(async ({ data }): Promise<AdminAddonView | null> => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		return (await getAdminAddon(app, caller, data)) ?? null;
+	});
+
+/**
+ * @description Loads the admin page of one user for the signed-in staff member.
+ * @returns The user's view, or `null` when no user has the id.
+ */
+export const fetchAdminUser = createServerFn({ method: 'GET' })
+	.validator(userSummarySchema.shape.id)
+	.handler(async ({ data }): Promise<AdminUserView | null> => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		return (await getAdminUser(app, caller, data)) ?? null;
+	});
+
+/**
+ * @description Loads an older page of a subject's moderation events for the signed-in staff member.
+ * @returns The page and the users it names.
+ */
+export const fetchEvents = createServerFn({ method: 'GET' })
+	.validator(moderationEventPageRequestSchema)
+	.handler(async ({ data }): Promise<EventTimeline> => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		return getEventTimeline(app, caller, data.subject, data.before);
+	});
+
+/**
+ * @description Makes one approved version the one an addon serves, for the signed-in administrator.
+ * @returns What was served before and after, and which versions were withdrawn or restored.
+ */
+export const submitServeVersion = createServerFn({ method: 'POST' })
+	.validator(z.object({ id: addonIdSchema, request: serveVersionRequestSchema }))
+	.handler(async ({ data }): Promise<ServeVersionResult> => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		return serveVersion(app, caller, data.id, data.request);
+	});
+
+/**
+ * @description Applies the staff edit form to an addon for the signed-in staff member.
+ * @returns The addon's view after the edit.
+ */
+export const submitAddonEdit = createServerFn({ method: 'POST' })
+	.validator(z.object({ id: addonIdSchema, edit: editAddonRequestSchema }))
+	.handler(async ({ data }): Promise<AdminAddonView> => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		return editAddon(app, caller, data.id, data.edit);
+	});
+
+/**
+ * @description Writes a staff note on a user or addon as the signed-in staff member.
+ * @returns The new note.
+ */
+export const createStaffNoteFn = createServerFn({ method: 'POST' })
+	.validator(createStaffNoteRequestSchema)
+	.handler(async ({ data }): Promise<StaffNote> => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		return createStaffNote(app, caller, data);
+	});
+
+/**
+ * @description Replaces the body of the signed-in staff member's own note.
+ * @returns The edited note.
+ */
+export const editStaffNoteFn = createServerFn({ method: 'POST' })
+	.validator(editStaffNoteRequestSchema)
+	.handler(async ({ data }): Promise<StaffNote> => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		return editStaffNote(app, caller, data);
+	});
+
+/**
+ * @description Deletes the signed-in staff member's own note.
+ */
+export const deleteStaffNoteFn = createServerFn({ method: 'POST' })
+	.validator(deleteStaffNoteRequestSchema)
+	.handler(async ({ data }) => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		await deleteStaffNote(app, caller, data);
+	});
+
+export default {
+	fetchAdminUsers,
+	fetchAdminAddons,
+	fetchAdminAddon,
+	fetchAdminUser,
+	fetchEvents,
+	submitServeVersion,
+	submitAddonEdit,
+	createStaffNoteFn,
+	editStaffNoteFn,
+	deleteStaffNoteFn,
+};

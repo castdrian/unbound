@@ -83,12 +83,11 @@ export const submission = sqliteTable(
 		version: text('version').notNull(),
 		manifest: text('manifest', { mode: 'json' }).$type<PublishedManifest>().notNull(),
 		changelog: text('changelog'),
-		/** The GitHub `owner/name` the author proved push access to; `null` is an unverified source. */
+		/** The GitHub `owner/name` the author proved push access to; `null` only on legacy uploads. */
 		repository: text('repository'),
 		bundleSize: integer('bundle_size').notNull(),
 		stagingKey: text('staging_key').notNull().unique(),
-		uploadExpiresAt: integer('upload_expires_at', { mode: 'timestamp_ms' }).notNull(),
-		/** Lowercase hex SHA-256 of the staged bundle, recorded on finalize. */
+		/** Lowercase hex SHA-256 of the staged bundle, recorded when it was read from its source. */
 		sha256: text('sha256'),
 		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 		submittedAt: integer('submitted_at', { mode: 'timestamp_ms' }),
@@ -100,7 +99,7 @@ export const submission = sqliteTable(
 	(table) => [
 		index('submission_addonId_status_idx').on(table.addonId, table.status),
 		index('submission_authorId_createdAt_idx').on(table.authorId, table.createdAt),
-		// The review queue and the staging sweeper's lapsed reservations.
+		// The review queue.
 		index('submission_status_submittedAt_idx').on(table.status, table.submittedAt),
 		// An open listing is the claim on its addon id.
 		uniqueIndex('submission_listing_claim_uidx')

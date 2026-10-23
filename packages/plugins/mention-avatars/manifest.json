@@ -18,6 +18,7 @@
 	],
 	"version": "1.0.0",
 	"icon": "UserCircleIcon",
+	"platforms": ["ios"],
 	"capabilities": [
 		"native.objc.classes",
 		"native.objc.invoke",

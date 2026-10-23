@@ -12,6 +12,7 @@
 			"id": "0"
 		}
 	],
+	"platforms": ["ios"],
 	"capabilities": [
 		"native.objc.classes",
 		"native.objc.invoke",

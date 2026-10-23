@@ -14,6 +14,7 @@
 	],
 	"version": "1.0.0",
 	"icon": "TimerIcon",
+	"platforms": ["ios"],
 	"capabilities": [
 		"native.objc.classes",
 		"native.objc.invoke",

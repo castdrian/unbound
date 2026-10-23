@@ -235,6 +235,7 @@ const {
 	NativePluginCapabilityError,
 	NativePluginDisposedError,
 	NativePluginPlatformError,
+	NativePluginUnsupportedPlatformError,
 	NativePluginVersionError,
 } = await import('~/api/native');
 const { createPluginContext, validateNativePluginRequirements } =
@@ -809,6 +810,34 @@ describe('native plugin negotiation', () => {
 				},
 			}),
 		).toThrow(NativePluginCapabilityError);
+	});
+
+	test('rejects a plugin that does not support the host platform', () => {
+		Object.assign(nativePlatformBridge.device, { platform: 'android' });
+		Object.assign(nativePlatformBridge, { platform: 'android' });
+		Object.assign(bridge, { capabilities: ['native.runtime.events', 'native.ui.lookup'] });
+
+		const build = () =>
+			createPluginContext({
+				...manifest,
+				platforms: ['ios'],
+				capabilities: ['native.objc.classes'],
+			});
+
+		expect(build).toThrow(NativePluginUnsupportedPlatformError);
+		expect(build).toThrow('This plugin supports ios; the host platform is android.');
+	});
+
+	test('builds a context for a plugin that supports the host platform', () => {
+		const context = createPluginContext({
+			...manifest,
+			platforms: ['ios'],
+			capabilities: ['native.objc.classes'],
+		});
+
+		expect(context.platform).toBe('ios');
+		expect(context.capabilities).toEqual(['native.objc.classes']);
+		context.dispose();
 	});
 
 	test('rejects platform-scoped capabilities when the host platform is unknown', () => {

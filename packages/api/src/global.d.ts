@@ -37,6 +37,7 @@ export type {
 	InputStatus,
 	InternalToastOptions,
 	NATIVE_PLUGIN_CAPABILITIES,
+	NATIVE_PLUGIN_PLATFORM_CAPABILITIES,
 	NativeAssociationKey,
 	NativeBatchReference,
 	NativeBatchStep,

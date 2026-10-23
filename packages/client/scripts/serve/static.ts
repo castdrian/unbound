@@ -2,7 +2,7 @@ import Logger from '@unbound-app/logger';
 import { format } from 'date-fns';
 import { join } from 'node:path';
 
-import { DIST_DIR, BUNDLE_NAME } from './constants';
+import { DIST_DIR, BUNDLE_PATTERN } from './constants';
 import { bundleEtag } from './hot-reload';
 
 const logger = Logger.create('Serve');
@@ -60,7 +60,7 @@ export async function serveStatic(pathname: string): Promise<Response> {
 
 		// Tag the bundle with its content hash - the SSE `reload` carries the same value, so the
 		// device can compare the two. `no-cache` forces the device to always revalidate.
-		if (pathname.slice(1) === BUNDLE_NAME) {
+		if (BUNDLE_PATTERN.test(pathname.slice(1))) {
 			headers['ETag'] = `"${bundleEtag()}"`;
 			headers['Cache-Control'] = 'no-cache';
 		}

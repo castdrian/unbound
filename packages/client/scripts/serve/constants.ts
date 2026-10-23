@@ -12,8 +12,14 @@ export const LAN_URL = resolveDevServerUrl();
 
 export const WATCH_DEBOUNCE = 100;
 
-/** The name of the built bundle file inside `DIST_DIR`. */
-export const BUNDLE_NAME = 'unbound.bundle';
+/** The JavaScript build every bytecode bundle is compiled from; its hash identifies a build. */
+export const BUNDLE_SOURCE_NAME = 'unbound.js';
+
+/** Written last by every build, so its change marks a finished build. */
+export const MANIFEST_NAME = 'manifest.json';
+
+/** Matches every bundle artifact a loader may download: `unbound.js` and `unbound[.N].bundle`. */
+export const BUNDLE_PATTERN = /^unbound(\.\d+)?\.bundle$|^unbound\.js$/;
 
 export default {
 	PORT,
@@ -21,5 +27,7 @@ export default {
 	DIST_DIR,
 	LAN_URL,
 	WATCH_DEBOUNCE,
-	BUNDLE_NAME,
+	BUNDLE_SOURCE_NAME,
+	MANIFEST_NAME,
+	BUNDLE_PATTERN,
 };

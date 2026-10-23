@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, watch } from 'node:fs';
 import Logger from '@unbound-app/logger';
 import { join } from 'node:path';
 
-import { DIST_DIR, BUNDLE_NAME, WATCH_DEBOUNCE } from './constants';
+import { DIST_DIR, MANIFEST_NAME, WATCH_DEBOUNCE, BUNDLE_SOURCE_NAME } from './constants';
 
 const logger = Logger.create('Serve');
 
@@ -18,7 +18,7 @@ let etag = bundleEtag();
  */
 export function bundleEtag(): string {
 	try {
-		return Bun.hash(readFileSync(join(DIST_DIR, BUNDLE_NAME))).toString(16);
+		return Bun.hash(readFileSync(join(DIST_DIR, BUNDLE_SOURCE_NAME))).toString(16);
 	} catch {
 		return '';
 	}
@@ -104,7 +104,7 @@ export function watchBundle() {
 	let watchTimer: ReturnType<typeof setTimeout> | null = null;
 
 	return watch(DIST_DIR, (_event, filename) => {
-		if (filename !== BUNDLE_NAME) return;
+		if (filename !== MANIFEST_NAME) return;
 		if (watchTimer) clearTimeout(watchTimer);
 
 		watchTimer = setTimeout(() => {

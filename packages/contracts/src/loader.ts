@@ -1,4 +1,4 @@
-import { MAX_UPDATE_CHANGELOGS, versionChangelogSchema } from './updates';
+import { MAX_UPDATE_CHANGELOGS } from './updates';
 import { MAX_CHANGELOG_LENGTH } from './publish';
 import { semverSchema } from './manifest';
 import { z } from './zod';
@@ -26,10 +26,17 @@ export const loaderUpdateQuerySchema = z.object({
 	version: semverSchema,
 });
 
+/** One skipped release's entry in an update's `changelogs`. */
+export const loaderChangelogSchema = z.pick(loaderReleaseSchema, {
+	version: true,
+	changelog: true,
+	publishedAt: true,
+});
+
 /** The newest newer release, with `changelogs` covering every version it skips over. */
 export const loaderUpdateSchema = z.extend(loaderReleaseSchema, {
 	/** Each version newer than the installed one, up to and including `version`, newest first. */
-	changelogs: z.array(versionChangelogSchema).check(z.maxLength(MAX_UPDATE_CHANGELOGS)),
+	changelogs: z.array(loaderChangelogSchema).check(z.maxLength(MAX_UPDATE_CHANGELOGS)),
 });
 
 /** `update` is `null` when the installed loader is the newest release it may move to. */
@@ -40,6 +47,7 @@ export const loaderUpdateResponseSchema = z.object({
 export type LoaderPlatform = z.infer<typeof loaderPlatformSchema>;
 export type LoaderRelease = z.infer<typeof loaderReleaseSchema>;
 export type PublishLoaderReleaseRequest = z.infer<typeof publishLoaderReleaseRequestSchema>;
+export type LoaderChangelog = z.infer<typeof loaderChangelogSchema>;
 export type LoaderUpdateQuery = z.infer<typeof loaderUpdateQuerySchema>;
 export type LoaderUpdate = z.infer<typeof loaderUpdateSchema>;
 export type LoaderUpdateResponse = z.infer<typeof loaderUpdateResponseSchema>;
@@ -49,6 +57,7 @@ export default {
 	loaderReleaseSchema,
 	publishLoaderReleaseRequestSchema,
 	loaderUpdateQuerySchema,
+	loaderChangelogSchema,
 	loaderUpdateSchema,
 	loaderUpdateResponseSchema,
 };

@@ -29,8 +29,8 @@ import Text from '~/components/ui/text';
 
 type SubmitFormProps = {
 	githubLinked: boolean;
-	addonId?: string;
-	initial?: PendingSource;
+	lockedAddonId?: string;
+	pendingSource?: PendingSource;
 	onSubmitted: (submission: Submission) => void;
 };
 
@@ -53,8 +53,8 @@ function toOverrides(draft: DetailsDraft): CreateSubmissionRequest['details'] {
 	};
 }
 
-function SubmitForm({ githubLinked, addonId, initial, onSubmitted }: SubmitFormProps) {
-	const [repository, setRepository] = useState(initial?.repository ?? '');
+function SubmitForm({ githubLinked, lockedAddonId, pendingSource, onSubmitted }: SubmitFormProps) {
+	const [repository, setRepository] = useState(pendingSource?.repository ?? '');
 	const [pushable, setPushable] = useState<PushableRepository[]>([]);
 	const [listing, setListing] = useState<ListRepositoryAddonsResponse | null>(null);
 	const [previewed, setPreviewed] = useState<Previewed | null>(null);
@@ -122,7 +122,7 @@ function SubmitForm({ githubLinked, addonId, initial, onSubmitted }: SubmitFormP
 		run(() => fetchPreview(listing, addon));
 	}
 
-	function reopen(source: PendingSource) {
+	function previewPendingSource(source: PendingSource) {
 		run(async () => {
 			const found = await fetchListing(source.repository);
 			const addon = found.addons.find((entry) => entry.path === source.path);
@@ -155,8 +155,8 @@ function SubmitForm({ githubLinked, addonId, initial, onSubmitted }: SubmitFormP
 			.then(({ repositories }) => setPushable(repositories.slice(0, 12)))
 			.catch(() => setPushable([]));
 
-		if (initial) {
-			reopen(initial);
+		if (pendingSource) {
+			previewPendingSource(pendingSource);
 		}
 	}, []);
 
@@ -194,7 +194,7 @@ function SubmitForm({ githubLinked, addonId, initial, onSubmitted }: SubmitFormP
 				<AddonPicker
 					key={`${listing.repository}@${listing.commitSha}`}
 					listing={listing}
-					addonId={addonId}
+					lockedAddonId={lockedAddonId}
 					selected={previewed?.request.path ?? null}
 					disabled={isPending}
 					onRefChange={(ref) => readRepository(listing.repository, ref)}

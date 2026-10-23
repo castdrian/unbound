@@ -80,8 +80,8 @@ function SubmitDialog({
 				</DialogHeader>
 				<SubmitForm
 					githubLinked={githubLinked}
-					addonId={addonId}
-					initial={source ?? undefined}
+					lockedAddonId={addonId}
+					pendingSource={source ?? undefined}
 					onSubmitted={handleSubmitted}
 				/>
 			</DialogContent>

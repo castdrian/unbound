@@ -4,6 +4,8 @@ import type {
 	NativeFabricBridge,
 	NativeFabricSurface,
 	NativeFFIBridge,
+	NativeJavaBridge,
+	NativeJavaHandle,
 	NativeMediaBridge,
 	NativeHookHandlers,
 	NativeHookOptions,
@@ -270,6 +272,18 @@ const nativeUICapabilityRequirements: Record<keyof NativeUIBridge, NativePluginC
 	unmount: 'native.ui.mount',
 };
 
+const nativeJavaCapabilityRequirements: Record<keyof NativeJavaBridge, NativePluginCapability> = {
+	getClass: 'native.java.classes',
+	className: 'native.java.classes',
+	construct: 'native.java.construct',
+	respondsTo: 'native.java.classes',
+	invoke: 'native.java.invoke',
+	invokeAsync: 'native.java.invokeAsync',
+	getField: 'native.java.fields',
+	setField: 'native.java.fields',
+	release: 'native.java.classes',
+};
+
 const iosNativeUICapabilityRequirements: Record<keyof NativeUIBridge, NativePluginCapability> = {
 	lookup: 'native.objc.snapshot',
 	snapshot: 'native.objc.snapshot',
@@ -404,6 +418,7 @@ function unavailableNativePlugin() {
 		{ get: () => unavailableMethod },
 	) as NativeRuntimeBridge;
 	const unavailableUI = new Proxy({}, { get: () => unavailableMethod }) as NativeUIBridge;
+	const unavailableJava = new Proxy({}, { get: () => unavailableMethod }) as NativeJavaBridge;
 	const unavailableMedia = new Proxy({}, { get: () => unavailableMethod }) as NativeMediaBridge;
 
 	return {
@@ -415,6 +430,7 @@ function unavailableNativePlugin() {
 		fabric: unavailableFabric,
 		runtime: unavailableRuntime,
 		ui: unavailableUI,
+		java: unavailableJava,
 		media: unavailableMedia,
 	};
 }
@@ -740,10 +756,12 @@ function createScopedNativePlugin(
 			: (bridge.ui ?? fallbackBridge.ui);
 	const uiCapabilities =
 		platform === 'ios' ? iosNativeUICapabilityRequirements : nativeUICapabilityRequirements;
+	const javaBridge = bridge.java ?? fallbackBridge.java;
 	const mediaBridge = bridge.media ?? fallbackBridge.media;
 	const tokens = new Set<NativeHookToken>();
 	const surfaces = new Set<NativeFabricSurface>();
 	const uiSurfaces = new Set<NativeUIHandle>();
+	const javaHandles = new Set<NativeJavaHandle>();
 	const runtimeTokens = new Set<NativeRuntimeEventToken>();
 	const pendingInvocations = new Set<NativeCancelablePromise<unknown>>();
 	const associations: AssociationBinding[] = [];
@@ -1085,6 +1103,61 @@ function createScopedNativePlugin(
 		},
 	};
 
+	function trackJavaHandle(handle: NativeJavaHandle): NativeJavaHandle {
+		javaHandles.add(handle);
+
+		return handle;
+	}
+
+	const java: NativeJavaBridge = {
+		getClass: (name) =>
+			trackJavaHandle(
+				scopeMethod(
+					javaBridge.getClass.bind(javaBridge),
+					nativeJavaCapabilityRequirements.getClass,
+				)(name),
+			),
+		className: scopeMethod(
+			javaBridge.className.bind(javaBridge),
+			nativeJavaCapabilityRequirements.className,
+		),
+		construct: (name, args) =>
+			trackJavaHandle(
+				scopeMethod(
+					javaBridge.construct.bind(javaBridge),
+					nativeJavaCapabilityRequirements.construct,
+				)(name, args),
+			),
+		respondsTo: scopeMethod(
+			javaBridge.respondsTo.bind(javaBridge),
+			nativeJavaCapabilityRequirements.respondsTo,
+		),
+		invoke: scopeMethod(
+			javaBridge.invoke.bind(javaBridge),
+			nativeJavaCapabilityRequirements.invoke,
+		),
+		invokeAsync: scopeAsyncMethod(
+			javaBridge.invokeAsync?.bind(javaBridge),
+			nativeJavaCapabilityRequirements.invokeAsync,
+			'Asynchronous Java invocation is unavailable.',
+		),
+		getField: scopeMethod(
+			javaBridge.getField.bind(javaBridge),
+			nativeJavaCapabilityRequirements.getField,
+		),
+		setField: scopeMethod(
+			javaBridge.setField.bind(javaBridge),
+			nativeJavaCapabilityRequirements.setField,
+		),
+		release: (handle) => {
+			javaHandles.delete(handle);
+			scopeMethod(
+				javaBridge.release.bind(javaBridge),
+				nativeJavaCapabilityRequirements.release,
+			)(handle);
+		},
+	};
+
 	const ui: NativeUIBridge = {
 		lookup: scopeAsyncMethod(
 			uiBridge.lookup?.bind(uiBridge),
@@ -1184,6 +1257,7 @@ function createScopedNativePlugin(
 			fabric,
 			runtime,
 			ui,
+			java,
 			media,
 		},
 		dispose: () => {
@@ -1214,6 +1288,16 @@ function createScopedNativePlugin(
 			}
 
 			uiSurfaces.clear();
+
+			for (const handle of javaHandles) {
+				try {
+					javaBridge.release(handle);
+				} catch {
+					continue;
+				}
+			}
+
+			javaHandles.clear();
 
 			for (const binding of associations) {
 				objcBridge.setAssociatedObject(binding.handle, binding.key, null, 'assign');

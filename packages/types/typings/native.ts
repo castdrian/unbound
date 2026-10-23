@@ -14,6 +14,11 @@ export const NATIVE_PLUGIN_CAPABILITIES = [
 	'native.fabric.mount',
 	'native.fabric.async',
 	'native.runtime.events',
+	'native.java.classes',
+	'native.java.construct',
+	'native.java.fields',
+	'native.java.invoke',
+	'native.java.invokeAsync',
 	'native.ui.lookup',
 	'native.ui.mount',
 	'native.ui.layout',
@@ -26,7 +31,17 @@ export type NativePluginCapability = (typeof NATIVE_PLUGIN_CAPABILITIES)[number]
 export type NativePluginPlatform = 'ios' | 'android';
 
 export const NATIVE_PLUGIN_PLATFORM_CAPABILITIES = {
-	android: ['native.runtime.events', 'native.ui.layout', 'native.ui.lookup', 'native.ui.mount'],
+	android: [
+		'native.java.classes',
+		'native.java.construct',
+		'native.java.fields',
+		'native.java.invoke',
+		'native.java.invokeAsync',
+		'native.runtime.events',
+		'native.ui.layout',
+		'native.ui.lookup',
+		'native.ui.mount',
+	],
 	ios: [
 		'native.fabric.async',
 		'native.fabric.mount',
@@ -362,6 +377,38 @@ export type NativeUISnapshot = {
 	nodes: NativeUISnapshotNode[];
 };
 
+export type NativeJavaHandle = NativeHandle;
+
+export type NativeJavaValue =
+	| { type: 'null'; class?: string }
+	| { type: 'handle'; value: string }
+	| { type: 'string'; value: string }
+	| { type: 'boolean'; value: boolean }
+	| { type: 'byte' | 'short' | 'int' | 'long'; value: number }
+	| { type: 'float' | 'double'; value: number }
+	| { type: 'char'; value: string }
+	| {
+			type: 'array';
+			componentType: string;
+			value: (NativeJavaValue | string | number | boolean)[];
+	  };
+
+export type NativeJavaBridge = {
+	getClass(name: string): NativeJavaHandle;
+	className(handle: NativeJavaHandle): NativeJavaValue;
+	construct(name: string, args?: NativeJavaValue[]): NativeJavaHandle;
+	respondsTo(handle: NativeJavaHandle, name: string, args?: NativeJavaValue[]): NativeJavaValue;
+	invoke(handle: NativeJavaHandle, name: string, args?: NativeJavaValue[]): NativeJavaValue;
+	invokeAsync(
+		handle: NativeJavaHandle,
+		name: string,
+		args?: NativeJavaValue[],
+	): NativeCancelablePromise<NativeJavaValue>;
+	getField(handle: NativeJavaHandle, name: string): NativeJavaValue;
+	setField(handle: NativeJavaHandle, name: string, value: NativeJavaValue): void;
+	release(handle: NativeJavaHandle): void;
+};
+
 export type NativeUIBridge = {
 	lookup(query: NativeUIQuery): NativeCancelablePromise<NativeUIHandle[]>;
 	snapshot(query: NativeUIQuery): NativeCancelablePromise<NativeUISnapshot>;
@@ -437,6 +484,7 @@ export type NativePluginBridge = {
 	readonly fabric: NativeFabricBridge;
 	readonly runtime: NativeRuntimeBridge;
 	readonly ui: NativeUIBridge;
+	readonly java: NativeJavaBridge;
 	readonly media: NativeMediaBridge;
 };
 

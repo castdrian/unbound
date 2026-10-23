@@ -5,6 +5,8 @@ import type {
 	NativePluginRuntimeBridge,
 	NativePlatformBridge,
 	NativeSerializableObject,
+	NativeJavaHandle,
+	NativeJavaValue,
 	NativeUIHandle,
 	NativeUIQuery,
 	NativeViewSnapshotNode,
@@ -64,6 +66,9 @@ const cancelled: string[] = [];
 const sizeHeightFloors: unknown[][] = [];
 const removedSubscriptions: string[] = [];
 const uiUnmounted: NativeUIHandle[] = [];
+const javaReleased: NativeJavaHandle[] = [];
+const javaHandle: NativeJavaHandle = Object.create(null);
+const javaInvokeResult: NativeJavaValue = { type: 'string', value: 'invoked' };
 const nativeHandle: NativeUIHandle = Object.create(null);
 const capabilities = [
 	'native.objc.classes',
@@ -79,6 +84,11 @@ const capabilities = [
 	'native.fabric.mount',
 	'native.fabric.async',
 	'native.runtime.events',
+	'native.java.classes',
+	'native.java.construct',
+	'native.java.fields',
+	'native.java.invoke',
+	'native.java.invokeAsync',
 	'native.ui.lookup',
 	'native.ui.mount',
 	'native.ui.layout',
@@ -166,6 +176,19 @@ const bridge: NativePluginBridge = {
 			uiUnmounted.push(handle);
 
 			return cancellable(Promise.resolve(), 'ui-unmount');
+		},
+	},
+	java: {
+		getClass: () => nativeHandle,
+		className: () => ({ type: 'string', value: 'java.lang.Class' }),
+		construct: () => javaHandle,
+		respondsTo: () => ({ type: 'boolean', value: true }),
+		invoke: () => ({ type: 'string', value: 'invoked' }),
+		invokeAsync: () => cancellable(Promise.resolve(javaInvokeResult), 'java-invoke'),
+		getField: () => ({ type: 'int', value: 7 }),
+		setField: () => undefined,
+		release: (handle: NativeJavaHandle) => {
+			javaReleased.push(handle);
 		},
 	},
 	media: {
@@ -810,6 +833,65 @@ describe('native plugin negotiation', () => {
 				},
 			}),
 		).toThrow(NativePluginCapabilityError);
+	});
+
+	test('scopes the Java bridge to the capabilities a plugin declares', () => {
+		Object.assign(nativePlatformBridge.device, { platform: 'android' });
+		Object.assign(nativePlatformBridge, { platform: 'android' });
+
+		const context = createPluginContext({
+			...manifest,
+			platforms: ['android'],
+			capabilities: ['native.java.classes', 'native.java.invoke'],
+		});
+
+		expect(context.native.java.getClass('java.lang.Integer')).toBe(nativeHandle);
+		expect(context.native.java.invoke(nativeHandle, 'toString')).toEqual({
+			type: 'string',
+			value: 'invoked',
+		});
+		expect(() => context.native.java.getField(nativeHandle, 'value')).toThrow(
+			NativePluginCapabilityError,
+		);
+		expect(() => context.native.java.construct('java.lang.StringBuilder')).toThrow(
+			NativePluginCapabilityError,
+		);
+		context.dispose();
+	});
+
+	test('releases the Java handles a plugin acquired when its scope is disposed', () => {
+		Object.assign(nativePlatformBridge.device, { platform: 'android' });
+		Object.assign(nativePlatformBridge, { platform: 'android' });
+		javaReleased.length = 0;
+
+		const context = createPluginContext({
+			...manifest,
+			platforms: ['android'],
+			capabilities: ['native.java.classes', 'native.java.construct'],
+		});
+
+		context.native.java.getClass('java.lang.Integer');
+		context.native.java.construct('java.lang.StringBuilder');
+		context.dispose();
+
+		expect(javaReleased).toEqual([nativeHandle, javaHandle]);
+	});
+
+	test('rejects Java calls once the plugin scope is disposed', () => {
+		Object.assign(nativePlatformBridge.device, { platform: 'android' });
+		Object.assign(nativePlatformBridge, { platform: 'android' });
+
+		const context = createPluginContext({
+			...manifest,
+			platforms: ['android'],
+			capabilities: ['native.java.classes'],
+		});
+
+		context.dispose();
+
+		expect(() => context.native.java.getClass('java.lang.Integer')).toThrow(
+			NativePluginDisposedError,
+		);
 	});
 
 	test('rejects a plugin that does not support the host platform', () => {

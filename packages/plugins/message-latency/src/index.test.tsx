@@ -55,6 +55,7 @@ let unsubscribedEvents: string[] = [];
 let runtimeSubscribedEvents: string[] = [];
 let runtimeUnsubscribedEvents: string[] = [];
 let runtimeEventListener: ((payload: Record<string, unknown>) => void) | null = null;
+let runtimeSubscribeError = false;
 let nativeHooks: Array<{ className: string; selector: string }> = [];
 
 mock.module('@unbound-app/api', () => ({
@@ -153,6 +154,7 @@ afterEach(async () => {
 	runtimeSubscribedEvents = [];
 	runtimeUnsubscribedEvents = [];
 	runtimeEventListener = null;
+	runtimeSubscribeError = false;
 	nativeHooks = [];
 });
 
@@ -175,6 +177,8 @@ function nativeContext(): TestNativeContext {
 					event: string,
 					listener: (payload: Record<string, unknown>) => void,
 				) => {
+					if (runtimeSubscribeError) throw new Error('Runtime events are unavailable');
+
 					runtimeSubscribedEvents.push(event);
 					runtimeEventListener = listener;
 					let active = true;
@@ -385,6 +389,17 @@ describe('message create events', () => {
 	test('uses the dispatcher fallback without the scoped runtime capability', async () => {
 		plugin.start();
 		expect(subscribedEvents).toEqual(['MESSAGE_CREATE']);
+
+		await plugin.stop();
+		expect(unsubscribedEvents).toEqual(['MESSAGE_CREATE']);
+	});
+
+	test('keeps the dispatcher fallback when scoped runtime subscription fails', async () => {
+		runtimeSubscribeError = true;
+		plugin.start(nativeContext() as Parameters<typeof plugin.start>[0]);
+
+		expect(subscribedEvents).toEqual(['MESSAGE_CREATE']);
+		expect(patchCount).toBe(1);
 
 		await plugin.stop();
 		expect(unsubscribedEvents).toEqual(['MESSAGE_CREATE']);

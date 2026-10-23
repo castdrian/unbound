@@ -18,9 +18,9 @@ import { requirePermission } from '~/lib/api/caller';
 import type { Transaction } from '~/db/database';
 import { getSnowflakeDate } from '~/lib/discord';
 import type { AppContext } from '~/lib/context';
-import { connectGitHub } from '~/lib/github';
 import type { Caller } from '~/lib/api/caller';
 import { toSourcePin } from '~/lib/artifacts';
+import { connectGitHub } from '~/lib/github';
 import { ApiError } from '~/lib/api/errors';
 
 export type SubmissionRow = typeof submission.$inferSelect;

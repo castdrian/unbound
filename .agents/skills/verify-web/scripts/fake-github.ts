@@ -1,6 +1,5 @@
-// Usage: bun fake-github.ts <port> <token>, run by launch.sh in the instance's tmux session.
-// Serves GitHub's REST API for one public repository, verify/addons, from a real git repository.
-// The seeded users' linked GitHub accounts hold <token>, which can push to it.
+// Usage: bun fake-github.ts <port> <token>, run by launch.sh. Serves verify/addons from a real git
+// repository; <token> is the seeded users' linked GitHub token.
 import { serveGitHub } from '../../../../apps/web/tests/helpers/github';
 
 const REPOSITORY = 'verify/addons';

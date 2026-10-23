@@ -4,9 +4,9 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '~/componen
 import ReviewDecisionDialog from '~/components/review/review-decision-dialog';
 import ManifestDiffTable from '~/components/review/manifest-diff-table';
 import ChangelogSections from '~/components/changelog-sections';
+import { getBundleUrl, shortSha } from '~/lib/github-urls';
 import SourcePinLink from '~/components/source-pin-link';
 import type { ReviewEntry } from '~/lib/review-entry';
-import { getBundleUrl, shortSha } from '~/lib/github-urls';
 import UserAvatar from '~/components/user-avatar';
 import { Button } from '~/components/ui/button';
 import Text from '~/components/ui/text';

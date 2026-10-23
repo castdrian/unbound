@@ -1,5 +1,5 @@
-import { createSubmissionRequestSchema } from '@unbound-app/contracts/publish';
 import { submissionPreviewResponseSchema } from '@unbound-app/contracts/review';
+import { createSubmissionRequestSchema } from '@unbound-app/contracts/publish';
 import { z } from 'zod';
 
 import { previewSubmission } from '~/lib/submissions';

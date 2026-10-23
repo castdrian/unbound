@@ -24,7 +24,7 @@
     },
     "apps/sdk-generator": {
       "name": "@unbound-app/sdk-generator",
-      "version": "0.7.0",
+      "version": "0.8.4",
       "dependencies": {
         "@unbound-app/logger": "workspace:*",
       },
@@ -87,7 +87,7 @@
     },
     "packages/api": {
       "name": "@unbound-app/api",
-      "version": "0.8.3",
+      "version": "0.8.4",
       "devDependencies": {
         "@unbound-app/client": "workspace:*",
         "@unbound-app/sdk-generator": "workspace:*",
@@ -101,7 +101,7 @@
     },
     "packages/cli": {
       "name": "@unbound-app/cli",
-      "version": "0.8.3",
+      "version": "0.8.4",
       "bin": {
         "ubd": "src/index.ts",
       },
@@ -129,7 +129,7 @@
     },
     "packages/client": {
       "name": "@unbound-app/client",
-      "version": "0.8.3",
+      "version": "0.8.4",
       "dependencies": {
         "@unbound-app/contracts": "workspace:*",
         "@unbound-app/debugger-protocol": "workspace:*",
@@ -277,7 +277,7 @@
     },
     "packages/utils": {
       "name": "@unbound-app/utils",
-      "version": "0.7.0",
+      "version": "0.8.4",
       "dependencies": {
         "@unbound-app/types": "workspace:*",
       },

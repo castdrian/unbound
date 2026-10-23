@@ -233,6 +233,7 @@ describe('glob compatibility with node:fs/promises glob', () => {
 				'themes/*',
 				...fromTemplates,
 				'{plugins,themes}/*',
+				'**',
 				'packages/**',
 				'addons/?ello',
 			]),
@@ -247,6 +248,13 @@ describe('glob compatibility with node:fs/promises glob', () => {
 				}
 			}
 
+			const globstarRoot =
+				pattern === '**' ? '' : pattern.endsWith('/**') ? pattern.slice(0, -3) : undefined;
+
+			if (globstarRoot !== undefined && dirs.includes(globstarRoot)) {
+				expected.add(globstarRoot);
+			}
+
 			expect(expected.size).toBeGreaterThan(0);
 
 			const config = workspaceConfigSchema.parse({ addons: [pattern] });
@@ -256,5 +264,14 @@ describe('glob compatibility with node:fs/promises glob', () => {
 				dirs: [...expected].sort(),
 			});
 		}
+	});
+
+	test('a globstar includes its root directory when no child segment is required', () => {
+		const config = workspaceConfigSchema.parse({ addons: ['packages/**'] });
+
+		expect(matchAddonDirs(config, false, ['packages', 'packages/client'])).toEqual([
+			'packages',
+			'packages/client',
+		]);
 	});
 });

@@ -70,7 +70,7 @@ export function matchAddonDirs(
 		const globstarRoot =
 			pattern === '**' ? '' : pattern.endsWith('/**') ? pattern.slice(0, -3) : undefined;
 
-		return (dir: string) => isMatch(dir) && dir !== globstarRoot;
+		return (dir: string) => isMatch(dir) || dir === globstarRoot;
 	});
 
 	return [

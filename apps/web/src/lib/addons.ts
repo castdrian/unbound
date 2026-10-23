@@ -13,16 +13,17 @@ import type {
 	TransferAddonRequest,
 } from '@unbound-app/contracts/addons';
 import { addonIdSchema, type PublishedManifest } from '@unbound-app/contracts/manifest';
+import type { RepositoryDetails } from '@unbound-app/contracts/source';
 import { and, desc, eq, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { OPEN_SUBMISSION_STATUSES, toSubmission } from '~/lib/submissions';
+import type { AddonVersionRow, VersionSubmission } from '~/lib/artifacts';
 import { addon, addonMaintainer, addonVersion } from '~/db/schema';
-import type { AddonVersionRow } from '~/lib/artifacts';
+import { VERSION_SOURCE, toAddonVersion } from '~/lib/artifacts';
 import { requirePermission } from '~/lib/api/caller';
 import { likeContains } from '~/lib/like-contains';
 import type { Transaction } from '~/db/database';
-import { toAddonVersion } from '~/lib/artifacts';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
 import { ApiError } from '~/lib/api/errors';
@@ -38,6 +39,10 @@ export type AddonDetails = {
 	/** Newest first. */
 	versions: AddonVersion[];
 	maintainers: Maintainer[];
+	/** The newest version's ADDON.md, or `null` when it has none or predates GitHub sources. */
+	addonMd: string | null;
+	/** The newest version's GitHub details, or `null` when it predates GitHub sources. */
+	details: RepositoryDetails | null;
 };
 
 type MaintainerRow = Pick<typeof addonMaintainer.$inferSelect, 'role' | 'createdAt'> & {
@@ -46,7 +51,9 @@ type MaintainerRow = Pick<typeof addonMaintainer.$inferSelect, 'role' | 'created
 
 type ListingCursor = [value: string | number, id: string];
 
-type ListedAddonRow = Pick<AddonRow, 'id' | 'type'> & { versions: AddonVersionRow[] };
+type SourcedVersionRow = AddonVersionRow & { submission: VersionSubmission | null };
+
+type ListedAddonRow = Pick<AddonRow, 'id' | 'type'> & { versions: SourcedVersionRow[] };
 
 type ManifestTypeFields = Pick<PublishedManifest, 'type' | 'main'>;
 
@@ -68,7 +75,9 @@ const CURSOR_SCHEMAS = {
 } satisfies Record<AddonSort, z.ZodType<ListingCursor>>;
 
 /** The relational `with` that loads an addon's newest version. */
-export const LATEST_VERSION = { versions: { orderBy: { versionKey: 'desc' }, limit: 1 } } as const;
+export const LATEST_VERSION = {
+	versions: { orderBy: { versionKey: 'desc' }, limit: 1, with: VERSION_SOURCE },
+} as const;
 
 /**
  * @description Serializes an addon row for the API.
@@ -437,7 +446,13 @@ function toListedAddons(ctx: AppContext, rows: ListedAddonRow[]): ListedAddon[] 
 		const [latest] = row.versions;
 
 		return latest
-			? [{ id: row.id, type: row.type, latestVersion: toAddonVersion(ctx.env, latest) }]
+			? [
+					{
+						id: row.id,
+						type: row.type,
+						latestVersion: toAddonVersion(ctx.env, latest, latest.submission),
+					},
+				]
 			: [];
 	});
 }
@@ -495,17 +510,26 @@ export async function getAddonDetails(
 ): Promise<AddonDetails | undefined> {
 	const row = await ctx.db.query.addon.findFirst({
 		where: { id, delistedAt: { isNull: true } },
-		with: { versions: { orderBy: { versionKey: 'desc' } }, maintainers: MAINTAINERS },
+		with: {
+			versions: { orderBy: { versionKey: 'desc' }, with: VERSION_SOURCE },
+			maintainers: MAINTAINERS,
+		},
 	});
 
 	if (!row) return;
+
+	const latest = row.versions[0]?.submission?.source;
 
 	return {
 		id: row.id,
 		type: row.type,
 		createdAt: row.createdAt.toISOString(),
-		versions: row.versions.map((version) => toAddonVersion(ctx.env, version)),
+		versions: row.versions.map((version) =>
+			toAddonVersion(ctx.env, version, version.submission),
+		),
 		maintainers: toMaintainers(row.maintainers),
+		addonMd: latest?.addonMd ?? null,
+		details: latest?.details ?? null,
 	};
 }
 
@@ -544,7 +568,7 @@ export async function listMyAddons(ctx: AppContext, caller: Caller): Promise<MyA
 			{
 				...toAddon(row),
 				role,
-				latestVersion: latest ? toAddonVersion(ctx.env, latest) : null,
+				latestVersion: latest ? toAddonVersion(ctx.env, latest, latest.submission) : null,
 				openSubmissions: open
 					.filter((entry) => entry.addonId === row.id && entry.kind === 'update')
 					.map(toSubmission),

@@ -1,13 +1,44 @@
+import {
+	addon,
+	addonMaintainer,
+	addonVersion,
+	submission,
+	submissionSource,
+	user,
+} from '~/db/schema';
 import type { PublishedManifest } from '@unbound-app/contracts/manifest';
+import type { RepositoryDetails } from '@unbound-app/contracts/source';
 import { eq } from 'drizzle-orm';
 
-import { addon, addonMaintainer, addonVersion, submission, user } from '~/db/schema';
 import { refreshAddonSummary, toAddonSummary } from '~/lib/addons';
 import type { SubmissionRow } from '~/lib/submissions';
 import type { AppContext } from '~/lib/context';
 import { toVersionRow } from '~/lib/review';
 
 type SubmissionInsert = typeof submission.$inferInsert;
+
+/** A seeded version's GitHub source: any `submission_source` column, plus the submission's repository. */
+export type SourceSeed = Partial<Omit<typeof submissionSource.$inferInsert, 'submissionId'>> & {
+	repository?: string;
+};
+
+/** GitHub details for seeded sources. */
+export const REPOSITORY_DETAILS: RepositoryDetails = {
+	description: 'Addons by Acme.',
+	homepage: null,
+	tags: ['discord'],
+	license: 'MIT',
+	stars: 3,
+	defaultBranch: 'main',
+	htmlUrl: 'https://github.com/acme/addons',
+	readmeUrl: null,
+	contributors: [{ login: 'acme', contributions: 10 }],
+	latestRelease: null,
+};
+
+function sha1(value: string): string {
+	return new Bun.CryptoHasher('sha1').update(value).digest('hex');
+}
 
 /**
  * @description Builds a valid manifest for tests.
@@ -84,6 +115,8 @@ export async function seedSubmission(
  * @param published The approved manifest.
  * @param sha256 The bundle's SHA-256; defaults to a digest of the version for tests that never
  * download the bundle.
+ * @param source The version's GitHub source; omitted, the version is a legacy upload with a text
+ * changelog.
  * @returns The approved submission row.
  */
 export async function seedVersion(
@@ -91,13 +124,42 @@ export async function seedVersion(
 	authorId: string,
 	published: PublishedManifest,
 	sha256: string = new Bun.CryptoHasher('sha256').update(published.version).digest('hex'),
+	source?: SourceSeed,
 ): Promise<SubmissionRow> {
-	const row = await seedSubmission(ctx, authorId, published, { status: 'approved', sha256 });
+	const { repository = 'acme/addons', ...columns } = source ?? {};
+	const row = await seedSubmission(ctx, authorId, published, {
+		status: 'approved',
+		sha256,
+		...(source ? { repository, changelog: null } : {}),
+	});
+	const path = columns.path ?? 'plugins/hello';
 
 	ctx.db.transaction((tx) => {
 		tx.insert(addonVersion)
 			.values(toVersionRow(row, sha256, ctx.now()))
 			.run();
+
+		if (source) {
+			tx.insert(submissionSource)
+				.values({
+					submissionId: row.id,
+					repositoryId: 1,
+					path,
+					ref: 'main',
+					commitSha: sha1(row.id),
+					bundlePath: `${path}/dist/index.js`,
+					bundleBlobSha: sha1(`${row.id}/bundle`),
+					addonMd: `# ${published.name}`,
+					changelog: {
+						date: '2026-10-17',
+						sections: [{ type: 'added', items: [`Changes in ${published.version}.`] }],
+					},
+					details: REPOSITORY_DETAILS,
+					...columns,
+				})
+				.run();
+		}
+
 		refreshAddonSummary(tx, published.id);
 	});
 
@@ -110,12 +172,14 @@ export async function seedVersion(
  * @param ctx The application context.
  * @param ownerId The owner.
  * @param published The first approved manifest.
+ * @param source The first version's GitHub source; omitted, it is a legacy upload.
  * @returns The approved submission row.
  */
 export async function seedApprovedAddon(
 	ctx: AppContext,
 	ownerId: string,
 	published: PublishedManifest,
+	source?: SourceSeed,
 ): Promise<SubmissionRow> {
 	await ctx.db.insert(addon).values({
 		id: published.id,
@@ -127,5 +191,5 @@ export async function seedApprovedAddon(
 		.values({ addonId: published.id, userId: ownerId, role: 'owner' });
 	await ctx.db.update(user).set({ role: 'developer' }).where(eq(user.id, ownerId));
 
-	return seedVersion(ctx, ownerId, published);
+	return seedVersion(ctx, ownerId, published, undefined, source);
 }

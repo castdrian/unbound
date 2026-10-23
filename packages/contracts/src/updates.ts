@@ -26,6 +26,7 @@ export const addonReleaseSchema = z.extend(
 		bundleUrl: true,
 		sha256: true,
 		changelog: true,
+		changes: true,
 	}),
 	{ id: addonIdSchema },
 );
@@ -36,6 +37,7 @@ export const MAX_UPDATE_CHANGELOGS = 20;
 export const versionChangelogSchema = z.pick(addonVersionSchema, {
 	version: true,
 	changelog: true,
+	changes: true,
 	publishedAt: true,
 });
 

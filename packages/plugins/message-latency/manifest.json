@@ -23,7 +23,8 @@
 		"native.objc.ivars",
 		"native.objc.hooks",
 		"native.fabric.mount",
-		"native.fabric.async"
+		"native.fabric.async",
+		"native.runtime.events"
 	],
 	"minNativePluginApi": "1.0.0",
 	"main": "index.tsx"

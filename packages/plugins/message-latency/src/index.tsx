@@ -11,6 +11,7 @@ import type {
 	NativeHookToken,
 	NativeObjCBridge,
 	NativeObjectHandle,
+	NativeRuntimeBridge,
 	NativeViewSnapshotNode,
 	PluginContext,
 } from '@unbound-app/api/native';
@@ -164,6 +165,7 @@ let users: { getCurrentUser?: () => { id?: string } | null } | null = null;
 let themeStore: ThemeStore | null = null;
 let objc: NativeObjCBridge | null = null;
 let fabric: NativeFabricBridge | null = null;
+let nativeRuntime: NativeRuntimeBridge | null = null;
 let started = false;
 let activeTooltip: NativeObjectHandle | null = null;
 let activeTooltipSurface: NativeFabricSurface | null = null;
@@ -1239,6 +1241,12 @@ function onMessageCreate(event: Record<string, unknown>): void {
 
 function subscribeToMessageCreate(): void {
 	if (removeMessageCreateListener) return;
+	if (nativeRuntime) {
+		const token = nativeRuntime.subscribe('message.created', onMessageCreate);
+		removeMessageCreateListener = () => token.remove();
+		return;
+	}
+
 	const dispatcher = metro.findByProps('dispatch', 'subscribe') as Dispatcher | null;
 	if (!dispatcher?.subscribe || !dispatcher.unsubscribe) return;
 	dispatcher.subscribe('MESSAGE_CREATE', onMessageCreate);
@@ -1357,6 +1365,7 @@ async function cleanup(): Promise<void> {
 	started = false;
 	objc = null;
 	fabric = null;
+	nativeRuntime = null;
 }
 
 export default {
@@ -1366,6 +1375,9 @@ export default {
 		lifecycle++;
 		objc = context?.native.objc ?? null;
 		fabric = context?.native.fabric ?? null;
+		nativeRuntime = context?.capabilities?.includes('native.runtime.events')
+			? context.native.runtime
+			: null;
 		waitForMessageRows();
 	},
 	stop(): Promise<void> {

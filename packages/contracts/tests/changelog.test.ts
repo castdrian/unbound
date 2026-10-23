@@ -1,13 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { VersionChangelog } from '../src/changelog';
-
 import {
 	changelogSectionSchema,
 	formatChangelogIssues,
+	formatChangelogText,
 	parseChangelog,
 	selectRelease,
-	versionChangelogSchema,
 } from '../src/changelog';
 
 const VALID = `# Changelog
@@ -259,13 +257,35 @@ describe('changelog wire schemas', () => {
 
 		expect(changelogSectionSchema.safeParse({ type: 'added', items }).success).toBe(false);
 	});
+});
 
-	test('accepts both version changelog formats', () => {
-		const sections: VersionChangelog = { format: 'sections', date: '2026-05-01', sections: [] };
-		const text: VersionChangelog = { format: 'text', text: 'Fixed things.' };
+describe('formatChangelogText', () => {
+	test('renders each section as a labelled block of bullets, separated by a blank line', () => {
+		const text = formatChangelogText({
+			date: '2026-05-01',
+			sections: [
+				{ type: 'added', items: ['Dark mode.', 'A settings page.'] },
+				{ type: 'fixed', items: ['A crash on launch.'] },
+			],
+		});
 
-		expect(versionChangelogSchema.parse(sections)).toEqual(sections);
-		expect(versionChangelogSchema.parse(text)).toEqual(text);
-		expect(versionChangelogSchema.safeParse({ format: 'html', text: '' }).success).toBe(false);
+		expect(text).toBe(
+			'Added:\n- Dark mode.\n- A settings page.\n\nFixed:\n- A crash on launch.',
+		);
+	});
+
+	test('renders a parsed release in change type order', () => {
+		const release = selectRelease(
+			parseChangelog('## [1.0.0]\n### Removed\n- Old API.\n### Changed\n- New API.\n'),
+			'1.0.0',
+		);
+
+		expect(release && formatChangelogText(release)).toBe(
+			'Changed:\n- New API.\n\nRemoved:\n- Old API.',
+		);
+	});
+
+	test('is null for a release with no sections', () => {
+		expect(formatChangelogText({ date: null, sections: [] })).toBeNull();
 	});
 });

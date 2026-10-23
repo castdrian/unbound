@@ -1,9 +1,11 @@
 import type { reviewDecisionSchema } from './publish';
 
+import { repositoryDetailsSchema, sourcePinSchema } from './source';
 import { submissionKindSchema, submissionSchema } from './publish';
 import { addonVersionSchema, sha256Schema } from './addons';
 import { addonManifestSchema } from './manifest';
 import { userSummarySchema } from './account';
+import { changelogSchema } from './changelog';
 import { z } from './zod';
 
 const noteSchema = z.string().check(z.trim(), z.minLength(1), z.maxLength(10_000));
@@ -38,6 +40,28 @@ export const reviewQueueResponseSchema = z.object({
 	submissions: z.array(reviewQueueItemSchema),
 });
 
+/** What a submission read from its source: what the reviewer sees and approval publishes. */
+export const submissionContentSchema = z.object({
+	/** `main` names the published bundle. */
+	manifest: addonManifestSchema,
+	bundleSize: z.int().check(z.positive()),
+	sha256: sha256Schema,
+	addonMd: z.nullable(z.string()),
+	/** The entry for `manifest.version`, or `null` when the addon has no CHANGELOG.md. */
+	changelog: z.nullable(changelogSchema),
+	details: repositoryDetailsSchema,
+});
+
+/** What submitting the same request would create, without creating it. */
+export const submissionPreviewSchema = z.extend(submissionContentSchema, {
+	kind: submissionKindSchema,
+	source: sourcePinSchema,
+});
+
+export const submissionPreviewResponseSchema = z.object({
+	preview: submissionPreviewSchema,
+});
+
 export const reviewSubmissionRequestSchema = z.discriminatedUnion('decision', [
 	z.object({
 		decision: z.enum(['approved'] satisfies z.infer<typeof reviewDecisionSchema>[]),
@@ -59,6 +83,9 @@ export const reviewSubmissionResponseSchema = z.object({
 export type ReviewQueueQuery = z.infer<typeof reviewQueueQuerySchema>;
 export type ReviewQueueItem = z.infer<typeof reviewQueueItemSchema>;
 export type ReviewQueueResponse = z.infer<typeof reviewQueueResponseSchema>;
+export type SubmissionContent = z.infer<typeof submissionContentSchema>;
+export type SubmissionPreview = z.infer<typeof submissionPreviewSchema>;
+export type SubmissionPreviewResponse = z.infer<typeof submissionPreviewResponseSchema>;
 export type ReviewSubmissionRequest = z.infer<typeof reviewSubmissionRequestSchema>;
 export type ReviewSubmissionResponse = z.infer<typeof reviewSubmissionResponseSchema>;
 
@@ -66,6 +93,9 @@ export default {
 	reviewQueueQuerySchema,
 	reviewQueueItemSchema,
 	reviewQueueResponseSchema,
+	submissionContentSchema,
+	submissionPreviewSchema,
+	submissionPreviewResponseSchema,
 	reviewSubmissionRequestSchema,
 	reviewSubmissionResponseSchema,
 };

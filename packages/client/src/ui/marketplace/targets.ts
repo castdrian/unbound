@@ -95,7 +95,7 @@ export async function updateListed(kind: ManagerKind, addon: ListedAddon): Promi
 	}
 
 	const manager = getManager(kind);
-	const { version, manifestUrl, bundleUrl, sha256, changelog } = addon.latestVersion;
+	const { version, manifestUrl, bundleUrl, sha256, changelog, changes } = addon.latestVersion;
 
 	await manager.update(addon.id, {
 		id: addon.id,
@@ -104,6 +104,7 @@ export async function updateListed(kind: ManagerKind, addon: ListedAddon): Promi
 		bundleUrl,
 		sha256,
 		changelog,
+		changes,
 	});
 
 	return manager.getEntity(addon.id)?.data.version === version;

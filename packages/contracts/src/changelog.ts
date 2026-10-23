@@ -18,16 +18,9 @@ export const changelogSchema = z.object({
 	sections: z.array(changelogSectionSchema).check(z.maxLength(changeTypeSchema.options.length)),
 });
 
-/** A version's changelog on the wire: parsed sections for sourced versions, free text for legacy ones. */
-export const versionChangelogSchema = z.discriminatedUnion('format', [
-	z.extend(changelogSchema, { format: z.literal('sections') }),
-	z.object({ format: z.literal('text'), text: z.string() }),
-]);
-
 export type ChangeType = z.infer<typeof changeTypeSchema>;
 export type ChangelogSection = z.infer<typeof changelogSectionSchema>;
 export type Changelog = z.infer<typeof changelogSchema>;
-export type VersionChangelog = z.infer<typeof versionChangelogSchema>;
 
 /** A problem on one 1-based line of the file. */
 export type ChangelogIssue = {
@@ -39,6 +32,14 @@ export type ChangelogIssue = {
 export type ParsedChangelog = {
 	releases: Map<string, Changelog>;
 	issues: ChangelogIssue[];
+};
+
+/** The heading each change type is written under. */
+export const CHANGE_LABELS: Record<ChangeType, string> = {
+	added: 'Added',
+	changed: 'Changed',
+	fixed: 'Fixed',
+	removed: 'Removed',
 };
 
 const MAX_ITEMS = 50;
@@ -133,6 +134,23 @@ export function formatChangelogIssues(
 	file: string = 'CHANGELOG.md',
 ): string {
 	return issues.map((issue) => `${file}:${issue.line}: ${issue.message}`).join('\n');
+}
+
+/**
+ * @description Renders a release's sections as plain text: per section a label line such as `Added:`, then `- item` lines.
+ * @param changelog The release's entry.
+ * @returns The sections' blocks separated by a blank line, or `null` when the release lists no sections.
+ */
+export function formatChangelogText(changelog: Changelog): string | null {
+	if (changelog.sections.length === 0) return null;
+
+	return changelog.sections
+		.map((section) =>
+			[`${CHANGE_LABELS[section.type]}:`, ...section.items.map((item) => `- ${item}`)].join(
+				'\n',
+			),
+		)
+		.join('\n\n');
 }
 
 function parseLine(parser: Parser, raw: string, line: number) {
@@ -342,8 +360,9 @@ export default {
 	changeTypeSchema,
 	changelogSectionSchema,
 	changelogSchema,
-	versionChangelogSchema,
+	CHANGE_LABELS,
 	parseChangelog,
 	selectRelease,
 	formatChangelogIssues,
+	formatChangelogText,
 };

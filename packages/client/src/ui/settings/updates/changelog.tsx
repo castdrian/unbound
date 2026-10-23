@@ -9,12 +9,15 @@ import { Icons } from '~/api/assets';
 
 import { shortDate } from './format';
 
+/** What an addon's and a loader release's skipped versions share. */
+type ChangelogEntry = Pick<VersionChangelog, 'version' | 'changelog' | 'publishedAt'>;
+
 type ChangelogProps = {
 	name: string;
 	icon: number | undefined;
 	installed: string;
 	offered: string;
-	changelogs: VersionChangelog[];
+	changelogs: ChangelogEntry[];
 	children: ReactNode;
 };
 

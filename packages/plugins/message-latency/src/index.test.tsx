@@ -599,6 +599,7 @@ describe('message row and native lifecycle', () => {
 		const synchronousSelectors: string[] = [];
 		const surfaces: Handle[] = [];
 		const unmounted: Handle[] = [];
+		const runtimeContext = nativeContext();
 		let pauseMount = false;
 		let releaseMount: ((surface: Handle) => void) | null = null;
 		let icon: Handle | null = null;
@@ -630,7 +631,9 @@ describe('message row and native lifecycle', () => {
 			return null;
 		};
 		const context = {
+			capabilities: runtimeContext.capabilities,
 			native: {
+				runtime: runtimeContext.native.runtime,
 				objc: {
 					alloc: (name: string) => {
 						const handle = createHandle(name);
@@ -689,17 +692,13 @@ describe('message row and native lifecycle', () => {
 			},
 		};
 		plugin.start(context as Parameters<typeof plugin.start>[0]);
-		afterHandler?.({
-			args: [
-				{
-					message: {
-						author: { id: 'other' },
-						id: messageId,
-						nonce: snowflake(DISCORD_EPOCH + 17_000),
-					},
-				},
-			],
-			result: { message: { username: 'dylib.dev' } },
+		expect(runtimeSubscribedEvents).toEqual(['message.created']);
+		runtimeEventListener?.({
+			message: {
+				author: { id: 'other', username: 'dylib.dev' },
+				id: messageId,
+				nonce: snowflake(DISCORD_EPOCH + 17_000),
+			},
 		});
 		handlers.get('didMoveToWindow')?.after?.({ self: cell });
 		await Bun.sleep(10);

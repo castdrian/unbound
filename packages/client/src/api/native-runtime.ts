@@ -75,7 +75,6 @@ export type {
 	PluginContext,
 } from '@unbound-app/types/native';
 
-/** The text encodings accepted by the native `DCDFileManager` read/write operations. */
 export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
 
 /** The constant directory paths exposed by the native `DCDFileManager`. */
@@ -806,7 +805,7 @@ function createScopedNativePlugin(
 		className: scopeMethod(
 			objcBridge.className.bind(objcBridge),
 			capabilityRequirements.className,
-		),
+		) as NativeObjCBridge['className'],
 		respondsTo: scopeMethod(
 			objcBridge.respondsTo.bind(objcBridge),
 			capabilityRequirements.respondsTo,
@@ -863,11 +862,11 @@ function createScopedNativePlugin(
 		createAssociationKey: scopeMethod(
 			objcBridge.createAssociationKey.bind(objcBridge),
 			capabilityRequirements.createAssociationKey,
-		),
+		) as NativeObjCBridge['createAssociationKey'],
 		getAssociatedObject: scopeMethod(
 			objcBridge.getAssociatedObject.bind(objcBridge),
 			capabilityRequirements.getAssociatedObject,
-		),
+		) as NativeObjCBridge['getAssociatedObject'],
 		setAssociatedObject: ((handle, key, value, policy) => {
 			scopeMethod(
 				objcBridge.setAssociatedObject.bind(objcBridge),
@@ -960,7 +959,7 @@ function createScopedNativePlugin(
 					tokens.delete(token);
 				},
 			};
-		},
+		}) as NativeObjCBridge['hook'],
 	};
 
 	const ffi: NativeFFIBridge = {

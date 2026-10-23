@@ -183,6 +183,103 @@ describe('Addons.reload', () => {
 		expect(manager.contexts[0]?.disposed).toBe(true);
 	});
 
+	test('keeps a native scope alive until asynchronous plugin cleanup finishes', async () => {
+		const manifest = makeManifest('async-stop');
+
+		manager.seed({
+			id: manifest.id,
+			data: manifest,
+			bundle: 'old',
+			instance: null,
+			started: false,
+			failed: false,
+		});
+		manager.start(manifest.id);
+		const entity = manager.getEntity(manifest.id)!;
+		const context = manager.contexts[0]!;
+		let finishCleanup: (() => void) | undefined;
+		const cleanup = new Promise<void>((resolve) => {
+			finishCleanup = resolve;
+		});
+
+		entity.instance = { stop: () => cleanup };
+
+		const stopping = manager.stop(entity);
+
+		expect(stopping).toBeInstanceOf(Promise);
+		expect(context.disposed).toBe(false);
+		finishCleanup!();
+		await stopping;
+
+		expect(context.disposed).toBe(true);
+		expect(entity.started).toBe(false);
+	});
+
+	test('restarts an addon enabled while asynchronous cleanup is pending', async () => {
+		const manifest = makeManifest('restart-stop');
+
+		manager.seed({
+			id: manifest.id,
+			data: manifest,
+			bundle: 'old',
+			instance: null,
+			started: false,
+			failed: false,
+		});
+		manager.start(manifest.id);
+		const entity = manager.getEntity(manifest.id)!;
+		const firstContext = manager.contexts[0]!;
+		let finishCleanup: (() => void) | undefined;
+		const cleanup = new Promise<void>((resolve) => {
+			finishCleanup = resolve;
+		});
+
+		entity.instance = { stop: () => cleanup };
+
+		const stopping = manager.stop(entity);
+
+		manager.enable(entity);
+		finishCleanup!();
+		await stopping;
+
+		expect(firstContext.disposed).toBe(true);
+		expect(manager.contexts).toHaveLength(2);
+		expect(entity.started).toBe(true);
+	});
+
+	test('does not restart an addon disabled during asynchronous cleanup', async () => {
+		const manifest = makeManifest('disable-stop');
+
+		manager.seed({
+			id: manifest.id,
+			data: manifest,
+			bundle: 'old',
+			instance: null,
+			started: false,
+			failed: false,
+		});
+		manager.start(manifest.id);
+		const entity = manager.getEntity(manifest.id)!;
+		const context = manager.contexts[0]!;
+		let finishCleanup: (() => void) | undefined;
+		const cleanup = new Promise<void>((resolve) => {
+			finishCleanup = resolve;
+		});
+
+		entity.instance = { stop: () => cleanup };
+
+		const stopping = manager.stop(entity);
+
+		manager.enable(entity);
+		manager.disable(entity);
+		finishCleanup!();
+		await stopping;
+
+		expect(context.disposed).toBe(true);
+		expect(manager.contexts).toHaveLength(1);
+		expect(entity.started).toBe(false);
+	});
+
 	test('a plugin start failure disposes the context before recording the error', () => {
 		const manifest = makeManifest('h');
 

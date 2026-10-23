@@ -125,7 +125,6 @@ export type DCDFileManagerConstants = {
 	CacheDirPath: string;
 	DocumentsDirPath: string;
 };
-/** The text encodings accepted by the native `DCDFileManager` read/write operations. */
 export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
 /** The native `DCDFileManager` module surface for reading, writing, and inspecting files. */
 export type DCDFileManagerType = {

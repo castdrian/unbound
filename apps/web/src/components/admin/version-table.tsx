@@ -8,7 +8,6 @@ type VersionTableProps = {
 	addonId: string;
 	/** Newest first, withdrawn ones included. */
 	versions: AdminVersion[];
-	/** Whether the viewer may change which version is served. */
 	canServe: boolean;
 };
 

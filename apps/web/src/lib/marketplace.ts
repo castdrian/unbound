@@ -34,7 +34,6 @@ export type MarketplaceAddon = {
 	manifestUrl: string;
 };
 
-/** The addon row's display fields, which a staff edit may have pinned over the manifest's. */
 type ListedAddonFields = Pick<ListedAddon, 'id' | 'type' | 'name' | 'description'>;
 
 export type MarketplacePage = {

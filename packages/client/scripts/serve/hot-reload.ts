@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, watch } from 'node:fs';
+import { mkdirSync, readFileSync, watchFile } from 'node:fs';
 import Logger from '@unbound-app/logger';
 import { join } from 'node:path';
 
@@ -93,31 +93,24 @@ export function handleHot(req: Request): Response {
 }
 
 /**
- * @description Watches `dist/` for bundle writes and broadcasts a reload when the content hash
+ * @description Polls the build manifest and broadcasts a reload when the bundle's content hash
  * changes, recomputing it even with no clients connected so a later-connecting client catches up.
- * @returns The `FSWatcher`, so the caller can close it on shutdown.
+ * Polling survives the build recreating `dist/`, which drops directory watchers.
+ * @returns The `StatWatcher`, so the caller can stop it on shutdown.
  */
 export function watchBundle() {
 	mkdirSync(DIST_DIR, { recursive: true });
 
-	// Debounced because the bundle write can fire `watch` more than once per build.
-	let watchTimer: ReturnType<typeof setTimeout> | null = null;
+	return watchFile(join(DIST_DIR, MANIFEST_NAME), { interval: WATCH_DEBOUNCE }, () => {
+		const next = bundleEtag();
+		if (!next || next === etag) return;
 
-	return watch(DIST_DIR, (_event, filename) => {
-		if (filename !== MANIFEST_NAME) return;
-		if (watchTimer) clearTimeout(watchTimer);
+		etag = next;
 
-		watchTimer = setTimeout(() => {
-			const next = bundleEtag();
-			if (next === etag) return;
+		if (hotClients.size === 0) return;
 
-			etag = next;
-
-			if (hotClients.size === 0) return;
-
-			logger.info(`Bundle changed - reloading ${hotClients.size} client(s).`);
-			broadcast();
-		}, WATCH_DEBOUNCE);
+		logger.info(`Bundle changed - reloading ${hotClients.size} client(s).`);
+		broadcast();
 	});
 }
 

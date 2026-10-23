@@ -2,7 +2,10 @@
 
 export type {
 	NativeAssociationKey,
+	NativeBatchReference,
+	NativeBatchStep,
 	NativeCallOptions,
+	NativeCancelablePromise,
 	NativeClassHandle,
 	NativeFFIBridge,
 	NativeFFISignature,
@@ -17,6 +20,9 @@ export type {
 	NativeHookHandlers,
 	NativeHookOptions,
 	NativeHookToken,
+	NativeMediaAsset,
+	NativeMediaBridge,
+	NativeMediaPickerOptions,
 	NativeObjCBridge,
 	NativeObjectHandle,
 	NativePlatformBridge,
@@ -25,8 +31,20 @@ export type {
 	NativePluginError,
 	NativePluginErrorCode,
 	NativePointer,
+	NativeRuntimeBridge,
+	NativeRuntimeEventName,
+	NativeRuntimeEventToken,
+	NativeSerializableObject,
 	NativeStruct,
 	NativeThreadPolicy,
+	NativeUIBridge,
+	NativeUIHandle,
+	NativeUIQuery,
+	NativeUISnapshot,
+	NativeUISnapshotNode,
+	NativeViewSearchOptions,
+	NativeViewSnapshotNode,
+	NativeViewSnapshotOptions,
 	PluginContext,
 } from './_internal';
 import type { NativePlatformBridge, NativePluginCapability } from './_internal';
@@ -39,6 +57,10 @@ export declare class NativePluginCapabilityError extends Error {
 }
 export declare class NativePluginDisposedError extends Error {
 	readonly code = 'NATIVE_PLUGIN_SCOPE_DISPOSED';
+	constructor();
+}
+export declare class NativePluginPlatformError extends Error {
+	readonly code = 'NATIVE_PLUGIN_PLATFORM_UNSUPPORTED';
 	constructor();
 }
 export declare class NativePluginUnavailableError extends Error {
@@ -103,7 +125,6 @@ export type DCDFileManagerConstants = {
 	CacheDirPath: string;
 	DocumentsDirPath: string;
 };
-/** The text encodings accepted by the native `DCDFileManager` read/write operations. */
 export type DCDFileManagerEncoding = 'utf-8' | 'utf8' | 'base64';
 /** The native `DCDFileManager` module surface for reading, writing, and inspecting files. */
 export type DCDFileManagerType = {

@@ -3,15 +3,27 @@ import type { AddonManifest } from './addons';
 export const NATIVE_PLUGIN_CAPABILITIES = [
 	'native.objc.classes',
 	'native.objc.invoke',
+	'native.objc.invokeAsync',
+	'native.objc.batch',
+	'native.objc.snapshot',
 	'native.objc.ivars',
 	'native.objc.associations',
 	'native.objc.hooks',
 	'native.ffi.symbols',
 	'native.ffi.call',
 	'native.fabric.mount',
+	'native.fabric.async',
+	'native.runtime.events',
+	'native.ui.lookup',
+	'native.ui.mount',
+	'native.ui.layout',
+	'native.media.pick',
+	'native.media.access',
 ] as const;
 
 export type NativePluginCapability = (typeof NATIVE_PLUGIN_CAPABILITIES)[number];
+
+export type NativePluginPlatform = 'ios' | 'android';
 
 declare const nativeHandle: unique symbol;
 
@@ -51,6 +63,42 @@ export type NativeSerializableObject = {
 };
 
 export type NativeThreadPolicy = 'current' | 'main';
+
+export type NativeCancelablePromise<T> = Promise<T> & { cancel(): void };
+
+export type NativeBatchReference = {
+	readonly $nativeBatchResult: number;
+};
+
+export type NativeBatchStep = {
+	target: NativeObjectHandle | NativeBatchReference;
+	selector: string;
+	args: unknown[];
+};
+
+export type NativeViewSnapshotOptions = {
+	maxDepth?: number;
+	maxNodes?: number;
+};
+
+export type NativeViewSearchOptions = {
+	maxDepth?: number;
+	maxVisited?: number;
+	maxResults?: number;
+	attachedOnly?: boolean;
+	stopAtMatch?: boolean;
+	direction?: 'ancestors' | 'descendants';
+};
+
+export type NativeViewSnapshotNode = {
+	view: NativeObjectHandle;
+	parent: number;
+	depth: number;
+	className: string;
+	frame: NativeFabricFrame;
+	text: string | null;
+	visible: boolean;
+};
 
 export type NativeCallOptions = {
 	thread?: NativeThreadPolicy;
@@ -110,6 +158,8 @@ export type NativeHookToken = {
 	setReturnValue(self: NativeObjectHandle, args: unknown[], value: unknown): void;
 	removeReturnValue(self: NativeObjectHandle, args: unknown[]): void;
 	clearReturnValues(): void;
+	setSizeHeightFloor(self: NativeObjectHandle, args: unknown[], floor: number): void;
+	removeSizeHeightFloor(self: NativeObjectHandle, args: unknown[]): void;
 	remove(): void;
 };
 
@@ -134,6 +184,21 @@ export type NativeObjCBridge = {
 		args: unknown[],
 		options?: NativeCallOptions,
 	): unknown;
+	invokeAsync(
+		handle: NativeObjectHandle,
+		selector: string,
+		args: unknown[],
+	): NativeCancelablePromise<unknown>;
+	batch(steps: readonly NativeBatchStep[]): NativeCancelablePromise<unknown[]>;
+	snapshot(
+		root: NativeObjectHandle,
+		options?: NativeViewSnapshotOptions,
+	): NativeCancelablePromise<NativeViewSnapshotNode[]>;
+	findViews(
+		root: NativeObjectHandle,
+		className: string,
+		options?: NativeViewSearchOptions,
+	): NativeCancelablePromise<NativeObjectHandle[]>;
 	// UNKNOWN: returns whatever the Objective-C method returns, bridged to JS.
 	invokeSuper(
 		handle: NativeObjectHandle,
@@ -142,6 +207,12 @@ export type NativeObjCBridge = {
 		args: unknown[],
 		options?: NativeCallOptions,
 	): unknown;
+	invokeSuperAsync(
+		handle: NativeObjectHandle,
+		currentClass: NativeClassHandle | string,
+		selector: string,
+		args: unknown[],
+	): NativeCancelablePromise<unknown>;
 	// UNKNOWN: an ivar holds whatever type its Objective-C declaration says.
 	getIvar(handle: NativeObjectHandle, name: string): unknown;
 	// UNKNOWN: an ivar holds whatever type its Objective-C declaration says.
@@ -196,22 +267,130 @@ export type NativeFabricBridge = {
 		moduleName: string,
 		properties?: NativeSerializableObject,
 	): NativeFabricSurface;
+	mountAsync(
+		container: NativeObjectHandle,
+		moduleName: string,
+		properties?: NativeSerializableObject,
+	): NativeCancelablePromise<NativeFabricSurface>;
 	update(surface: NativeFabricSurface, properties: NativeSerializableObject): void;
+	updateAsync(
+		surface: NativeFabricSurface,
+		properties: NativeSerializableObject,
+	): NativeCancelablePromise<void>;
 	setSize(
 		surface: NativeFabricSurface,
 		minimumSize: NativeFabricSize,
 		maximumSize: NativeFabricSize,
 	): void;
+	setSizeAsync(
+		surface: NativeFabricSurface,
+		minimumSize: NativeFabricSize,
+		maximumSize: NativeFabricSize,
+	): NativeCancelablePromise<void>;
 	setFrame(surface: NativeFabricSurface, frame: NativeFabricFrame): void;
+	setFrameAsync(
+		surface: NativeFabricSurface,
+		frame: NativeFabricFrame,
+	): NativeCancelablePromise<void>;
 	measure(view: NativeObjectHandle): NativeFabricFrame;
+	measureAsync(view: NativeObjectHandle): NativeCancelablePromise<NativeFabricFrame>;
 	unmount(surface: NativeFabricSurface): void;
+	unmountAsync(surface: NativeFabricSurface): NativeCancelablePromise<void>;
+};
+
+export type NativeRuntimeEventName =
+	| 'message.created'
+	| 'message.updated'
+	| 'message.deleted'
+	| 'reaction.updated'
+	| 'channel.changed'
+	| 'composer.changed'
+	| 'ui.changed';
+
+export type NativeRuntimeEventToken = {
+	readonly active: boolean;
+	remove(): void;
+};
+
+export type NativeRuntimeBridge = {
+	subscribe(
+		event: NativeRuntimeEventName,
+		listener: (payload: NativeSerializableObject) => void,
+	): NativeRuntimeEventToken;
+};
+
+export type NativeUIHandle = NativeHandle;
+
+export type NativeUIQuery = {
+	role: string;
+	root?: NativeUIHandle;
+	attributes?: NativeSerializableObject;
+	maxDepth?: number;
+	maxNodes?: number;
+	maxResults?: number;
+};
+
+export type NativeUISnapshotNode = {
+	id: NativeUIHandle;
+	parent: NativeUIHandle | null;
+	role: string;
+	frame: NativeFabricFrame | null;
+	attributes: NativeSerializableObject;
+};
+
+export type NativeUISnapshot = {
+	generation: number;
+	nodes: NativeUISnapshotNode[];
+};
+
+export type NativeUIBridge = {
+	lookup(query: NativeUIQuery): NativeCancelablePromise<NativeUIHandle[]>;
+	snapshot(query: NativeUIQuery): NativeCancelablePromise<NativeUISnapshot>;
+	mount(
+		container: NativeUIHandle,
+		moduleName: string,
+		properties?: NativeSerializableObject,
+	): NativeCancelablePromise<NativeUIHandle>;
+	update(
+		handle: NativeUIHandle,
+		properties: NativeSerializableObject,
+	): NativeCancelablePromise<void>;
+	setFrame(handle: NativeUIHandle, frame: NativeFabricFrame): NativeCancelablePromise<void>;
+	measure(handle: NativeUIHandle): NativeCancelablePromise<NativeFabricFrame>;
+	unmount(handle: NativeUIHandle): NativeCancelablePromise<void>;
+};
+
+export type NativeMediaAsset = {
+	uri: string;
+	fileName: string;
+	mimeType: string;
+	fileSize: number;
+	width?: number;
+	height?: number;
+	duration?: number;
+};
+
+export type NativeMediaPickerOptions = {
+	mediaTypes: ('image' | 'video')[];
+	maximumSelectionCount?: number;
+};
+
+export type NativeMediaBridge = {
+	pick(options: NativeMediaPickerOptions): NativeCancelablePromise<NativeMediaAsset[]>;
+	inspect(uri: string): NativeCancelablePromise<NativeMediaAsset>;
+	copy(uri: string, destinationName: string): NativeCancelablePromise<NativeMediaAsset>;
+	read(uri: string, maximumBytes: number): NativeCancelablePromise<ArrayBuffer>;
 };
 
 export type NativePlatformDevice = {
+	readonly platform: NativePluginPlatform;
 	getDeviceModel(): string;
-	getiOSVersionString(): string;
-	isJailbroken(): boolean;
+	getOSVersionString(): string;
+	isRooted(): boolean;
 	isSystemApp(): boolean;
+};
+
+export type NativePlatformIOSBridge = {
 	isVerifiedBuild(): boolean;
 	getEntitlements(): NativeSerializableObject;
 	getEntitlementsAsPlist(): string;
@@ -222,10 +401,12 @@ export type NativePlatformApp = {
 };
 
 export type NativePlatformBridge = {
+	readonly platform: NativePluginPlatform;
 	// UNKNOWN: returns the completion value of arbitrary evaluated bytecode.
 	evaluateBytecode(bytecode: ArrayBuffer, tag?: string): unknown;
 	readonly device: NativePlatformDevice;
 	readonly app: NativePlatformApp;
+	readonly ios?: NativePlatformIOSBridge;
 };
 
 export type NativePluginBridge = {
@@ -235,7 +416,16 @@ export type NativePluginBridge = {
 	readonly objc: NativeObjCBridge;
 	readonly ffi: NativeFFIBridge;
 	readonly fabric: NativeFabricBridge;
+	readonly runtime: NativeRuntimeBridge;
+	readonly ui: NativeUIBridge;
+	readonly media: NativeMediaBridge;
 };
+
+export type NativePluginRuntimeBridge = Pick<
+	NativePluginBridge,
+	'apiVersion' | 'abiVersion' | 'capabilities'
+> &
+	Partial<Omit<NativePluginBridge, 'apiVersion' | 'abiVersion' | 'capabilities'>>;
 
 export type NativePluginErrorCode =
 	| 'NATIVE_BRIDGE_ERROR'
@@ -253,6 +443,7 @@ export type NativePluginError = {
 export type PluginContext = {
 	readonly manifest: AddonManifest;
 	readonly id: string;
+	readonly platform?: NativePluginPlatform;
 	readonly capabilities: readonly NativePluginCapability[];
 	readonly native: NativePluginBridge;
 	dispose(): void;

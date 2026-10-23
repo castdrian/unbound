@@ -153,6 +153,8 @@ describe('updatesResponseSchema', () => {
 		bundleUrl: 'https://cdn.example.test/addons/a/1.1.0/index.js',
 		sha256,
 		changelog: null,
+		changes: null,
+		changelogs: [],
 	};
 
 	test('parses an update entry', () => {

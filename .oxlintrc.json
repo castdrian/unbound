@@ -33,7 +33,13 @@
 			{ "alias": "~/", "aliasRoots": ["packages/*/src", "apps/*/src"] }
 		]
 	},
-	"ignorePatterns": ["dist", "*.gen.ts", "packages/api/src/**", "packages/cli/templates/**"],
+	"ignorePatterns": [
+		"dist",
+		"*.gen.ts",
+		"packages/api/src/**",
+		"packages/cli/templates/**",
+		"packages/plugins/**"
+	],
 	"overrides": [
 		{
 			"files": ["packages/client/src/api/metro/**", "packages/types/typings/components.ts"],

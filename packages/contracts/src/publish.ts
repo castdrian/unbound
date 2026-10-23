@@ -1,4 +1,5 @@
 import { addonIdSchema, addonManifestSchema } from './manifest';
+import { repositorySchema } from './source';
 import { z } from './zod';
 
 /** `listing` claims a new addon id; `update` publishes a new version of an addon the caller maintains. */
@@ -23,16 +24,6 @@ export const openSubmissionStatusSchema = z.enum([
 	'pending_review',
 	'changes_requested',
 ] satisfies SubmissionStatus[]);
-
-/** A GitHub repository as `owner/name`. */
-export const repositorySchema = z
-	.string()
-	.check(
-		z.regex(
-			/^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/,
-			'Must be a GitHub owner/name.',
-		),
-	);
 
 /** The statuses a reviewer's decision moves a pending submission to. */
 export const reviewDecisionSchema = z.enum([
@@ -111,7 +102,6 @@ export default {
 	submissionKindSchema,
 	submissionStatusSchema,
 	openSubmissionStatusSchema,
-	repositorySchema,
 	reviewDecisionSchema,
 	submissionReviewSchema,
 	submissionSchema,

@@ -1,31 +1,23 @@
-import type { PublishedManifest } from '@unbound-app/contracts/manifest';
+import { formatChangelogIssues, parseChangelog } from '@unbound-app/contracts/changelog';
+import { createSubmissionResponseSchema } from '@unbound-app/contracts/publish';
 import { addonManifestSchema } from '@unbound-app/contracts/manifest';
 import type { Submission } from '@unbound-app/contracts/publish';
-import { getBundleName } from '@unbound-app/contracts/workspace';
-import { readFileSync, existsSync, openAsBlob } from 'node:fs';
-import { publishArtifact } from '@unbound-app/web/publish';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 
+import type { GitSource, GitSourceOverrides } from '~/lib/git';
 import type { DiscoveredAddon } from '~/lib/discovery';
 import { createClient } from '~/lib/api-client';
+import { readGitSource } from '~/lib/git';
 import type { Env } from '~/lib/env';
 
-export type PublishOptions = {
+export type PublishOptions = GitSourceOverrides & {
 	env: Env;
 	addon: DiscoveredAddon;
-	/** The GitHub `owner/name` the addon is built from, verified against the linked GitHub account. */
-	repository?: string;
-	changelog?: string;
 };
 
-type Artifact = {
-	manifest: PublishedManifest;
-	bundlePath: string;
-};
-
-// The bundle is served next to the manifest, so the published `main` names the built bundle.
-function readArtifact(addon: DiscoveredAddon): Artifact {
+function readVersion(addon: DiscoveredAddon): string {
 	const path = join(addon.dir, 'manifest.json');
 	const parsed = addonManifestSchema.safeParse(JSON.parse(readFileSync(path, 'utf8')));
 
@@ -33,33 +25,47 @@ function readArtifact(addon: DiscoveredAddon): Artifact {
 		throw new Error(`Invalid ${path}:\n${z.prettifyError(parsed.error)}`);
 	}
 
-	const main = getBundleName(addon.static, parsed.data.main);
+	return parsed.data.version;
+}
 
-	return { manifest: { ...parsed.data, main }, bundlePath: join(addon.output, main) };
+// The server runs the same parser on the committed file; failing here saves a round trip.
+function checkChangelog(addon: DiscoveredAddon, source: GitSource) {
+	const file = join(addon.dir, 'CHANGELOG.md');
+
+	if (!existsSync(file)) return;
+
+	const path = source.path ? `${source.path}/CHANGELOG.md` : 'CHANGELOG.md';
+	const parsed = parseChangelog(readFileSync(file, 'utf8'));
+
+	if (parsed.issues.length > 0) {
+		throw new Error(formatChangelogIssues(parsed.issues, path));
+	}
+
+	const version = readVersion(addon);
+
+	if (!parsed.releases.has(version)) {
+		throw new Error(`${path} has no entry for ${version}.`);
+	}
 }
 
 /**
- * @description Publishes a built addon for review: opens a submission (the server refuses it, before
- * anything is uploaded, when the bundle is over its size limit or a spam gate applies), uploads the
- * bundle to the presigned URL and finalizes the submission.
- * @param options The environment, the addon and the submission details.
+ * @description Submits an addon for review from the commit checked out in its directory. The server
+ * reads the manifest, the committed bundle, ADDON.md and CHANGELOG.md from GitHub at that commit, so
+ * nothing is built or uploaded. Uncommitted changes and an invalid CHANGELOG.md are refused first.
+ * @param options The environment, the addon and the repository and ref to name instead of git's.
  * @returns The submission, pending review.
  */
-export async function publish({
-	env,
-	addon,
-	repository,
-	changelog,
-}: PublishOptions): Promise<Submission> {
-	const { manifest, bundlePath } = readArtifact(addon);
+export async function publish({ env, addon, ...overrides }: PublishOptions): Promise<Submission> {
+	const source = readGitSource(addon.dir, overrides);
 
-	if (!existsSync(bundlePath)) {
-		throw new Error(`Built bundle not found at ${bundlePath}. Build ${addon.id} first.`);
-	}
+	checkChangelog(addon, source);
 
-	const bundle = await openAsBlob(bundlePath);
+	const { submission } = await createClient(env)('POST /api/v1/submissions', {
+		body: source,
+		response: createSubmissionResponseSchema,
+	});
 
-	return publishArtifact(createClient(env), { manifest, bundle, repository, changelog });
+	return submission;
 }
 
 export default publish;

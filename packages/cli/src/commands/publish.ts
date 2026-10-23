@@ -5,7 +5,6 @@ import { z } from 'zod';
 
 import type { DiscoveredAddon } from '~/lib/discovery';
 import { discoverAddons } from '~/lib/discovery';
-import { buildAddon } from '~/lib/build-addon';
 import { loadConfig } from '~/lib/config';
 import { publish } from '~/lib/publish';
 import { parseEnv } from '~/lib/env';
@@ -15,40 +14,35 @@ const schema = z.object({
 		.string()
 		.optional()
 		.describe('The id of the addon to publish; required when the workspace has several.'),
-	skipBuild: z
-		.boolean()
-		.default(false)
-		.describe('Publish the existing build output instead of building first.'),
+	ref: z
+		.string()
+		.optional()
+		.describe(
+			'The branch, tag or commit to submit; defaults to the tag on HEAD, else its SHA.',
+		),
 	repository: z
 		.string()
 		.optional()
-		.describe('The GitHub owner/name the addon is built from, to verify its source.'),
-	changelog: z.string().optional().describe('What changed in this version.'),
+		.describe('The GitHub repository to submit from; defaults to the `origin` remote.'),
 });
 
 const publishCommand: CommandDefinition<typeof schema> = {
 	name: 'publish',
 	description:
-		'Build an addon and submit it for review on Unbound. Authenticates with UNBOUND_API_KEY when ' +
-		'set, otherwise with the `ubd login` session.',
+		'Submit the committed and pushed addon for review on Unbound; its build output must be ' +
+		'committed. Authenticates with UNBOUND_API_KEY when set, otherwise with the `ubd login` session.',
 	surfaces: { cli: 'root', mcp: false },
 	schema,
-	async handler({ addon: id, skipBuild, repository, changelog }) {
+	async handler({ addon: id, ref, repository }) {
 		try {
 			const env = parseEnv();
-			const resolved = loadConfig();
-			const addon = selectAddon(await discoverAddons(resolved), id);
-
-			if (!skipBuild && !(await buildAddon(addon, resolved.config.build))) {
-				return { ok: false, text: `Failed to build ${addon.id}.` };
-			}
-
-			const submission = await publish({ env, addon, repository, changelog });
-			const source = submission.unverifiedSource ? ' (unverified source)' : '';
+			const addon = selectAddon(await discoverAddons(loadConfig()), id);
+			const submission = await publish({ env, addon, repository, ref });
+			const { source } = submission;
 
 			return {
 				ok: true,
-				text: `Submitted ${submission.addonId} ${submission.version} as ${submission.kind} ${submission.id}${source}: ${submission.status}.`,
+				text: `Submitted ${submission.addonId} ${submission.version} (${submission.kind}) from ${source.repository}@${source.commitSha.slice(0, 7)}: ${submission.status}.`,
 				data: submission,
 			};
 		} catch (error) {

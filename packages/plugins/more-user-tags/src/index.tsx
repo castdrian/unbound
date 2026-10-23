@@ -143,6 +143,10 @@ function resolveTag(message: any, user: any, guild: any, channel: any): TagDefin
 	return null;
 }
 
+function normalizeTagColor(color: unknown, platform: PluginContext['platform']): unknown {
+	return platform === 'android' && typeof color === 'number' ? color | 0 : color;
+}
+
 function MoreUserTagsSettings() {
 	const state = STORE.useSettingsStore();
 
@@ -232,6 +236,8 @@ export default {
 				const { colors } = appearance;
 				const background = colors[0];
 				const { processColor } = metro.common.ReactNative;
+				const processTagColor = (color: string) =>
+					normalizeTagColor(processColor(color), context.platform);
 				const useOpTagStyle = STORE.get('useOpTagStyle', false);
 				const tagText = result.opTagText
 					? `${result.opTagText} · ${tag.displayName}`
@@ -252,8 +258,8 @@ export default {
 					if (!background) return tagged;
 					return {
 						...tagged,
-						opTagBackgroundColor: processColor(background),
-						opTagTextColor: processColor(getContrastingTextColor(colors)),
+						opTagBackgroundColor: processTagColor(background),
+						opTagTextColor: processTagColor(getContrastingTextColor(colors)),
 					};
 				}
 				const tagged = {
@@ -270,8 +276,8 @@ export default {
 
 				return {
 					...tagged,
-					tagBackgroundColor: processColor(background),
-					tagTextColor: processColor(getContrastingTextColor(colors)),
+					tagBackgroundColor: processTagColor(background),
+					tagTextColor: processTagColor(getContrastingTextColor(colors)),
 				};
 			} catch {}
 		});

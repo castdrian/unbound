@@ -2,10 +2,10 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
 import { API_KEY_HEADER, CLI_CLIENT_ID } from '~/api/client';
-import { rateLimit, user } from '~/db/schema';
+import { account, rateLimit, session, user } from '~/db/schema';
 import me from '~/endpoints/me';
 
-import { authRequest, createTestContext, signInWithDiscord } from './helpers/context';
+import { authRequest, createTestContext, linkGitHub, signInWithDiscord } from './helpers/context';
 
 const { ctx, close } = createTestContext();
 
@@ -74,6 +74,38 @@ describe('GitHub', () => {
 
 		expect(response.status).toBe(200);
 		expect(new URL((await response.json()).url).origin).toBe('https://github.com');
+	});
+
+	test('can be unlinked from a session signed in days ago', async () => {
+		const { userId, token, headers } = await signInWithDiscord(ctx, {
+			id: '80351110224678917',
+			name: 'Unlinker',
+			email: 'unlinker@example.com',
+		});
+		const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+
+		await linkGitHub(ctx, userId, 'github-token');
+		await ctx.db
+			.update(session)
+			.set({ createdAt: threeDaysAgo })
+			.where(eq(session.token, token));
+
+		const linked = await ctx.db.query.account.findFirst({
+			where: { userId, providerId: 'github' },
+			columns: { id: true },
+		});
+		const response = await authRequest(ctx, '/unlink-account', {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({ accountId: linked?.id }),
+		});
+		const providers = await ctx.db
+			.select({ providerId: account.providerId })
+			.from(account)
+			.where(eq(account.userId, userId));
+
+		expect(response.status).toBe(200);
+		expect(providers).toEqual([{ providerId: 'discord' }]);
 	});
 
 	test('linking requires a session', async () => {

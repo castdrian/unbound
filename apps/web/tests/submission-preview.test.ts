@@ -48,7 +48,6 @@ function manifestJson(id: string, version: string = '1.0.0') {
 	});
 }
 
-// Each test commits its own addon on its own branch, so tests never see each other's commits.
 function commitAddon(branch: string, id: string, files: Record<string, string | null> = {}) {
 	const dir = `plugins/${branch}`;
 

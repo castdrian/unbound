@@ -51,7 +51,6 @@ type UpdateRange = {
 	to: string;
 };
 
-/** An installed version, as an addon id and version key. */
 type InstalledVersion = {
 	addonId: string;
 	key: string;
@@ -141,10 +140,8 @@ async function withdrawnInstalls(
 }
 
 /**
- * @description Resolves the client's update check: for each installed addon that has a newer live
- * version compatible with the client, the newest such version, its CDN URLs, and the changelogs of
- * every version it skips over. A client on a version a rollback withdrew is offered the newest live
- * compatible version below it, with no changelogs. Unknown, delisted and up-to-date addons are left out.
+ * @description Resolves the client's update check: per listed addon, the newest live compatible version
+ * above the install with the changelogs it skips, or below a withdrawn install without them.
  * @param ctx The application context.
  * @param request The client version and installed addons.
  * @returns The available updates.
@@ -178,7 +175,6 @@ export async function findUpdates(
 		}
 	}
 
-	// Each follow-up statement runs only when needed, so an up-to-date check stays one statement.
 	const [changelogs, withdrawn] = await Promise.all([
 		newer.length > 0 ? changelogsFor(ctx, newer) : new Map<string, VersionChangelog[]>(),
 		ahead.length > 0 ? withdrawnInstalls(ctx, ahead) : new Set<string>(),

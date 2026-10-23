@@ -295,7 +295,6 @@ describe('staff notes', () => {
 			{ id: onAddon.id, userId: null, addonId: 'notes.subject' },
 		]);
 
-		// The request names one subject, so the API cannot build a row the CHECK rejects.
 		expect(z.safeParse(createStaffNoteRequestSchema, { body: 'No subject.' }).success).toBe(
 			false,
 		);
@@ -366,7 +365,6 @@ function resolveImport(from: string, specifier: string): string | undefined {
 	return EXTENSIONS.map((extension) => target + extension).find((path) => existsSync(path));
 }
 
-// Every source file the entries import, directly or through other source files.
 async function reachable(entries: string[]): Promise<Set<string>> {
 	const seen = new Set<string>();
 	const queue = [...entries];

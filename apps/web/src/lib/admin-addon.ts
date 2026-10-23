@@ -25,10 +25,10 @@ import { addon, addonMaintainer, user } from '~/db/schema';
 import type { AdminAddon } from '~/lib/admin-addons';
 import { requirePermission } from '~/lib/api/caller';
 import type { Permissions } from '~/lib/auth/access';
-import type { Transaction } from '~/db/database';
 import type { StaffNote } from '~/lib/staff-notes';
 import { listStaffNotes } from '~/lib/staff-notes';
 import { hasPermission } from '~/lib/auth/access';
+import type { Transaction } from '~/db/database';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
 import type { AddonRow } from '~/lib/addons';
@@ -49,10 +49,8 @@ export type ManifestSummary = {
 	type: AddonType;
 };
 
-/** Everything the edit form owns, as the form shows it: `null` follows the manifest. */
 type EditableState = Omit<EditAddonRequest, 'revision' | 'reason'>;
 
-/** What one submit of the edit form changes, by permission group. */
 type EditDiff = {
 	fields: FieldChange[];
 	delisted: boolean;
@@ -127,7 +125,6 @@ function toEditableState(row: AddonRow, members: MaintainerEntry[]): EditableSta
 	};
 }
 
-// Member order does not change what the state means, so it does not change the revision.
 function revisionOf(state: EditableState): string {
 	const canonical = { ...state, maintainers: byUserId(state.maintainers) };
 
@@ -164,7 +161,6 @@ function selectMembers(tx: Transaction, addonId: string): MaintainerEntry[] {
 		.all();
 }
 
-// Pins every field the edit gives a value, then lets the refresh re-derive the unpinned ones.
 function writeFields(tx: Transaction, addonId: string, edit: EditAddonRequest) {
 	const { name, description, type, repository } = edit;
 	let pinnedFields = 0;
@@ -310,10 +306,8 @@ export async function getAdminAddon(
 }
 
 /**
- * @description Applies the staff edit form: the difference between the addon's current state and
- * `edit`, in one transaction. Metadata changes need `addon:edit` and record one `addon.edited`;
- * delisting needs `addon:delist` and maintainer changes `addon:transfer`, and record their own events.
- * A submit that changes nothing writes nothing.
+ * @description Applies what the staff edit form changes, in one transaction; each changed group needs
+ * its own permission and records its own event.
  * @param ctx The application context.
  * @param caller The staff member.
  * @param id The addon id.

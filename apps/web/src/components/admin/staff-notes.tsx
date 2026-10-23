@@ -20,7 +20,6 @@ type StaffNotesProps = {
 	subject: Subject;
 	/** Newest first. */
 	notes: StaffNote[];
-	/** Whether the viewer may write notes and change their own. */
 	canWrite: boolean;
 };
 

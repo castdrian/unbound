@@ -3,7 +3,7 @@ import type {
 	UpdatesResponse,
 	VersionChangelog,
 } from '@unbound-app/contracts/updates';
-import { and, desc, eq, gt, inArray, isNull, lte, max, or } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, max, or } from 'drizzle-orm';
 import { MAX_UPDATE_CHANGELOGS } from '@unbound-app/contracts/updates';
 
 import { getArtifactKeys, getCdnUrl } from '~/lib/artifacts';
@@ -12,8 +12,8 @@ import { toVersionKey } from '~/lib/version-key';
 import type { AppContext } from '~/lib/context';
 
 /**
- * @description Builds the single statement that finds, per listed addon, its newest approved version
- * the client can run. SQLite fills the other selected columns from the row holding the `max()`.
+ * @description Builds the single statement that finds, per listed addon, its newest live version the
+ * client can run. SQLite fills the other selected columns from the row holding the `max()`.
  * @param ctx The application context.
  * @param request The client version and installed addons.
  * @returns The query, unexecuted.
@@ -37,6 +37,7 @@ export function newestCompatibleVersions(ctx: AppContext, request: UpdatesReques
 					request.addons.map((installed) => installed.id),
 				),
 				lte(addonVersion.minClientKey, toVersionKey(request.clientVersion)),
+				isNull(addonVersion.withdrawnBy),
 				isNull(addon.delistedAt),
 			),
 		)
@@ -50,8 +51,13 @@ type UpdateRange = {
 	to: string;
 };
 
+type InstalledVersion = {
+	addonId: string;
+	key: string;
+};
+
 /**
- * @description Reads the changelog of every version each update skips over, in one statement.
+ * @description Reads the changelog of every live version each update skips over, in one statement.
  * @param ctx The application context.
  * @param ranges The version range of each update.
  * @returns The changelogs keyed by addon id, newest first, at most `MAX_UPDATE_CHANGELOGS` each.
@@ -69,12 +75,15 @@ async function changelogsFor(
 		})
 		.from(addonVersion)
 		.where(
-			or(
-				...ranges.map((range) =>
-					and(
-						eq(addonVersion.addonId, range.addonId),
-						gt(addonVersion.versionKey, range.from),
-						lte(addonVersion.versionKey, range.to),
+			and(
+				isNull(addonVersion.withdrawnBy),
+				or(
+					...ranges.map((range) =>
+						and(
+							eq(addonVersion.addonId, range.addonId),
+							gt(addonVersion.versionKey, range.from),
+							lte(addonVersion.versionKey, range.to),
+						),
 					),
 				),
 			),
@@ -101,9 +110,38 @@ async function changelogsFor(
 }
 
 /**
- * @description Resolves the client's update check: for each installed addon that has a newer approved
- * version compatible with the client, the newest such version, its CDN URLs, and the changelogs of
- * every version it skips over. Unknown, delisted and up-to-date addons are left out.
+ * @description Reads which of the given installed versions a rollback withdrew, in one statement.
+ * @param ctx The application context.
+ * @param installed The installed versions newer than what the client can be served.
+ * @returns The addon ids whose installed version is withdrawn.
+ */
+async function withdrawnInstalls(
+	ctx: AppContext,
+	installed: InstalledVersion[],
+): Promise<Set<string>> {
+	const rows = await ctx.db
+		.select({ addonId: addonVersion.addonId })
+		.from(addonVersion)
+		.where(
+			and(
+				isNotNull(addonVersion.withdrawnBy),
+				or(
+					...installed.map((entry) =>
+						and(
+							eq(addonVersion.addonId, entry.addonId),
+							eq(addonVersion.versionKey, entry.key),
+						),
+					),
+				),
+			),
+		);
+
+	return new Set(rows.map((row) => row.addonId));
+}
+
+/**
+ * @description Resolves the client's update check: per listed addon, the newest live compatible version
+ * above the install with the changelogs it skips, or below a withdrawn install without them.
  * @param ctx The application context.
  * @param request The client version and installed addons.
  * @returns The available updates.
@@ -120,21 +158,31 @@ export async function findUpdates(
 		request.addons.map((entry) => [entry.id, toVersionKey(entry.version)]),
 	);
 	const rows = await newestCompatibleVersions(ctx, request);
-	const newer = rows.flatMap((row) => {
-		const from = installed.get(row.addonId) ?? '';
+	const newer: UpdateRange[] = [];
+	const ahead: InstalledVersion[] = [];
 
-		return row.versionKey && row.versionKey > from
-			? [{ ...row, from, to: row.versionKey }]
-			: [];
-	});
+	for (const { addonId, versionKey } of rows) {
+		const from = installed.get(addonId) ?? '';
 
-	if (newer.length === 0) {
-		return { updates: [] };
+		if (!versionKey) {
+			continue;
+		}
+
+		if (versionKey > from) {
+			newer.push({ addonId, from, to: versionKey });
+		} else if (versionKey < from) {
+			ahead.push({ addonId, key: from });
+		}
 	}
 
-	const changelogs = await changelogsFor(ctx, newer);
+	const [changelogs, withdrawn] = await Promise.all([
+		newer.length > 0 ? changelogsFor(ctx, newer) : new Map<string, VersionChangelog[]>(),
+		ahead.length > 0 ? withdrawnInstalls(ctx, ahead) : new Set<string>(),
+	]);
+	const newerIds = new Set(newer.map((range) => range.addonId));
+	const offered = rows.filter((row) => newerIds.has(row.addonId) || withdrawn.has(row.addonId));
 
-	const updates = newer.map((row) => {
+	const updates = offered.map((row) => {
 		const keys = getArtifactKeys(row.addonId, row.version, row.manifest.main);
 
 		return {

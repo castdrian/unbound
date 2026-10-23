@@ -1,3 +1,4 @@
+import { ADMIN_SEARCH_MAX_LENGTH, ADMIN_SEARCH_MIN_LENGTH } from '@unbound-app/contracts/admin';
 import { IconZoom } from '@tabler/icons-react';
 import type { FormEvent } from 'react';
 import { useState } from 'react';
@@ -16,7 +17,13 @@ function SearchForm({ search, placeholder, onSearch }: SearchFormProps) {
 
 	function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		onSearch(value.trim());
+
+		const trimmed = value.trim();
+
+		// `minLength` counts surrounding spaces, which the search contract trims away.
+		if (trimmed.length > 0 && trimmed.length < ADMIN_SEARCH_MIN_LENGTH) return;
+
+		onSearch(trimmed);
 	}
 
 	return (
@@ -27,6 +34,8 @@ function SearchForm({ search, placeholder, onSearch }: SearchFormProps) {
 				</InputGroupAddon>
 				<InputGroupInput
 					placeholder={placeholder}
+					minLength={ADMIN_SEARCH_MIN_LENGTH}
+					maxLength={ADMIN_SEARCH_MAX_LENGTH}
 					value={value}
 					onChange={(event) => setValue(event.target.value)}
 				/>

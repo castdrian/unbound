@@ -8,23 +8,27 @@ import type {
 	ListAddonsResponse,
 	ListedAddon,
 	Maintainer,
-	MaintainersResponse,
 	MyAddonsResponse,
-	TransferAddonRequest,
 } from '@unbound-app/contracts/addons';
 import { addonIdSchema, type PublishedManifest } from '@unbound-app/contracts/manifest';
-import { and, desc, eq, ne, or, sql } from 'drizzle-orm';
+import type { PinnableField } from '@unbound-app/contracts/admin';
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { OPEN_SUBMISSION_STATUSES, toSubmission } from '~/lib/submissions';
-import { addon, addonMaintainer, addonVersion } from '~/db/schema';
+import { afterKey, decodeCursor, toKeysetPage } from '~/lib/keyset';
+import { MAINTAINERS, toMaintainers } from '~/lib/maintainers';
+import type { ActionMeta } from '~/lib/moderation-events';
 import type { AddonVersionRow } from '~/lib/artifacts';
+import { appendEvent } from '~/lib/moderation-events';
 import { requirePermission } from '~/lib/api/caller';
 import { likeContains } from '~/lib/like-contains';
+import { addon, addonVersion } from '~/db/schema';
 import type { Transaction } from '~/db/database';
 import { toAddonVersion } from '~/lib/artifacts';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
+import type { CursorKey } from '~/lib/keyset';
 import { ApiError } from '~/lib/api/errors';
 
 export type AddonRow = typeof addon.$inferSelect;
@@ -34,26 +38,21 @@ export type AddonSummary = Pick<AddonRow, 'type' | 'name' | 'description' | 'upd
 export type AddonDetails = {
 	id: string;
 	type: AddonType;
+	name: string;
+	description: string;
 	createdAt: string;
-	/** Newest first. */
+	/** Newest first, withdrawn ones left out; the first is served. */
 	versions: AddonVersion[];
 	maintainers: Maintainer[];
 };
 
-type MaintainerRow = Pick<typeof addonMaintainer.$inferSelect, 'role' | 'createdAt'> & {
-	user: Pick<Maintainer, 'id' | 'name' | 'image'> | null;
+type ListedAddonRow = Pick<AddonRow, 'id' | 'type' | 'name' | 'description'> & {
+	versions: AddonVersionRow[];
 };
 
-type ListingCursor = [value: string | number, id: string];
-
-type ListedAddonRow = Pick<AddonRow, 'id' | 'type'> & { versions: AddonVersionRow[] };
+type PinnableColumn = (typeof addon)[PinnableField];
 
 type ManifestTypeFields = Pick<PublishedManifest, 'type' | 'main'>;
-
-const MAINTAINERS = {
-	with: { user: { columns: { id: true, name: true, image: true } } },
-	orderBy: { role: 'desc', createdAt: 'asc' },
-} as const;
 
 const SORT_COLUMNS = {
 	name: 'name',
@@ -65,10 +64,22 @@ const CURSOR_SCHEMAS = {
 	name: z.tuple([z.string(), addonIdSchema]),
 	created: z.tuple([z.int(), addonIdSchema]),
 	updated: z.tuple([z.int(), addonIdSchema]),
-} satisfies Record<AddonSort, z.ZodType<ListingCursor>>;
+} satisfies Record<AddonSort, z.ZodType<CursorKey>>;
 
-/** The relational `with` that loads an addon's newest version. */
-export const LATEST_VERSION = { versions: { orderBy: { versionKey: 'desc' }, limit: 1 } } as const;
+/** The `addon.pinned_fields` bit of each summary field a staff edit can own. */
+export const PINNED_FIELDS = {
+	name: 1 << 0,
+	description: 1 << 1,
+	type: 1 << 2,
+} as const satisfies Record<PinnableField, number>;
+
+/** Relational filter for the versions an addon can serve: the ones no rollback withdrew. */
+export const LIVE_VERSIONS = { withdrawnBy: { isNull: true } } as const;
+
+/** The relational `with` that loads the version an addon serves: its newest live version. */
+export const LATEST_VERSION = {
+	versions: { where: LIVE_VERSIONS, orderBy: { versionKey: 'desc' }, limit: 1 },
+} as const;
 
 /**
  * @description Serializes an addon row for the API.
@@ -81,22 +92,6 @@ export function toAddon(row: AddonRow): AddonResponse['addon'] {
 		createdAt: row.createdAt.toISOString(),
 		delistedAt: row.delistedAt?.toISOString() ?? null,
 	};
-}
-
-function toMaintainers(rows: MaintainerRow[]): Maintainer[] {
-	return rows.flatMap((row) =>
-		row.user
-			? [
-					{
-						id: row.user.id,
-						name: row.user.name,
-						image: row.user.image ?? null,
-						role: row.role,
-						addedAt: row.createdAt.toISOString(),
-					},
-				]
-			: [],
-	);
 }
 
 /**
@@ -123,276 +118,129 @@ export function toAddonSummary(manifest: PublishedManifest, publishedAt: Date): 
 	};
 }
 
+function unlessPinned(field: PinnableField, column: PinnableColumn, value: string) {
+	return sql`iif(${addon.pinnedFields} & ${PINNED_FIELDS[field]}, ${column}, ${value})`;
+}
+
 /**
- * @description Copies the addon's newest version's summary onto the addon row, after a version is
- * approved.
- * @param tx The approval transaction.
+ * @description Copies the summary of the version the addon serves onto the addon row, except the
+ * fields staff pinned.
+ * @param tx The approval, rollback or edit transaction.
  * @param addonId The addon id.
  */
 export function refreshAddonSummary(tx: Transaction, addonId: string) {
 	const latest = tx
 		.select({ manifest: addonVersion.manifest, publishedAt: addonVersion.publishedAt })
 		.from(addonVersion)
-		.where(eq(addonVersion.addonId, addonId))
+		.where(and(eq(addonVersion.addonId, addonId), isNull(addonVersion.withdrawnBy)))
 		.orderBy(desc(addonVersion.versionKey))
 		.limit(1)
 		.get();
 
 	if (!latest) {
-		throw new Error(`Addon ${addonId} has no approved version to summarize.`);
+		throw new Error(`Addon ${addonId} has no live version to summarize.`);
 	}
 
+	const summary = toAddonSummary(latest.manifest, latest.publishedAt);
+
 	tx.update(addon)
-		.set(toAddonSummary(latest.manifest, latest.publishedAt))
+		.set({
+			type: unlessPinned('type', addon.type, summary.type),
+			name: unlessPinned('name', addon.name, summary.name),
+			description: unlessPinned('description', addon.description, summary.description),
+			updatedAt: summary.updatedAt,
+		})
 		.where(eq(addon.id, addonId))
 		.run();
 }
 
-async function requireAddon(ctx: AppContext, id: string) {
-	const row = await ctx.db.query.addon.findFirst({ where: { id }, columns: { id: true } });
-
-	if (!row) {
-		throw new ApiError('not_found', `Addon ${id} does not exist.`);
+/**
+ * @description The one writer of an addon's delisted state, inside the caller's transaction. Moving to
+ * the state the addon is already in changes nothing and records nothing.
+ * @param tx The action's transaction.
+ * @param current The addon row as the transaction read it.
+ * @param delisted Whether the addon should be delisted.
+ * @param meta Who made the change, when and why.
+ * @returns The addon row after the change.
+ */
+export function writeDelisted(
+	tx: Transaction,
+	current: AddonRow,
+	delisted: boolean,
+	meta: ActionMeta,
+): AddonRow {
+	if ((current.delistedAt !== null) === delisted) {
+		return current;
 	}
-}
 
-async function requireUser(ctx: AppContext, userId: string) {
-	const target = await ctx.db.query.user.findFirst({
-		where: { id: userId },
-		columns: { id: true },
+	appendEvent(tx, {
+		...meta,
+		subject: { type: 'addon', id: current.id },
+		kind: delisted ? 'addon.delisted' : 'addon.relisted',
+		data: {},
 	});
 
-	if (!target) {
-		throw new ApiError('not_found', `User ${userId} does not exist.`);
-	}
+	return tx
+		.update(addon)
+		.set({ delistedAt: delisted ? meta.at : null })
+		.where(eq(addon.id, current.id))
+		.returning()
+		.get();
 }
 
-async function requireOwner(ctx: AppContext, caller: Caller, addonId: string) {
-	const membership = await ctx.db.query.addonMaintainer.findFirst({
-		where: { addonId, userId: caller.user.id },
-		columns: { role: true },
-	});
-
-	if (!membership) {
-		await requireAddon(ctx, addonId);
-
-		throw new ApiError('not_maintainer', `You are not a maintainer of ${addonId}.`);
-	}
-
-	if (membership.role !== 'owner') {
-		throw new ApiError('forbidden', `Only owners of ${addonId} can manage its maintainers.`);
-	}
-}
-
-/**
- * @description Lists the addon's maintainers, owners first.
- * @param ctx The application context.
- * @param addonId The addon id.
- * @returns The maintainers.
- */
-export async function listMaintainers(
-	ctx: AppContext,
-	addonId: string,
-): Promise<MaintainersResponse> {
-	const rows = await ctx.db.query.addonMaintainer.findMany({
-		where: { addonId },
-		...MAINTAINERS,
-	});
-
-	return { maintainers: toMaintainers(rows) };
-}
-
-/**
- * @description Adds a user as a maintainer of an addon the caller owns. Adding an existing member
- * changes nothing.
- * @param ctx The application context.
- * @param caller An owner of the addon.
- * @param addonId The addon id.
- * @param userId The user to add.
- * @returns The maintainers after the change.
- */
-export async function addMaintainer(
+function setDelisted(
 	ctx: AppContext,
 	caller: Caller,
 	addonId: string,
-	userId: string,
-): Promise<MaintainersResponse> {
-	await requireOwner(ctx, caller, addonId);
-	await requireUser(ctx, userId);
-
-	await ctx.db
-		.insert(addonMaintainer)
-		.values({ addonId, userId, role: 'maintainer', createdAt: ctx.now() })
-		.onConflictDoNothing();
-
-	return listMaintainers(ctx, addonId);
-}
-
-/**
- * @description Removes a maintainer from an addon the caller owns. An owner can only be removed while
- * another owner remains.
- * @param ctx The application context.
- * @param caller An owner of the addon.
- * @param addonId The addon id.
- * @param userId The member to remove.
- * @returns The maintainers after the change.
- */
-export async function removeMaintainer(
-	ctx: AppContext,
-	caller: Caller,
-	addonId: string,
-	userId: string,
-): Promise<MaintainersResponse> {
-	await requireOwner(ctx, caller, addonId);
-
-	ctx.db.transaction(
-		(tx) => {
-			const members = tx
-				.select({ userId: addonMaintainer.userId, role: addonMaintainer.role })
-				.from(addonMaintainer)
-				.where(eq(addonMaintainer.addonId, addonId))
-				.all();
-
-			const target = members.find((member) => member.userId === userId);
-
-			if (!target) {
-				throw new ApiError('not_found', `${userId} is not a maintainer of ${addonId}.`);
-			}
-
-			const owners = members.filter((member) => member.role === 'owner');
-
-			if (target.role === 'owner' && owners.length <= 1) {
-				throw new ApiError(
-					'last_owner',
-					`${addonId} needs another owner before its only owner can leave.`,
-				);
-			}
-
-			tx.delete(addonMaintainer)
-				.where(
-					and(eq(addonMaintainer.addonId, addonId), eq(addonMaintainer.userId, userId)),
-				)
-				.run();
-		},
-		{ behavior: 'immediate' },
-	);
-
-	return listMaintainers(ctx, addonId);
-}
-
-/**
- * @description Makes another user the addon's owner. The previous owner stays on as a maintainer
- * unless `keepPreviousOwner` is false. Requires `addon:transfer`.
- * @param ctx The application context.
- * @param caller The administrator.
- * @param addonId The addon id.
- * @param request The new owner and whether to keep the previous one.
- * @returns The maintainers after the transfer.
- */
-export async function transferAddon(
-	ctx: AppContext,
-	caller: Caller,
-	addonId: string,
-	request: TransferAddonRequest,
-): Promise<MaintainersResponse> {
-	requirePermission(caller, { addon: ['transfer'] });
-
-	await requireAddon(ctx, addonId);
-	await requireUser(ctx, request.userId);
-
-	const previous = and(
-		eq(addonMaintainer.addonId, addonId),
-		eq(addonMaintainer.role, 'owner'),
-		ne(addonMaintainer.userId, request.userId),
-	);
-
-	ctx.db.transaction(
-		(tx) => {
-			if (request.keepPreviousOwner) {
-				tx.update(addonMaintainer).set({ role: 'maintainer' }).where(previous).run();
-			} else {
-				tx.delete(addonMaintainer).where(previous).run();
-			}
-
-			tx.insert(addonMaintainer)
-				.values({ addonId, userId: request.userId, role: 'owner', createdAt: ctx.now() })
-				.onConflictDoUpdate({
-					target: [addonMaintainer.addonId, addonMaintainer.userId],
-					set: { role: 'owner' },
-				})
-				.run();
-		},
-		{ behavior: 'immediate' },
-	);
-
-	return listMaintainers(ctx, addonId);
-}
-
-async function setDelistedAt(
-	ctx: AppContext,
-	caller: Caller,
-	addonId: string,
-	delistedAt: Date | null,
-): Promise<AddonResponse> {
+	delisted: boolean,
+): AddonResponse {
 	requirePermission(caller, { addon: ['delist'] });
 
-	const [updated] = await ctx.db
-		.update(addon)
-		.set({ delistedAt })
-		.where(eq(addon.id, addonId))
-		.returning();
+	const row = ctx.db.transaction(
+		(tx) => {
+			const current = tx.select().from(addon).where(eq(addon.id, addonId)).get();
 
-	if (!updated) {
-		throw new ApiError('not_found', `Addon ${addonId} does not exist.`);
-	}
+			if (!current) {
+				throw new ApiError('not_found', `Addon ${addonId} does not exist.`);
+			}
 
-	return { addon: toAddon(updated) };
+			return writeDelisted(tx, current, delisted, { actorId: caller.user.id, at: ctx.now() });
+		},
+		{ behavior: 'immediate' },
+	);
+
+	return { addon: toAddon(row) };
 }
 
 /**
  * @description Hides an addon from listings and update checks. Its published files stay in the
- * public bucket so existing installs keep working. Requires `addon:delist`. Twin of {@link relistAddon}.
+ * public bucket so existing installs keep working. Delisting a delisted addon changes nothing.
+ * Requires `addon:delist`. Twin of {@link relistAddon}.
  * @param ctx The application context.
  * @param caller The moderator.
  * @param addonId The addon id.
  * @returns The addon.
  */
-export function delistAddon(
-	ctx: AppContext,
-	caller: Caller,
-	addonId: string,
-): Promise<AddonResponse> {
-	return setDelistedAt(ctx, caller, addonId, ctx.now());
+export function delistAddon(ctx: AppContext, caller: Caller, addonId: string): AddonResponse {
+	return setDelisted(ctx, caller, addonId, true);
 }
 
 /**
- * @description Lists a delisted addon again. Requires `addon:delist`. Twin of {@link delistAddon}.
+ * @description Lists a delisted addon again. Relisting a listed addon changes nothing. Requires
+ * `addon:delist`. Twin of {@link delistAddon}.
  * @param ctx The application context.
  * @param caller The moderator.
  * @param addonId The addon id.
  * @returns The addon.
  */
-export function relistAddon(
-	ctx: AppContext,
-	caller: Caller,
-	addonId: string,
-): Promise<AddonResponse> {
-	return setDelistedAt(ctx, caller, addonId, null);
+export function relistAddon(ctx: AppContext, caller: Caller, addonId: string): AddonResponse {
+	return setDelisted(ctx, caller, addonId, false);
 }
 
-function encodeCursor(row: AddonRow, sort: AddonSort): string {
+function listingKey(row: AddonRow, sort: AddonSort): CursorKey {
 	const value = row[SORT_COLUMNS[sort]];
-	const cursor: ListingCursor = [value instanceof Date ? value.getTime() : value, row.id];
 
-	return Buffer.from(JSON.stringify(cursor)).toString('base64url');
-}
-
-function decodeCursor(cursor: string, sort: AddonSort): ListingCursor {
-	try {
-		return CURSOR_SCHEMAS[sort].parse(JSON.parse(Buffer.from(cursor, 'base64url').toString()));
-	} catch {
-		throw new ApiError('invalid_request', `The cursor is not a ${sort} listing cursor.`);
-	}
+	return [value instanceof Date ? value.getTime() : value, row.id];
 }
 
 /**
@@ -405,7 +253,7 @@ function decodeCursor(cursor: string, sort: AddonSort): ListingCursor {
 export function queryListedAddons(ctx: AppContext, query: ListAddonsQuery = {}) {
 	const { type, q, sort = 'name', order = 'asc', cursor } = query;
 	const column = SORT_COLUMNS[sort];
-	const after = cursor ? decodeCursor(cursor, sort) : undefined;
+	const after = cursor ? decodeCursor(cursor, CURSOR_SCHEMAS[sort]) : undefined;
 
 	return ctx.db.query.addon.findMany({
 		where: {
@@ -416,9 +264,7 @@ export function queryListedAddons(ctx: AppContext, query: ListAddonsQuery = {}) 
 					q
 						? or(likeContains(table.name, q), likeContains(table.description, q))
 						: undefined,
-					after
-						? sql`(${table[column]}, ${table.id}) ${order === 'asc' ? sql`>` : sql`<`} (${after[0]}, ${after[1]})`
-						: undefined,
+					after ? afterKey([table[column], table.id], after, order) : undefined,
 				) ?? sql`true`,
 		},
 		with: LATEST_VERSION,
@@ -437,7 +283,15 @@ function toListedAddons(ctx: AppContext, rows: ListedAddonRow[]): ListedAddon[] 
 		const [latest] = row.versions;
 
 		return latest
-			? [{ id: row.id, type: row.type, latestVersion: toAddonVersion(ctx.env, latest) }]
+			? [
+					{
+						id: row.id,
+						type: row.type,
+						name: row.name,
+						description: row.description,
+						latestVersion: toAddonVersion(ctx.env, latest),
+					},
+				]
 			: [];
 	});
 }
@@ -452,16 +306,12 @@ export async function listAddons(
 	ctx: AppContext,
 	query: ListAddonsQuery = {},
 ): Promise<ListAddonsResponse> {
-	const size = ctx.env.ADDON_LIST_PAGE_SIZE;
 	const rows = await queryListedAddons(ctx, query);
-	const page = rows.slice(0, size);
-	const last = page.at(-1);
-	const addons = toListedAddons(ctx, page);
+	const page = toKeysetPage(rows, ctx.env.ADDON_LIST_PAGE_SIZE, query, (row) =>
+		listingKey(row, query.sort ?? 'name'),
+	);
 
-	return {
-		addons,
-		nextCursor: rows.length > size && last ? encodeCursor(last, query.sort ?? 'name') : null,
-	};
+	return { addons: toListedAddons(ctx, page.items), nextCursor: page.next };
 }
 
 /**
@@ -483,8 +333,8 @@ export async function getCatalog(ctx: AppContext): Promise<CatalogResponse> {
 }
 
 /**
- * @description Loads a listed addon for its public page: every approved version, newest first, and
- * its maintainers, owners first.
+ * @description Loads a listed addon for its public page: every approved version no rollback withdrew,
+ * newest first, and its maintainers, owners first.
  * @param ctx The application context.
  * @param id The addon id.
  * @returns The addon, or `undefined` when it does not exist or is delisted.
@@ -495,7 +345,10 @@ export async function getAddonDetails(
 ): Promise<AddonDetails | undefined> {
 	const row = await ctx.db.query.addon.findFirst({
 		where: { id, delistedAt: { isNull: true } },
-		with: { versions: { orderBy: { versionKey: 'desc' } }, maintainers: MAINTAINERS },
+		with: {
+			versions: { where: LIVE_VERSIONS, orderBy: { versionKey: 'desc' } },
+			maintainers: MAINTAINERS,
+		},
 	});
 
 	if (!row) return;
@@ -503,6 +356,8 @@ export async function getAddonDetails(
 	return {
 		id: row.id,
 		type: row.type,
+		name: row.name,
+		description: row.description,
 		createdAt: row.createdAt.toISOString(),
 		versions: row.versions.map((version) => toAddonVersion(ctx.env, version)),
 		maintainers: toMaintainers(row.maintainers),
@@ -558,15 +413,14 @@ export async function listMyAddons(ctx: AppContext, caller: Caller): Promise<MyA
 }
 
 export default {
+	PINNED_FIELDS,
+	LIVE_VERSIONS,
 	LATEST_VERSION,
 	toAddon,
 	getManifestType,
 	toAddonSummary,
 	refreshAddonSummary,
-	listMaintainers,
-	addMaintainer,
-	removeMaintainer,
-	transferAddon,
+	writeDelisted,
 	delistAddon,
 	relistAddon,
 	queryListedAddons,

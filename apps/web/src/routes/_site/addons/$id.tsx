@@ -1,6 +1,5 @@
-import { IconMoodEmpty, IconPalette, IconPlug } from '@tabler/icons-react';
 import { createFileRoute, Link, notFound } from '@tanstack/react-router';
-import { CHANGE_LABELS } from '@unbound-app/contracts/changelog';
+import { IconMoodEmpty } from '@tabler/icons-react';
 
 import {
 	Empty,
@@ -10,211 +9,53 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from '~/components/ui/empty';
-import type { MarketplaceAddonDetails, MarketplaceVersion } from '~/lib/marketplace';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
-import InstallAddonButton from '~/components/install-addon-button';
+import ContributorsCard from '~/components/addon/contributors-card';
+import MaintainersCard from '~/components/addon/maintainers-card';
+import VersionHistory from '~/components/addon/version-history';
+import AddonHeader from '~/components/addon/addon-header';
+import DetailsCard from '~/components/addon/details-card';
 import { fetchMarketplaceAddon } from '~/lib/marketplace';
-import Separator from '~/components/ui/separator';
-import UserAvatar from '~/components/user-avatar';
+import SourceCard from '~/components/addon/source-card';
 import { Button } from '~/components/ui/button';
-import UserBadge from '~/components/user-badge';
-import Text from '~/components/ui/text';
-
-type AddonProps = {
-	addon: MarketplaceAddonDetails;
-};
-
-type VersionChangelogProps = Pick<MarketplaceVersion, 'changelog' | 'changes'>;
-
-type VersionEntryProps = {
-	version: MarketplaceVersion;
-	latest: boolean;
-};
-
-type DetailRowProps = {
-	label: string;
-	value: string;
-};
-
-const DATE_FORMAT = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' });
-
-const TYPE_LABELS: Record<MarketplaceAddonDetails['type'], string> = {
-	plugin: 'Plugin',
-	theme: 'Theme',
-	'icon-pack': 'Icon Pack',
-	font: 'Font',
-};
-
-function formatDate(iso: string): string {
-	return DATE_FORMAT.format(new Date(iso));
-}
-
-function DetailRow({ label, value }: DetailRowProps) {
-	return (
-		<div className='flex justify-between gap-4'>
-			<Text variant='text-sm' color='muted'>
-				{label}
-			</Text>
-			<Text variant='text-sm' className='text-right break-all'>
-				{value}
-			</Text>
-		</div>
-	);
-}
-
-function VersionChangelog({ changelog, changes }: VersionChangelogProps) {
-	if (changes && changes.sections.length > 0) {
-		return (
-			<div className='flex flex-col gap-2'>
-				{changes.sections.map((section) => (
-					<div key={section.type} className='flex flex-col gap-1'>
-						<Text variant='text-sm' className='font-medium'>
-							{CHANGE_LABELS[section.type]}
-						</Text>
-						<Text
-							as='ul'
-							variant='text-sm'
-							color='muted'
-							className='flex flex-col gap-1 ml-4 list-disc'
-						>
-							{section.items.map((item) => (
-								<li key={item}>{item}</li>
-							))}
-						</Text>
-					</div>
-				))}
-			</div>
-		);
-	}
-
-	return (
-		<Text variant='text-sm' color='muted' className='whitespace-pre-wrap'>
-			{changelog ?? 'No changelog.'}
-		</Text>
-	);
-}
-
-function VersionEntry({ version, latest }: VersionEntryProps) {
-	return (
-		<div className='flex flex-col gap-2'>
-			<div className='flex items-center gap-2'>
-				<Text variant='heading-sm' as='h3'>
-					v{version.version}
-				</Text>
-				{latest ? (
-					<span className='bg-primary px-1.5 py-0.5 rounded-md text-primary-foreground text-xs'>
-						Latest
-					</span>
-				) : null}
-				<Text variant='text-xs' color='muted' className='ml-auto'>
-					{formatDate(version.publishedAt)}
-				</Text>
-			</div>
-			<VersionChangelog changelog={version.changelog} changes={version.changes} />
-		</div>
-	);
-}
-
-function AddonHeader({ addon }: AddonProps) {
-	return (
-		<div className='flex sm:flex-row flex-col sm:items-center gap-4'>
-			<div className='flex justify-center items-center bg-accent rounded-xl size-16 shrink-0'>
-				{addon.type === 'theme' ? (
-					<IconPalette className='size-8' />
-				) : (
-					<IconPlug className='size-8' />
-				)}
-			</div>
-			<div className='flex flex-col flex-1 gap-1 min-w-0'>
-				<Text variant='heading-lg' className='truncate'>
-					{addon.name}
-				</Text>
-				<Text variant='text-sm' color='muted'>
-					by {addon.authors.map((author) => author.name).join(', ')} · v{addon.version}
-				</Text>
-			</div>
-			<InstallAddonButton size='lg' type={addon.type} manifestUrl={addon.manifestUrl} />
-		</div>
-	);
-}
+import Markdown from '~/components/markdown';
 
 function AddonPage() {
 	const addon = Route.useLoaderData();
-	const [latest] = addon.versions;
+	const { source } = addon;
 
 	return (
-		<div className='flex flex-col flex-1 gap-6 md:mx-auto mb-12 px-4 w-full container'>
+		<div className='flex flex-col flex-1 gap-8 md:mx-auto mb-12 px-4 w-full container'>
 			<AddonHeader addon={addon} />
-			<Text variant='text-md' color='muted'>
-				{addon.description}
-			</Text>
 
-			<div className='gap-6 grid grid-cols-1 md:grid-cols-3'>
-				<Card className='md:col-span-2'>
-					<CardHeader>
-						<CardTitle>Version History</CardTitle>
-					</CardHeader>
-					<CardContent className='flex flex-col gap-4'>
-						{addon.versions.map((version, index) => (
-							<div key={version.version} className='flex flex-col gap-4'>
-								{index > 0 ? <Separator /> : null}
-								<VersionEntry version={version} latest={version === latest} />
-							</div>
-						))}
-					</CardContent>
-				</Card>
-
-				<div className='flex flex-col gap-6'>
-					<Card>
-						<CardHeader>
-							<CardTitle>Details</CardTitle>
-						</CardHeader>
-						<CardContent className='flex flex-col gap-2'>
-							<DetailRow label='Type' value={TYPE_LABELS[addon.type]} />
-							<DetailRow label='ID' value={addon.id} />
-							<DetailRow label='Version' value={addon.version} />
-							<DetailRow label='Listed' value={formatDate(addon.createdAt)} />
-							{addon.minClientVersion ? (
-								<DetailRow
-									label='Requires Unbound'
-									value={`${addon.minClientVersion} or newer`}
-								/>
-							) : null}
-							{addon.capabilities.length > 0 ? (
-								<DetailRow
-									label='Native capabilities'
-									value={addon.capabilities.join(', ')}
-								/>
-							) : null}
-						</CardContent>
-					</Card>
+			<div className='items-start gap-6 grid grid-cols-1 lg:grid-cols-3'>
+				<div className='flex flex-col gap-6 lg:col-span-2 min-w-0'>
+					{source?.addonMd ? (
+						<Card>
+							<CardContent>
+								<Markdown source={source.addonMd} pin={source.pin} />
+							</CardContent>
+						</Card>
+					) : null}
 
 					<Card>
 						<CardHeader>
-							<CardTitle>Maintainers</CardTitle>
+							<CardTitle>Version History</CardTitle>
 						</CardHeader>
-						<CardContent className='flex flex-col gap-3'>
-							{addon.maintainers.map((maintainer) => (
-								<div key={maintainer.id} className='flex items-center gap-3'>
-									<UserAvatar
-										className='rounded-lg size-8 object-cover'
-										src={maintainer.image}
-										name={maintainer.name}
-									/>
-									<Text variant='text-sm' className='flex-1 truncate'>
-										{maintainer.name}
-									</Text>
-									{maintainer.badge ? (
-										<UserBadge badge={maintainer.badge} />
-									) : null}
-									<Text variant='text-xs' color='muted' className='capitalize'>
-										{maintainer.role}
-									</Text>
-								</div>
-							))}
+						<CardContent>
+							<VersionHistory versions={addon.versions} />
 						</CardContent>
 					</Card>
 				</div>
+
+				<aside className='flex flex-col gap-6 min-w-0'>
+					{source ? <SourceCard source={source} /> : null}
+					{source && source.details.contributors.length > 0 ? (
+						<ContributorsCard contributors={source.details.contributors} />
+					) : null}
+					<DetailsCard addon={addon} />
+					<MaintainersCard maintainers={addon.maintainers} />
+				</aside>
 			</div>
 		</div>
 	);
@@ -253,7 +94,10 @@ export const Route = createFileRoute('/_site/addons/$id')({
 		return addon;
 	},
 	head: ({ loaderData }) => ({
-		meta: [{ title: loaderData ? `Unbound | ${loaderData.name}` : 'Unbound | Addon' }],
+		meta: [
+			{ title: loaderData ? `Unbound | ${loaderData.name}` : 'Unbound | Addon' },
+			...(loaderData ? [{ name: 'description', content: loaderData.description }] : []),
+		],
 	}),
 	component: AddonPage,
 	notFoundComponent: AddonNotFound,

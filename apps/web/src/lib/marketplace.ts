@@ -1,6 +1,6 @@
 import type { AddonType, AddonVersion, Maintainer } from '@unbound-app/contracts/addons';
 import { addonIdSchema, type PublishedManifest } from '@unbound-app/contracts/manifest';
-import type { RepositoryDetails } from '@unbound-app/contracts/source';
+import type { RepositoryDetails, SourcePin } from '@unbound-app/contracts/source';
 import { listAddonsQuerySchema } from '@unbound-app/contracts/addons';
 import type { PublicBadge } from '@unbound-app/contracts/sponsors';
 import { createServerFn } from '@tanstack/react-start';
@@ -37,6 +37,16 @@ export type MarketplacePage = {
 
 export type MarketplaceVersion = Omit<AddonVersion, 'manifest'>;
 
+/** Where the newest version was read from, and what it and GitHub said about it at submission. */
+export type MarketplaceSource = {
+	pin: SourcePin;
+	details: RepositoryDetails;
+	/** The version's ADDON.md, or `null` when it has none. */
+	addonMd: string | null;
+	/** When the version was approved, which dates the `details` snapshot. */
+	approvedAt: string;
+};
+
 export type MarketplaceAddonDetails = MarketplaceAddon & {
 	createdAt: string;
 	capabilities: string[];
@@ -45,10 +55,8 @@ export type MarketplaceAddonDetails = MarketplaceAddon & {
 	/** Newest first; the first is the one installs get. */
 	versions: MarketplaceVersion[];
 	maintainers: MarketplaceMaintainer[];
-	/** The newest version's ADDON.md, or `null` when it has none. */
-	addonMd: string | null;
-	/** The newest version's GitHub details, or `null` when it predates GitHub sources. */
-	details: RepositoryDetails | null;
+	/** `null` when the newest version predates GitHub sources. */
+	source: MarketplaceSource | null;
 };
 
 export type MarketplaceMaintainer = Maintainer & {
@@ -111,8 +119,15 @@ export const fetchMarketplaceAddon = createServerFn({ method: 'GET' })
 				...maintainer,
 				badge: badges.get(maintainer.id) ?? null,
 			})),
-			addonMd: details.addonMd,
-			details: details.details,
+			source:
+				latest.source && details.details
+					? {
+							pin: latest.source,
+							details: details.details,
+							addonMd: details.addonMd,
+							approvedAt: latest.publishedAt,
+						}
+					: null,
 		};
 	});
 

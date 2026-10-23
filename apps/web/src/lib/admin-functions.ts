@@ -2,6 +2,9 @@ import {
 	adminAddonsSearchSchema,
 	adminUsersSearchSchema,
 	editAddonRequestSchema,
+	createStaffNoteRequestSchema,
+	deleteStaffNoteRequestSchema,
+	editStaffNoteRequestSchema,
 	moderationEventPageRequestSchema,
 	serveVersionRequestSchema,
 } from '@unbound-app/contracts/admin';
@@ -12,6 +15,7 @@ import { addonIdSchema } from '@unbound-app/contracts/manifest';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod/mini';
 
+import { createStaffNote, deleteStaffNote, editStaffNote } from '~/lib/staff-notes';
 import { getAdminUser, getUserSummary, listAdminUsers } from '~/lib/admin-users';
 import type { AdminUserView, AdminUsersPage } from '~/lib/admin-users';
 import { editAddon, getAdminAddon } from '~/lib/admin-addon';
@@ -21,6 +25,7 @@ import type { AdminAddonsPage } from '~/lib/admin-addons';
 import type { ServeVersionResult } from '~/lib/rollback';
 import type { AdminAddonView } from '~/lib/admin-addon';
 import { listAdminAddons } from '~/lib/admin-addons';
+import type { StaffNote } from '~/lib/staff-notes';
 import { requireCaller } from '~/lib/api/caller';
 import { serveVersion } from '~/lib/rollback';
 import app from '~/lib/app';
@@ -119,6 +124,41 @@ export const submitAddonEdit = createServerFn({ method: 'POST' })
 		return editAddon(app, caller, data.id, data.edit);
 	});
 
+/**
+ * @description Writes a staff note on a user or addon as the signed-in staff member.
+ * @returns The new note.
+ */
+export const createStaffNoteFn = createServerFn({ method: 'POST' })
+	.validator(createStaffNoteRequestSchema)
+	.handler(async ({ data }): Promise<StaffNote> => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		return createStaffNote(app, caller, data);
+	});
+
+/**
+ * @description Replaces the body of the signed-in staff member's own note.
+ * @returns The edited note.
+ */
+export const editStaffNoteFn = createServerFn({ method: 'POST' })
+	.validator(editStaffNoteRequestSchema)
+	.handler(async ({ data }): Promise<StaffNote> => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		return editStaffNote(app, caller, data);
+	});
+
+/**
+ * @description Deletes the signed-in staff member's own note.
+ */
+export const deleteStaffNoteFn = createServerFn({ method: 'POST' })
+	.validator(deleteStaffNoteRequestSchema)
+	.handler(async ({ data }) => {
+		const caller = await requireCaller(app, getRequestHeaders());
+
+		await deleteStaffNote(app, caller, data);
+	});
+
 export default {
 	fetchAdminUsers,
 	fetchAdminAddons,
@@ -127,4 +167,7 @@ export default {
 	fetchEvents,
 	submitServeVersion,
 	submitAddonEdit,
+	createStaffNoteFn,
+	editStaffNoteFn,
+	deleteStaffNoteFn,
 };

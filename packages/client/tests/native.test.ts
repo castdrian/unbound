@@ -174,20 +174,24 @@ const manifest: AddonManifest = {
 	version: '1.0.0',
 };
 
+const iosPlatformDetails = {
+	isVerifiedBuild: () => false,
+	getEntitlements: () => ({}),
+	getEntitlementsAsPlist: () => '',
+};
+
 const nativePlatformBridge: NativePlatformBridge = {
 	platform: 'ios',
 	evaluateBytecode: () => undefined,
 	device: {
 		platform: 'ios',
 		getDeviceModel: () => '',
-		getiOSVersionString: () => '',
-		isJailbroken: () => false,
+		getOSVersionString: () => '',
+		isRooted: () => false,
 		isSystemApp: () => false,
-		isVerifiedBuild: () => false,
-		getEntitlements: () => ({}),
-		getEntitlementsAsPlist: () => '',
 	},
 	app: { getAppSource: () => '' },
+	ios: iosPlatformDetails,
 };
 
 (globalThis as NativePluginGlobal).NativePlugin = bridge;
@@ -207,7 +211,7 @@ afterEach(() => {
 	Object.assign(bridge, iosSpecificBridges);
 	Object.assign(bridge, genericBridges);
 	Object.assign(nativePlatformBridge.device, { platform: 'ios' });
-	Object.assign(nativePlatformBridge, { platform: 'ios' });
+	Object.assign(nativePlatformBridge, { platform: 'ios', ios: iosPlatformDetails });
 	removed.length = 0;
 	cleared.length = 0;
 	unmounted.length = 0;
@@ -216,6 +220,28 @@ afterEach(() => {
 	sizeHeightFloors.length = 0;
 	removedSubscriptions.length = 0;
 	uiUnmounted.length = 0;
+});
+
+describe('native platform metadata', () => {
+	test('uses platform-neutral names for shared device properties', () => {
+		expect(nativePlatformBridge.device).toHaveProperty('getOSVersionString');
+		expect(nativePlatformBridge.device).toHaveProperty('isRooted');
+		expect(nativePlatformBridge.device).not.toHaveProperty('getiOSVersionString');
+		expect(nativePlatformBridge.device).not.toHaveProperty('isJailbroken');
+	});
+
+	test('keeps iOS entitlement and attestation metadata out of the Android shape', () => {
+		const androidPlatformBridge: NativePlatformBridge = {
+			...nativePlatformBridge,
+			platform: 'android',
+			device: { ...nativePlatformBridge.device, platform: 'android' },
+			ios: undefined,
+		};
+
+		expect(nativePlatformBridge.ios).toHaveProperty('getEntitlements');
+		expect(nativePlatformBridge.ios).toHaveProperty('isVerifiedBuild');
+		expect(androidPlatformBridge.ios).toBeUndefined();
+	});
 });
 
 describe('native plugin capability scopes', () => {

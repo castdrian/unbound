@@ -540,13 +540,16 @@ export type NativePlatformBridge = {
 	evaluateBytecode(bytecode: ArrayBuffer, tag?: string): unknown;
 	readonly device: NativePlatformDevice;
 	readonly app: NativePlatformApp;
+	readonly ios?: NativePlatformIOSBridge;
 };
 export type NativePlatformDevice = {
 	readonly platform: NativePluginPlatform;
 	getDeviceModel(): string;
-	getiOSVersionString(): string;
-	isJailbroken(): boolean;
+	getOSVersionString(): string;
+	isRooted(): boolean;
 	isSystemApp(): boolean;
+};
+export type NativePlatformIOSBridge = {
 	isVerifiedBuild(): boolean;
 	getEntitlements(): NativeSerializableObject;
 	getEntitlementsAsPlist(): string;

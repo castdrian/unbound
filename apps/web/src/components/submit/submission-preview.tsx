@@ -5,6 +5,7 @@ import { useId } from 'react';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '~/components/ui/field';
 import ChangelogSections from '~/components/changelog-sections';
 import SourcePinLink from '~/components/source-pin-link';
+import Markdown from '~/components/markdown';
 import { getBundleUrl } from '~/lib/github-urls';
 import Input from '~/components/ui/input';
 import Text from '~/components/ui/text';
@@ -99,9 +100,9 @@ function SubmissionPreview({ preview, draft, disabled, onDraftChange }: Submissi
 					ADDON.md
 				</Text>
 				{preview.addonMd ? (
-					<pre className='bg-muted/50 p-3 rounded-md max-h-80 overflow-auto text-xs whitespace-pre-wrap'>
-						{preview.addonMd}
-					</pre>
+					<div className='p-4 border border-border rounded-lg max-h-[32rem] overflow-auto'>
+						<Markdown source={preview.addonMd} pin={source} />
+					</div>
 				) : (
 					<Text variant='text-sm' color='muted'>
 						No ADDON.md; the manifest description is shown instead.

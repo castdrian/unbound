@@ -3,11 +3,17 @@ import { afterEach, expect, mock, test } from 'bun:test';
 let afterHandler: ((context: any) => any) | null = null;
 let useOpTagStyle = true;
 let memberColors: any = null;
+let processColorAsAndroid = false;
 const classLookups: string[] = [];
 
 mock.module('@unbound-app/api', () => ({
 	metro: {
-		common: { ReactNative: { processColor: (color: string) => color } },
+		common: {
+			ReactNative: {
+				processColor: (color: string) =>
+					processColorAsAndroid ? (color === '#ffffff' ? 0xffffffff : 0xff248046) : color,
+			},
+		},
 		findByName: () => ({ default: () => null }),
 		findByProps: (...props: string[]) => {
 			if (props.includes('Permissions'))
@@ -51,6 +57,7 @@ afterEach(async () => {
 	afterHandler = null;
 	useOpTagStyle = true;
 	memberColors = null;
+	processColorAsAndroid = false;
 	classLookups.length = 0;
 });
 
@@ -163,4 +170,31 @@ test('applies native tag properties on Android without accessing Objective-C', a
 	expect(patched.tagBackgroundColor).toBe('#248046');
 	expect(patched.tagTextColor).toBe('#ffffff');
 	expect(classLookups).toHaveLength(0);
+});
+
+test('keeps Android tag colors inside the signed 32-bit renderer range', async () => {
+	useOpTagStyle = false;
+	processColorAsAndroid = true;
+	await plugin.start({
+		platform: 'android',
+		native: {
+			get objc() {
+				throw new Error('Objective-C is unavailable on Android');
+			},
+		},
+	} as any);
+	const patched = afterHandler?.({
+		args: [
+			{
+				message: {
+					author: { id: 'author', bot: false },
+					channel_id: 'thread',
+				},
+			},
+		],
+		result: { tagText: null },
+	});
+
+	expect(patched.tagBackgroundColor).toBe(0xff248046 | 0);
+	expect(patched.tagTextColor).toBe(0xffffffff | 0);
 });

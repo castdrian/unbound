@@ -36,8 +36,8 @@ export const addon = sqliteTable(
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
 		delistedAt: integer('delisted_at', { mode: 'timestamp_ms' }),
-		// The served version's type, name, description and approval time, copied here on approval and
-		// rollback so listings filter, search and sort on one table. A staff edit pins a field instead.
+		// Copied from the served version on approval and rollback so listings filter, search and sort on
+		// one table. A staff edit pins a field instead.
 		type: text('type').$type<AddonType>().notNull(),
 		name: text('name').notNull(),
 		description: text('description').notNull(),
@@ -122,10 +122,7 @@ export const submission = sqliteTable(
 	],
 );
 
-/**
- * The approved versions of an addon: the source of truth for what exists and which is served, the
- * newest one not withdrawn. Rows are never deleted.
- */
+/** The approved versions of an addon, never deleted; the newest one not withdrawn is served. */
 export const addonVersion = sqliteTable(
 	'addon_version',
 	{
@@ -154,7 +151,6 @@ export const addonVersion = sqliteTable(
 		primaryKey({ columns: [table.addonId, table.version] }),
 		// An addon's newest version, read in version order without sorting.
 		index('addon_version_addonId_versionKey_idx').on(table.addonId, table.versionKey),
-		// The served version and the update check read only live versions.
 		index('addon_version_live_idx')
 			.on(table.addonId, table.versionKey)
 			.where(sql`${table.withdrawnBy} is null`),

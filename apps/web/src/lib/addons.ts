@@ -118,15 +118,13 @@ export function toAddonSummary(manifest: PublishedManifest, publishedAt: Date): 
 	};
 }
 
-// Keeps the column's value while staff pin it, takes the manifest's otherwise.
 function unlessPinned(field: PinnableField, column: PinnableColumn, value: string) {
 	return sql`iif(${addon.pinnedFields} & ${PINNED_FIELDS[field]}, ${column}, ${value})`;
 }
 
 /**
- * @description Copies the summary of the version the addon serves onto the addon row, after a version
- * is approved, a rollback changes which one is served or a staff edit unpins a field. Fields staff
- * pinned keep their value.
+ * @description Copies the summary of the version the addon serves onto the addon row, except the
+ * fields staff pinned.
  * @param tx The approval, rollback or edit transaction.
  * @param addonId The addon id.
  */

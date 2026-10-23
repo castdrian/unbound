@@ -14,10 +14,8 @@ export type ServePlan = {
 };
 
 /**
- * @description Works out what serving `version` changes. Every live version above it is withdrawn.
- * If it was withdrawn, it comes back with every lower version the same rollback withdrew, so serving
- * the pre-rollback version undoes that rollback exactly. Serving the served version changes nothing.
- * Shared by the server and the confirmation dialog so both name the same versions.
+ * @description Works out what serving `version` changes: every live version above it is withdrawn, and
+ * a withdrawn target returns with every lower version its rollback withdrew.
  * @param versions Every version of the addon, newest first.
  * @param version The version to serve.
  * @returns The plan, or `undefined` when the addon has no such version.

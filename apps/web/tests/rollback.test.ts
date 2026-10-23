@@ -4,9 +4,9 @@ import type { SQLQueryBindings } from 'bun:sqlite';
 import { eq } from 'drizzle-orm';
 
 import { LATEST_VERSION, getAddonDetails, getCatalog, listAddons } from '~/lib/addons';
-import { createSubmission } from '~/lib/submissions';
 import { findUpdates, newestCompatibleVersions } from '~/lib/updates';
 import type { ServeVersionResult } from '~/lib/rollback';
+import { createSubmission } from '~/lib/submissions';
 import { moderationEvent, user } from '~/db/schema';
 import { getAdminAddon } from '~/lib/admin-addon';
 import type { AppContext } from '~/lib/context';
@@ -242,6 +242,7 @@ describe('serveVersion', () => {
 		await linkGitHub(ctx, owner.userId, 'owner');
 
 		const { submission } = await createSubmission(ctx, developer, request);
+
 		await reviewSubmission(ctx, admin.caller, submission.id, { decision: 'approved' });
 
 		expect(await served('rb.approval')).toEqual({

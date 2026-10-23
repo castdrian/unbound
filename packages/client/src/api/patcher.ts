@@ -76,7 +76,7 @@ function trackPatches<T extends (...args: never[]) => () => void>(
 	unpatches: Set<() => void>,
 ): T {
 	function register(...args: never[]): () => void {
-		const unpatch = Reflect.apply(method, undefined, args) as () => void;
+		const unpatch = Reflect.apply(method, undefined, args);
 		const parent = args[0] as object;
 		const key = args[1] as PropertyKey;
 		const installed = Reflect.get(parent, key);

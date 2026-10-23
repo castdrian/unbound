@@ -9,6 +9,7 @@ test('finds an anonymous settings overview export by its Metro path', () => {
 		() => undefined,
 		(path) => {
 			paths.push(path);
+
 			return overview;
 		},
 	);

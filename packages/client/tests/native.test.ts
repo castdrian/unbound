@@ -4,10 +4,7 @@ import type {
 	NativePluginBridge,
 	NativePluginRuntimeBridge,
 	NativePlatformBridge,
-	NativeFabricBridge,
-	NativeFFIBridge,
 	NativeSerializableObject,
-	NativeObjCBridge,
 	NativeUIHandle,
 	NativeUIQuery,
 	NativeViewSnapshotNode,
@@ -187,9 +184,9 @@ const bridge: NativePluginBridge = {
 	},
 };
 const iosSpecificBridges = {
-	objc: bridge.objc as NativeObjCBridge,
-	ffi: bridge.ffi as NativeFFIBridge,
-	fabric: bridge.fabric as NativeFabricBridge,
+	objc: bridge.objc,
+	ffi: bridge.ffi,
+	fabric: bridge.fabric,
 };
 const genericBridges = {
 	runtime: bridge.runtime,

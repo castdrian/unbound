@@ -743,7 +743,7 @@ function createScopedNativePlugin(
 	const unmountUI = uiBridge.unmount?.bind(uiBridge);
 
 	function trackInvocation<T>(pending: NativeCancelablePromise<T>): NativeCancelablePromise<T> {
-		pendingInvocations.add(pending as NativeCancelablePromise<unknown>);
+		pendingInvocations.add(pending);
 		pending.then(
 			() => pendingInvocations.delete(pending as NativeCancelablePromise<unknown>),
 			() => pendingInvocations.delete(pending as NativeCancelablePromise<unknown>),
@@ -797,77 +797,62 @@ function createScopedNativePlugin(
 		getClass: scopeMethod(
 			objcBridge.getClass.bind(objcBridge),
 			capabilityRequirements.getClass,
-		) as NativeObjCBridge['getClass'],
-		alloc: scopeMethod(
-			objcBridge.alloc.bind(objcBridge),
-			capabilityRequirements.alloc,
-		) as NativeObjCBridge['alloc'],
+		),
+		alloc: scopeMethod(objcBridge.alloc.bind(objcBridge), capabilityRequirements.alloc),
 		className: scopeMethod(
 			objcBridge.className.bind(objcBridge),
 			capabilityRequirements.className,
-		) as NativeObjCBridge['className'],
+		),
 		respondsTo: scopeMethod(
 			objcBridge.respondsTo.bind(objcBridge),
 			capabilityRequirements.respondsTo,
-		) as NativeObjCBridge['respondsTo'],
-		call: scopeMethod(
-			objcBridge.call.bind(objcBridge),
-			capabilityRequirements.call,
-		) as NativeObjCBridge['call'],
+		),
+		call: scopeMethod(objcBridge.call.bind(objcBridge), capabilityRequirements.call),
 		callSuper: scopeMethod(
 			objcBridge.callSuper.bind(objcBridge),
 			capabilityRequirements.callSuper,
-		) as NativeObjCBridge['callSuper'],
-		invoke: scopeMethod(
-			objcBridge.invoke.bind(objcBridge),
-			capabilityRequirements.invoke,
-		) as NativeObjCBridge['invoke'],
+		),
+		invoke: scopeMethod(objcBridge.invoke.bind(objcBridge), capabilityRequirements.invoke),
 		invokeAsync: scopeAsyncMethod(
 			objcBridge.invokeAsync?.bind(objcBridge),
 			capabilityRequirements.invokeAsync,
 			'Async native invocation is unavailable.',
-		) as NativeObjCBridge['invokeAsync'],
+		),
 		batch: scopeAsyncMethod(
 			objcBridge.batch?.bind(objcBridge),
 			capabilityRequirements.batch,
 			'Native batch is unavailable.',
-		) as NativeObjCBridge['batch'],
+		),
 		snapshot: scopeAsyncMethod(
 			objcBridge.snapshot?.bind(objcBridge),
 			capabilityRequirements.snapshot,
 			'Native UI snapshot is unavailable.',
-		) as NativeObjCBridge['snapshot'],
+		),
 		findViews: scopeAsyncMethod(
 			objcBridge.findViews?.bind(objcBridge),
 			capabilityRequirements.findViews,
 			'Native view search is unavailable.',
-		) as NativeObjCBridge['findViews'],
+		),
 		invokeSuper: scopeMethod(
 			objcBridge.invokeSuper.bind(objcBridge),
 			capabilityRequirements.invokeSuper,
-		) as NativeObjCBridge['invokeSuper'],
+		),
 		invokeSuperAsync: scopeAsyncMethod(
 			objcBridge.invokeSuperAsync?.bind(objcBridge),
 			capabilityRequirements.invokeSuperAsync,
 			'Async native super invocation is unavailable.',
-		) as NativeObjCBridge['invokeSuperAsync'],
-		getIvar: scopeMethod(
-			objcBridge.getIvar.bind(objcBridge),
-			capabilityRequirements.getIvar,
-		) as NativeObjCBridge['getIvar'],
-		setIvar: scopeMethod(
-			objcBridge.setIvar.bind(objcBridge),
-			capabilityRequirements.setIvar,
-		) as NativeObjCBridge['setIvar'],
+		),
+		getIvar: scopeMethod(objcBridge.getIvar.bind(objcBridge), capabilityRequirements.getIvar),
+		setIvar: scopeMethod(objcBridge.setIvar.bind(objcBridge), capabilityRequirements.setIvar),
 		createAssociationKey: scopeMethod(
 			objcBridge.createAssociationKey.bind(objcBridge),
 			capabilityRequirements.createAssociationKey,
-		) as NativeObjCBridge['createAssociationKey'],
+		),
 		getAssociatedObject: scopeMethod(
 			objcBridge.getAssociatedObject.bind(objcBridge),
 			capabilityRequirements.getAssociatedObject,
-		) as NativeObjCBridge['getAssociatedObject'],
-		setAssociatedObject: ((handle, key, value, policy) => {
+		),
+		setAssociatedObject: (handle, key, value, policy) => {
 			scopeMethod(
 				objcBridge.setAssociatedObject.bind(objcBridge),
 				capabilityRequirements.setAssociatedObject,
@@ -887,20 +872,11 @@ function createScopedNativePlugin(
 			if (index === -1) {
 				associations.push({ handle, key });
 			}
-		}) as NativeObjCBridge['setAssociatedObject'],
-		struct: scopeMethod(
-			objcBridge.struct.bind(objcBridge),
-			capabilityRequirements.struct,
-		) as NativeObjCBridge['struct'],
-		array: scopeMethod(
-			objcBridge.array.bind(objcBridge),
-			capabilityRequirements.array,
-		) as NativeObjCBridge['array'],
-		data: scopeMethod(
-			objcBridge.data.bind(objcBridge),
-			capabilityRequirements.data,
-		) as NativeObjCBridge['data'],
-		hook: ((
+		},
+		struct: scopeMethod(objcBridge.struct.bind(objcBridge), capabilityRequirements.struct),
+		array: scopeMethod(objcBridge.array.bind(objcBridge), capabilityRequirements.array),
+		data: scopeMethod(objcBridge.data.bind(objcBridge), capabilityRequirements.data),
+		hook: (
 			className: string,
 			selector: string,
 			handlers: NativeHookHandlers,
@@ -959,22 +935,16 @@ function createScopedNativePlugin(
 					tokens.delete(token);
 				},
 			};
-		}) as NativeObjCBridge['hook'],
+		},
 	};
 
 	const ffi: NativeFFIBridge = {
-		symbol: scopeMethod(
-			ffiBridge.symbol.bind(ffiBridge),
-			'native.ffi.symbols',
-		) as NativeFFIBridge['symbol'],
-		call: scopeMethod(
-			ffiBridge.call.bind(ffiBridge),
-			'native.ffi.call',
-		) as NativeFFIBridge['call'],
+		symbol: scopeMethod(ffiBridge.symbol.bind(ffiBridge), 'native.ffi.symbols'),
+		call: scopeMethod(ffiBridge.call.bind(ffiBridge), 'native.ffi.call'),
 	};
 
 	const fabric: NativeFabricBridge = {
-		mount: ((container, moduleName, properties) => {
+		mount: (container, moduleName, properties) => {
 			if (disposed) {
 				throw new NativePluginDisposedError();
 			}
@@ -985,8 +955,8 @@ function createScopedNativePlugin(
 			surfaces.add(surface);
 
 			return surface;
-		}) as NativeFabricBridge['mount'],
-		mountAsync: ((container, moduleName, properties) => {
+		},
+		mountAsync: (container, moduleName, properties) => {
 			if (disposed) {
 				throw new NativePluginDisposedError();
 			}
@@ -1011,44 +981,44 @@ function createScopedNativePlugin(
 			);
 
 			return pending;
-		}) as NativeFabricBridge['mountAsync'],
+		},
 		update: scopeMethod(
 			fabricBridge.update.bind(fabricBridge),
 			capabilityRequirements.fabricUpdate,
-		) as NativeFabricBridge['update'],
+		),
 		updateAsync: scopeAsyncMethod(
 			fabricBridge.updateAsync?.bind(fabricBridge),
 			capabilityRequirements.fabricUpdateAsync,
 			'Async Fabric updates are unavailable.',
-		) as NativeFabricBridge['updateAsync'],
+		),
 		setSize: scopeMethod(
 			fabricBridge.setSize.bind(fabricBridge),
 			capabilityRequirements.fabricSetSize,
-		) as NativeFabricBridge['setSize'],
+		),
 		setSizeAsync: scopeAsyncMethod(
 			fabricBridge.setSizeAsync?.bind(fabricBridge),
 			capabilityRequirements.fabricSetSizeAsync,
 			'Async Fabric sizing is unavailable.',
-		) as NativeFabricBridge['setSizeAsync'],
+		),
 		setFrame: scopeMethod(
 			fabricBridge.setFrame.bind(fabricBridge),
 			capabilityRequirements.fabricSetFrame,
-		) as NativeFabricBridge['setFrame'],
+		),
 		setFrameAsync: scopeAsyncMethod(
 			fabricBridge.setFrameAsync?.bind(fabricBridge),
 			capabilityRequirements.fabricSetFrameAsync,
 			'Async Fabric frame updates are unavailable.',
-		) as NativeFabricBridge['setFrameAsync'],
+		),
 		measure: scopeMethod(
 			fabricBridge.measure.bind(fabricBridge),
 			capabilityRequirements.fabricMeasure,
-		) as NativeFabricBridge['measure'],
+		),
 		measureAsync: scopeAsyncMethod(
 			fabricBridge.measureAsync?.bind(fabricBridge),
 			capabilityRequirements.fabricMeasureAsync,
 			'Async Fabric measurement is unavailable.',
-		) as NativeFabricBridge['measureAsync'],
-		unmount: ((surface) => {
+		),
+		unmount: (surface) => {
 			if (disposed) {
 				throw new NativePluginDisposedError();
 			}
@@ -1056,8 +1026,8 @@ function createScopedNativePlugin(
 			requireCapability(capabilities, capabilityRequirements.fabricUnmount);
 			fabricBridge.unmount(surface);
 			surfaces.delete(surface);
-		}) as NativeFabricBridge['unmount'],
-		unmountAsync: ((surface) => {
+		},
+		unmountAsync: (surface) => {
 			if (disposed) {
 				throw new NativePluginDisposedError();
 			}
@@ -1076,11 +1046,11 @@ function createScopedNativePlugin(
 			);
 
 			return pending;
-		}) as NativeFabricBridge['unmountAsync'],
+		},
 	};
 
 	const runtime: NativeRuntimeBridge = {
-		subscribe: ((
+		subscribe: (
 			event: NativeRuntimeEventName,
 			listener: (payload: NativeSerializableObject) => void,
 		) => {
@@ -1102,7 +1072,7 @@ function createScopedNativePlugin(
 					runtimeTokens.delete(token);
 				},
 			};
-		}) as NativeRuntimeBridge['subscribe'],
+		},
 	};
 
 	const ui: NativeUIBridge = {
@@ -1110,13 +1080,13 @@ function createScopedNativePlugin(
 			uiBridge.lookup?.bind(uiBridge),
 			uiCapabilities.lookup,
 			'Native UI lookup is unavailable.',
-		) as NativeUIBridge['lookup'],
+		),
 		snapshot: scopeAsyncMethod(
 			uiBridge.snapshot?.bind(uiBridge),
 			uiCapabilities.snapshot,
 			'Native UI snapshots are unavailable.',
-		) as NativeUIBridge['snapshot'],
-		mount: ((container, moduleName, properties) => {
+		),
+		mount: (container, moduleName, properties) => {
 			if (disposed) {
 				throw new NativePluginDisposedError();
 			}
@@ -1138,23 +1108,23 @@ function createScopedNativePlugin(
 			);
 
 			return pending;
-		}) as NativeUIBridge['mount'],
+		},
 		update: scopeAsyncMethod(
 			uiBridge.update?.bind(uiBridge),
 			uiCapabilities.update,
 			'Native UI updates are unavailable.',
-		) as NativeUIBridge['update'],
+		),
 		setFrame: scopeAsyncMethod(
 			uiBridge.setFrame?.bind(uiBridge),
 			uiCapabilities.setFrame,
 			'Native UI layout updates are unavailable.',
-		) as NativeUIBridge['setFrame'],
+		),
 		measure: scopeAsyncMethod(
 			uiBridge.measure?.bind(uiBridge),
 			uiCapabilities.measure,
 			'Native UI measurement is unavailable.',
-		) as NativeUIBridge['measure'],
-		unmount: ((handle) => {
+		),
+		unmount: (handle) => {
 			if (disposed) {
 				throw new NativePluginDisposedError();
 			}
@@ -1168,7 +1138,7 @@ function createScopedNativePlugin(
 			);
 
 			return pending;
-		}) as NativeUIBridge['unmount'],
+		},
 	};
 
 	const media: NativeMediaBridge = {
@@ -1176,22 +1146,22 @@ function createScopedNativePlugin(
 			mediaBridge.pick?.bind(mediaBridge),
 			capabilityRequirements.pickMedia,
 			'Native media picking is unavailable.',
-		) as NativeMediaBridge['pick'],
+		),
 		inspect: scopeAsyncMethod(
 			mediaBridge.inspect?.bind(mediaBridge),
 			capabilityRequirements.inspectMedia,
 			'Native media inspection is unavailable.',
-		) as NativeMediaBridge['inspect'],
+		),
 		copy: scopeAsyncMethod(
 			mediaBridge.copy?.bind(mediaBridge),
 			capabilityRequirements.copyMedia,
 			'Native media copying is unavailable.',
-		) as NativeMediaBridge['copy'],
+		),
 		read: scopeAsyncMethod(
 			mediaBridge.read?.bind(mediaBridge),
 			capabilityRequirements.readMedia,
 			'Native media reads are unavailable.',
-		) as NativeMediaBridge['read'],
+		),
 	};
 
 	return {

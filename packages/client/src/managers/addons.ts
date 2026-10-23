@@ -1,8 +1,8 @@
 import type { Addon, AddonManifest, PluginContext } from '@unbound-app/types';
 import { NATIVE_PLUGIN_CAPABILITIES } from '@unbound-app/types/native';
 import type { AddonRelease } from '@unbound-app/contracts/updates';
-import sha256 from '@unbound-app/utils/sha256';
 import toError from '@unbound-app/utils/to-error';
+import sha256 from '@unbound-app/utils/sha256';
 import noop from '@unbound-app/utils/noop';
 
 import {
@@ -444,7 +444,6 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 
 			if (result && typeof result.then === 'function') {
 				let timer: ReturnType<typeof setTimeout> | undefined;
-				let pending: Promise<void>;
 				const timeout = new Promise<never>((_, reject) => {
 					timer = setTimeout(
 						() => reject(new Error(`Addon ${resolved.id} cleanup timed out`)),
@@ -453,7 +452,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 				});
 				let stopped = false;
 
-				pending = Promise.race([Promise.resolve(result), timeout])
+				const pending = Promise.race([Promise.resolve(result), timeout])
 					.then(
 						() => {
 							stopped = this.finishStop(resolved, context);
@@ -477,6 +476,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 							this.start(resolved);
 						}
 					});
+
 				this.pendingStops.set(resolved.id, pending);
 
 				return pending;

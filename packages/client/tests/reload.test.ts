@@ -196,7 +196,7 @@ describe('Addons.reload', () => {
 		});
 		manager.start(manifest.id);
 		const entity = manager.getEntity(manifest.id)!;
-		const context = manager.contexts[0]!;
+		const context = manager.contexts[0];
 		let finishCleanup: (() => void) | undefined;
 		const cleanup = new Promise<void>((resolve) => {
 			finishCleanup = resolve;
@@ -228,7 +228,7 @@ describe('Addons.reload', () => {
 		});
 		manager.start(manifest.id);
 		const entity = manager.getEntity(manifest.id)!;
-		const firstContext = manager.contexts[0]!;
+		const firstContext = manager.contexts[0];
 		let finishCleanup: (() => void) | undefined;
 		const cleanup = new Promise<void>((resolve) => {
 			finishCleanup = resolve;
@@ -260,7 +260,7 @@ describe('Addons.reload', () => {
 		});
 		manager.start(manifest.id);
 		const entity = manager.getEntity(manifest.id)!;
-		const context = manager.contexts[0]!;
+		const context = manager.contexts[0];
 		let finishCleanup: (() => void) | undefined;
 		const cleanup = new Promise<void>((resolve) => {
 			finishCleanup = resolve;

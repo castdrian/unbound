@@ -71,7 +71,7 @@ declare class TaskCollection<Func extends Listener = Listener> {
 	argsNum: number;
 	_tasks: Tasks<Func>;
 	length: number;
-	call: (...args: Parameters<Func>) => void;
+	call: (...args: Parameters<Func>) => ReturnType<Listener>;
 	/**
 	 * @description Creates a collection holding a single listener.
 	 * @param argsNum How many arguments each listener receives when more than one is registered.

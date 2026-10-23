@@ -65,9 +65,17 @@ export function matchAddonDirs(
 		return candidateDirs.includes('') ? [''] : [];
 	}
 
-	const isMatch = picomatch(config.addons);
+	const matchesPattern = config.addons.map((pattern) => {
+		const isMatch = picomatch(pattern);
+		const globstarRoot =
+			pattern === '**' ? '' : pattern.endsWith('/**') ? pattern.slice(0, -3) : undefined;
 
-	return [...new Set(candidateDirs.filter((dir) => isMatch(dir)))].sort();
+		return (dir: string) => isMatch(dir) && dir !== globstarRoot;
+	});
+
+	return [
+		...new Set(candidateDirs.filter((dir) => matchesPattern.some((match) => match(dir)))),
+	].sort();
 }
 
 /**

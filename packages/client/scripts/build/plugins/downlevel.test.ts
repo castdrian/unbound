@@ -12,7 +12,7 @@ describe('lower', () => {
 		const before = Object.getOwnPropertyNames(vm.runInContext('globalThis', context));
 
 		vm.runInContext(
-			lower(root, 'globalThis.probe = class { #x = 1; async *f() { yield this.#x; } };'),
+			lower(root, 'globalThis.probe = class { #x = 1; async *f() { yield this.#x; } };').code,
 			context,
 		);
 

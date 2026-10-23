@@ -10,7 +10,7 @@ import { createDatabase } from '~/db/database';
 
 import { manifest } from './helpers/addons';
 
-const CUTOVER_MIGRATION = '20261023170206_cutover';
+const CUTOVER_MIGRATION = '20261023173229_cutover';
 
 type Row = {
 	id: string;

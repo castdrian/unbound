@@ -12,6 +12,7 @@ import { addon, addonMaintainer, addonVersion, submission, user } from '~/db/sch
 import { LATEST_VERSION, refreshAddonSummary, toAddonSummary } from '~/lib/addons';
 import type { SourcedSubmissionRow, SubmissionRow } from '~/lib/submissions';
 import { getArtifactKeys, toAddonVersion } from '~/lib/artifacts';
+import { recordReviewDecision } from '~/lib/moderation-events';
 import { requirePermission } from '~/lib/api/caller';
 import type { Permissions } from '~/lib/auth/access';
 import { hasPermission } from '~/lib/auth/access';
@@ -263,6 +264,8 @@ function decide(
 				);
 			}
 
+			recordReviewDecision(tx, updated);
+
 			if (!sha256) {
 				return updated;
 			}
@@ -271,6 +274,7 @@ function decide(
 				tx.insert(addon)
 					.values({
 						id: row.addonId,
+						repository: row.repository,
 						createdAt: decision.reviewedAt,
 						...toAddonSummary(row.manifest, decision.reviewedAt),
 					})
@@ -303,6 +307,10 @@ function decide(
 				.run();
 
 			if (row.kind === 'update') {
+				tx.update(addon)
+					.set({ repository: row.repository })
+					.where(eq(addon.id, row.addonId))
+					.run();
 				refreshAddonSummary(tx, row.addonId);
 			}
 
@@ -315,8 +323,9 @@ function decide(
 /**
  * @description Approves, rejects or requests changes on a pending submission. Reviewers need the
  * review permission for its kind and may not maintain the addon. Approval re-verifies the staged
- * bundle (read again from its pinned blob when the staging bucket no longer has it), publishes it to `addons/{id}/{version}/`, then in one transaction marks the submission
- * approved and writes the live version (plus, for a first listing, the addon, its owner and the
+ * bundle (read again from its pinned blob when the staging bucket no longer has it), publishes it to
+ * `addons/{id}/{version}/`, then in one transaction marks the submission approved and writes the live
+ * version and the addon's repository (plus, for a first listing, the addon, its owner and the
  * author's `developer` role); the staged bundle is deleted last. Rejection deletes the staged bundle,
  * which also frees a new listing's id. Requesting changes keeps it until the author republishes.
  * @param ctx The application context.

@@ -16,6 +16,7 @@ import { openSubmissionStatusSchema } from '@unbound-app/contracts/publish';
 import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import { defineRelationsPart, sql } from 'drizzle-orm';
 
+import { moderationEvent } from './admin';
 import { user } from './auth';
 
 // Index predicates are stored in the schema verbatim, so the statuses are inlined rather than bound.
@@ -23,7 +24,10 @@ const OPEN_STATUSES = `(${openSubmissionStatusSchema.options.map((status) => `'$
 
 const LISTING_SORTS = ['name', 'createdAt', 'updatedAt'] as const;
 
-/** An approved addon. The row is created when its first listing is approved; until then a pending listing submission holds the id. */
+/**
+ * An approved addon. The row is created when its first listing is approved; until then a pending listing submission holds the id.
+ * `addon_search` mirrors its id and name for admin search; the `admin_search` migration owns it.
+ */
 export const addon = sqliteTable(
 	'addon',
 	{
@@ -32,15 +36,19 @@ export const addon = sqliteTable(
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
 		delistedAt: integer('delisted_at', { mode: 'timestamp_ms' }),
-		// The newest version's type, name, description and approval time, copied here on approval so
-		// listings filter, search and sort on one table.
+		// Copied from the served version on approval and rollback so listings filter, search and sort on
+		// one table. A staff edit pins a field instead.
 		type: text('type').$type<AddonType>().notNull(),
 		name: text('name').notNull(),
 		description: text('description').notNull(),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+		/** `PINNED_FIELDS` bits: the summary columns a staff edit owns, which refreshes leave alone. */
+		pinnedFields: integer('pinned_fields').default(0).notNull(),
+		/** The GitHub `owner/name` of the addon's source. Addon-level, never copied from a manifest. */
+		repository: text('repository'),
 	},
-	(table) =>
-		LISTING_SORTS.flatMap((key) => [
+	(table) => [
+		...LISTING_SORTS.flatMap((key) => [
 			index(`addon_listed_${key}_idx`)
 				.on(table[key], table.id)
 				.where(sql`${table.delistedAt} is null`),
@@ -48,6 +56,11 @@ export const addon = sqliteTable(
 				.on(table.type, table[key], table.id)
 				.where(sql`${table.delistedAt} is null`),
 		]),
+		index('addon_createdAt_idx').on(table.createdAt, table.id),
+		index('addon_delisted_createdAt_idx')
+			.on(table.createdAt, table.id)
+			.where(sql`${table.delistedAt} is not null`),
+	],
 );
 
 export const addonMaintainer = sqliteTable(
@@ -108,7 +121,7 @@ export const submission = sqliteTable(
 	],
 );
 
-/** The approved versions of an addon: the source of truth for what exists and which is latest. */
+/** The approved versions of an addon, never deleted; the newest one not withdrawn is served. */
 export const addonVersion = sqliteTable(
 	'addon_version',
 	{
@@ -130,11 +143,16 @@ export const addonVersion = sqliteTable(
 		publishedAt: integer('published_at', { mode: 'timestamp_ms' })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
+		/** The rollback event that withdrew this version from serving; `null` is live. */
+		withdrawnBy: integer('withdrawn_by').references(() => moderationEvent.id),
 	},
 	(table) => [
 		primaryKey({ columns: [table.addonId, table.version] }),
 		// An addon's newest version, read in version order without sorting.
 		index('addon_version_addonId_versionKey_idx').on(table.addonId, table.versionKey),
+		index('addon_version_live_idx')
+			.on(table.addonId, table.versionKey)
+			.where(sql`${table.withdrawnBy} is null`),
 	],
 );
 

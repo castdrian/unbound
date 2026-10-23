@@ -158,7 +158,7 @@ export const addonVersion = sqliteTable(
 );
 
 export const addonRelations = defineRelationsPart(
-	{ user, addon, addonMaintainer, submission, addonVersion, moderationEvent },
+	{ user, addon, addonMaintainer, addonVersion },
 	(r) => ({
 		addon: {
 			maintainers: r.many.addonMaintainer({
@@ -178,26 +178,6 @@ export const addonRelations = defineRelationsPart(
 			user: r.one.user({
 				from: r.addonMaintainer.userId,
 				to: r.user.id,
-			}),
-		},
-		submission: {
-			author: r.one.user({
-				from: r.submission.authorId,
-				to: r.user.id,
-			}),
-		},
-		addonVersion: {
-			addon: r.one.addon({
-				from: r.addonVersion.addonId,
-				to: r.addon.id,
-			}),
-			submission: r.one.submission({
-				from: r.addonVersion.submissionId,
-				to: r.submission.id,
-			}),
-			withdrawal: r.one.moderationEvent({
-				from: r.addonVersion.withdrawnBy,
-				to: r.moderationEvent.id,
 			}),
 		},
 	}),

@@ -1,6 +1,7 @@
-import { repositorySchema, reviewDecisionSchema, submissionKindSchema } from './publish';
 import { addonTypeSchema, maintainerRoleSchema, sortOrderSchema } from './addons';
+import { reviewDecisionSchema, submissionKindSchema } from './publish';
 import { userSummarySchema } from './account';
+import { repositorySchema } from './source';
 import { semverSchema } from './manifest';
 import { z } from './zod';
 

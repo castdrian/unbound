@@ -1,6 +1,8 @@
 import { addonIdSchema, addonManifestSchema, semverSchema } from './manifest';
 import { userSummarySchema } from './account';
+import { changelogSchema } from './changelog';
 import { submissionSchema } from './publish';
+import { sourcePinSchema } from './source';
 import { z } from './zod';
 
 export const sha256Schema = z
@@ -14,7 +16,12 @@ export const maintainerRoleSchema = z.enum(['owner', 'maintainer']);
 export const addonVersionSchema = z.object({
 	version: semverSchema,
 	manifest: addonManifestSchema,
+	/** Plain text: a legacy upload's free text, or `changes` rendered for a version read from GitHub. */
 	changelog: z.nullable(z.string()),
+	/** The version's parsed `CHANGELOG.md` entry; `null` for legacy uploads and versions without one. */
+	changes: z.nullable(changelogSchema),
+	/** Where the version was read from; `null` for versions published before GitHub sources. */
+	source: z.nullable(sourcePinSchema),
 	bundleSize: z.int().check(z.positive()),
 	sha256: sha256Schema,
 	publishedAt: z.iso.datetime(),

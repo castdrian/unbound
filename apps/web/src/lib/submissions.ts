@@ -4,7 +4,11 @@ import type {
 	FinalizeSubmissionResponse,
 	OpenSubmissionStatus,
 	Submission,
+	SubmissionKind,
+	SubmitFromRepositoryRequest,
 } from '@unbound-app/contracts/publish';
+import type { SubmissionPreviewResponse } from '@unbound-app/contracts/review';
+import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import { openSubmissionStatusSchema } from '@unbound-app/contracts/publish';
 import { and, count, eq, gte, inArray, ne } from 'drizzle-orm';
 
@@ -15,7 +19,8 @@ import type { Transaction } from '~/db/database';
 import { getSnowflakeDate } from '~/lib/discord';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
-import { hasPushAccess } from '~/lib/github';
+import { connectGitHub, hasPushAccess } from '~/lib/github';
+import { readAddonSource } from '~/lib/addon-source';
 import { ApiError } from '~/lib/api/errors';
 
 export type SubmissionRow = typeof submission.$inferSelect;
@@ -24,6 +29,12 @@ type LinkedAccount = {
 	providerId: string;
 	accountId: string;
 	accessToken: string | null;
+};
+
+/** What submitting a manifest would do, decided by the claim and cap checks. */
+type Claim = {
+	kind: SubmissionKind;
+	replaced: SubmissionRow | undefined;
 };
 
 type Reservation = {
@@ -78,6 +89,13 @@ async function checkRateLimit(ctx: AppContext, userId: string, now: Date) {
 	}
 }
 
+function findLinkedAccounts(ctx: AppContext, userId: string): Promise<LinkedAccount[]> {
+	return ctx.db.query.account.findMany({
+		where: { userId, providerId: { in: ['discord', 'github'] } },
+		columns: { providerId: true, accountId: true, accessToken: true },
+	});
+}
+
 function checkAccountAge(ctx: AppContext, discord: LinkedAccount | undefined, now: Date) {
 	if (!discord) {
 		throw new ApiError('forbidden', 'A Discord account is required to submit addons.');
@@ -114,18 +132,13 @@ async function verifyRepository(
 	);
 }
 
-/**
- * Runs inside an immediate transaction so the claim and cap checks and the insert see no
- * concurrent submission.
- */
-function reserve(
+// Reads only, so a preview can run it alone; `reserve` runs it before writing in the same transaction.
+function checkClaim(
 	ctx: AppContext,
 	tx: Transaction,
 	caller: Caller,
-	request: CreateSubmissionRequest,
-	now: Date,
-): Reservation {
-	const { manifest } = request;
+	manifest: PublishedManifest,
+): Claim {
 	const { user } = caller;
 	const approved = tx.select({ id: addon.id }).from(addon).where(eq(addon.id, manifest.id)).get();
 
@@ -220,6 +233,23 @@ function reserve(
 		}
 	}
 
+	return { kind: approved ? 'update' : 'listing', replaced };
+}
+
+/**
+ * Runs inside an immediate transaction so the claim and cap checks and the insert see no
+ * concurrent submission.
+ */
+function reserve(
+	ctx: AppContext,
+	tx: Transaction,
+	caller: Caller,
+	request: CreateSubmissionRequest,
+	now: Date,
+): Reservation {
+	const { manifest } = request;
+	const { kind, replaced } = checkClaim(ctx, tx, caller, manifest);
+
 	if (replaced) {
 		tx.update(submission)
 			.set({ status: 'superseded' })
@@ -233,8 +263,8 @@ function reserve(
 		.values({
 			id,
 			addonId: manifest.id,
-			authorId: user.id,
-			kind: approved ? 'update' : 'listing',
+			authorId: caller.user.id,
+			kind,
 			status: 'awaiting_upload',
 			version: manifest.version,
 			manifest,
@@ -278,11 +308,7 @@ export async function createSubmission(
 
 	await checkRateLimit(ctx, caller.user.id, now);
 
-	const accounts = await ctx.db.query.account.findMany({
-		where: { userId: caller.user.id, providerId: { in: ['discord', 'github'] } },
-		columns: { providerId: true, accountId: true, accessToken: true },
-	});
-
+	const accounts = await findLinkedAccounts(ctx, caller.user.id);
 	const find = (providerId: string) => accounts.find((entry) => entry.providerId === providerId);
 
 	checkAccountAge(ctx, find('discord'), now);
@@ -310,6 +336,45 @@ export async function createSubmission(
 	return {
 		submission: toSubmission(created),
 		upload: { ...upload, method: 'PUT', expiresAt: created.uploadExpiresAt.toISOString() },
+	};
+}
+
+/**
+ * @description Shows what submitting from GitHub would create, writing nothing: the Discord account
+ * age gate, every GitHub read and check of a submission, then the claim and cap checks.
+ * @param ctx The application context.
+ * @param caller The author.
+ * @param request The repository, addon path, ref, commit and detail overrides.
+ * @returns The kind, the source pin and the content reviewers would see.
+ */
+export async function previewSubmission(
+	ctx: AppContext,
+	caller: Caller,
+	request: SubmitFromRepositoryRequest,
+): Promise<SubmissionPreviewResponse> {
+	const accounts = await findLinkedAccounts(ctx, caller.user.id);
+
+	checkAccountAge(
+		ctx,
+		accounts.find((entry) => entry.providerId === 'discord'),
+		ctx.now(),
+	);
+
+	const github = await connectGitHub(ctx, caller.user.id);
+	const source = await readAddonSource(ctx, github, request);
+	const { kind } = ctx.db.transaction((tx) => checkClaim(ctx, tx, caller, source.manifest));
+
+	return {
+		preview: {
+			kind,
+			source: source.pin,
+			manifest: source.manifest,
+			bundleSize: source.bundleSize,
+			sha256: source.sha256,
+			addonMd: source.addonMd,
+			changelog: source.changelog,
+			details: source.details,
+		},
 	};
 }
 
@@ -397,5 +462,6 @@ export default {
 	REPLACEABLE_SUBMISSION_STATUSES,
 	toSubmission,
 	createSubmission,
+	previewSubmission,
 	finalizeSubmission,
 };

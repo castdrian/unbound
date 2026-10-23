@@ -6,6 +6,7 @@ import type {
 	NativePlatformBridge,
 	NativeSerializableObject,
 	NativeJavaHandle,
+	NativeJavaHookToken,
 	NativeJavaValue,
 	NativeUIHandle,
 	NativeUIQuery,
@@ -68,6 +69,8 @@ const removedSubscriptions: string[] = [];
 const uiUnmounted: NativeUIHandle[] = [];
 const javaReleased: NativeJavaHandle[] = [];
 const javaHandle: NativeJavaHandle = Object.create(null);
+const javaHookToken: NativeJavaHookToken = { id: 'hook-1' };
+const hooksRemoved: NativeJavaHookToken[] = [];
 const javaInvokeResult: NativeJavaValue = { type: 'string', value: 'invoked' };
 const javaInvokeFailure = {
 	__nativeFailure: { code: 'NATIVE_BRIDGE_ERROR', message: 'No method noSuchMethod' },
@@ -93,6 +96,7 @@ const capabilities = [
 	'native.java.fields',
 	'native.java.invoke',
 	'native.java.invokeAsync',
+	'native.java.hooks',
 	'native.ui.lookup',
 	'native.ui.mount',
 	'native.ui.layout',
@@ -193,6 +197,15 @@ const bridge: NativePluginBridge = {
 		setField: () => undefined,
 		release: (handle: NativeJavaHandle) => {
 			javaReleased.push(handle);
+		},
+	},
+	hooks: {
+		hook: () => javaHookToken,
+		setReturnValue: () => undefined,
+		removeReturnValue: () => undefined,
+		clearReturnValues: () => undefined,
+		remove: (token: NativeJavaHookToken) => {
+			hooksRemoved.push(token);
 		},
 	},
 	media: {
@@ -916,6 +929,34 @@ describe('native plugin negotiation', () => {
 		expect(call).toThrow('No method noSuchMethod');
 		javaInvokeOutcome = javaInvokeResult;
 		context.dispose();
+	});
+
+	test('scopes Java hooks to the capability a plugin declares', () => {
+		Object.assign(nativePlatformBridge.device, { platform: 'android' });
+		Object.assign(nativePlatformBridge, { platform: 'android' });
+		hooksRemoved.length = 0;
+
+		const denied = createPluginContext({
+			...manifest,
+			platforms: ['android'],
+			capabilities: ['native.java.classes'],
+		});
+
+		expect(() => denied.native.hooks.hook('java.lang.Integer', 'toString', [])).toThrow(
+			NativePluginCapabilityError,
+		);
+		denied.dispose();
+
+		const context = createPluginContext({
+			...manifest,
+			platforms: ['android'],
+			capabilities: ['native.java.hooks'],
+		});
+
+		expect(context.native.hooks.hook('java.lang.Integer', 'toString', [])).toBe(javaHookToken);
+		context.dispose();
+
+		expect(hooksRemoved).toEqual([javaHookToken]);
 	});
 
 	test('rejects a plugin that does not support the host platform', () => {

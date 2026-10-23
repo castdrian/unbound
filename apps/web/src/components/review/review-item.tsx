@@ -3,6 +3,7 @@ import { IconDownload, IconFileCode, IconLock } from '@tabler/icons-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '~/components/ui/card';
 import ReviewDecisionDialog from '~/components/review/review-decision-dialog';
 import ManifestDiffTable from '~/components/review/manifest-diff-table';
+import AddonMdReview from '~/components/review/addon-md-review';
 import ChangelogSections from '~/components/changelog-sections';
 import { getBundleUrl, shortSha } from '~/lib/github-urls';
 import SourcePinLink from '~/components/source-pin-link';
@@ -61,6 +62,8 @@ function ReviewItem({ entry }: ReviewItemProps) {
 						<ChangelogSections changelog={entry.changelog} />
 					</div>
 				) : null}
+
+				<AddonMdReview entry={entry} />
 
 				<div className='flex flex-wrap gap-2'>
 					<Button asChild variant='outline' size='sm'>

@@ -302,6 +302,16 @@ export class NativePluginPlatformError extends Error {
 	}
 }
 
+export class NativePluginUnsupportedPlatformError extends Error {
+	readonly code = 'NATIVE_PLUGIN_PLATFORM_EXCLUDED';
+	readonly platforms: readonly NativePluginPlatform[];
+
+	constructor(platforms: readonly NativePluginPlatform[], platform: string) {
+		super(`This plugin supports ${platforms.join(', ')}; the host platform is ${platform}.`);
+		this.platforms = platforms;
+	}
+}
+
 export class NativePluginVersionError extends Error {
 	readonly code = 'NATIVE_PLUGIN_API_VERSION_UNSUPPORTED';
 	readonly installedApi: string;
@@ -1293,6 +1303,11 @@ export function validateNativePluginRequirements(
  */
 export function createPluginContext(manifest: AddonManifest): PluginContext {
 	const platform = NativePlatform?.device.platform ?? NativePlatform?.platform;
+
+	if (manifest.platforms?.length && !manifest.platforms.includes(platform as never)) {
+		throw new NativePluginUnsupportedPlatformError(manifest.platforms, String(platform));
+	}
+
 	const platformCapabilities = resolvePlatformCapabilities(manifest.platformCapabilities);
 	const capabilities = Object.freeze([
 		...new Set([...(manifest.capabilities ?? []), ...platformCapabilities]),

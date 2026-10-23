@@ -25,6 +25,25 @@ export type NativePluginCapability = (typeof NATIVE_PLUGIN_CAPABILITIES)[number]
 
 export type NativePluginPlatform = 'ios' | 'android';
 
+export const NATIVE_PLUGIN_PLATFORM_CAPABILITIES = {
+	android: ['native.runtime.events', 'native.ui.layout', 'native.ui.lookup', 'native.ui.mount'],
+	ios: [
+		'native.fabric.async',
+		'native.fabric.mount',
+		'native.ffi.call',
+		'native.ffi.symbols',
+		'native.objc.associations',
+		'native.objc.batch',
+		'native.objc.classes',
+		'native.objc.hooks',
+		'native.objc.invoke',
+		'native.objc.invokeAsync',
+		'native.objc.ivars',
+		'native.objc.snapshot',
+		'native.runtime.events',
+	],
+} as const satisfies Record<NativePluginPlatform, readonly NativePluginCapability[]>;
+
 declare const nativeHandle: unique symbol;
 
 /** An opaque reference to a native object. Only the bridge creates handles; plugins pass them back. */

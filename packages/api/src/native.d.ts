@@ -54,6 +54,10 @@ import type {
 } from './_internal';
 declare const NativePlatform$1: NativePlatformBridge | undefined;
 
+export declare class NativeJavaError extends Error {
+	readonly code: string;
+	constructor(code: string, message: string);
+}
 export declare class NativePluginCapabilityError extends Error {
 	readonly code = 'NATIVE_PLUGIN_CAPABILITY_DENIED';
 	readonly capability: NativePluginCapability;

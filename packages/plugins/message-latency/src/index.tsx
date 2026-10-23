@@ -1242,9 +1242,13 @@ function onMessageCreate(event: Record<string, unknown>): void {
 function subscribeToMessageCreate(): void {
 	if (removeMessageCreateListener) return;
 	if (nativeRuntime) {
-		const token = nativeRuntime.subscribe('message.created', onMessageCreate);
-		removeMessageCreateListener = () => token.remove();
-		return;
+		try {
+			const token = nativeRuntime.subscribe('message.created', onMessageCreate);
+			removeMessageCreateListener = () => token.remove();
+			return;
+		} catch {
+			nativeRuntime = null;
+		}
 	}
 
 	const dispatcher = metro.findByProps('dispatch', 'subscribe') as Dispatcher | null;

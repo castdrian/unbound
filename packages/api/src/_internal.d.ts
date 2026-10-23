@@ -47,6 +47,29 @@ export declare const NATIVE_PLUGIN_CAPABILITIES: readonly [
 	'native.media.pick',
 	'native.media.access',
 ];
+export declare const NATIVE_PLUGIN_PLATFORM_CAPABILITIES: {
+	readonly android: readonly [
+		'native.runtime.events',
+		'native.ui.layout',
+		'native.ui.lookup',
+		'native.ui.mount',
+	];
+	readonly ios: readonly [
+		'native.fabric.async',
+		'native.fabric.mount',
+		'native.ffi.call',
+		'native.ffi.symbols',
+		'native.objc.associations',
+		'native.objc.batch',
+		'native.objc.classes',
+		'native.objc.hooks',
+		'native.objc.invoke',
+		'native.objc.invokeAsync',
+		'native.objc.ivars',
+		'native.objc.snapshot',
+		'native.runtime.events',
+	];
+};
 export type ActionSheetProps = {
 	children?: ReactModule.ReactNode;
 };
@@ -91,8 +114,10 @@ export type AddonManifest = {
 	folder: string;
 	path: string;
 	url: string;
+	/** The platforms the addon supports; absent means every platform. */
+	platforms?: NativePluginPlatform[];
 	capabilities?: NativePluginCapability[];
-	platformCapabilities?: Partial<Record<'ios' | 'android', NativePluginCapability[]>>;
+	platformCapabilities?: Partial<Record<NativePluginPlatform, NativePluginCapability[]>>;
 	minNativePluginApi?: string;
 	/** Requirements on the Unbound client running the addon. */
 	unbound?: {

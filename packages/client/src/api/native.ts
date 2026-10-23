@@ -54,6 +54,7 @@ export {
 	NativePluginDisposedError,
 	NativePluginPlatformError,
 	NativePluginUnavailableError,
+	NativePluginUnsupportedPlatformError,
 	NativePluginVersionError,
 	getNativeModule,
 	getRuntimeProperties,

@@ -47,7 +47,11 @@ export type {
 	NativeViewSnapshotOptions,
 	PluginContext,
 } from './_internal';
-import type { NativePlatformBridge, NativePluginCapability } from './_internal';
+import type {
+	NativePlatformBridge,
+	NativePluginCapability,
+	NativePluginPlatform,
+} from './_internal';
 declare const NativePlatform$1: NativePlatformBridge | undefined;
 
 export declare class NativePluginCapabilityError extends Error {
@@ -65,6 +69,11 @@ export declare class NativePluginPlatformError extends Error {
 }
 export declare class NativePluginUnavailableError extends Error {
 	readonly code = 'NATIVE_PLUGIN_UNAVAILABLE';
+}
+export declare class NativePluginUnsupportedPlatformError extends Error {
+	readonly code = 'NATIVE_PLUGIN_PLATFORM_EXCLUDED';
+	readonly platforms: readonly NativePluginPlatform[];
+	constructor(platforms: readonly NativePluginPlatform[], platform: string);
 }
 export declare class NativePluginVersionError extends Error {
 	readonly code = 'NATIVE_PLUGIN_API_VERSION_UNSUPPORTED';

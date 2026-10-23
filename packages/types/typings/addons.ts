@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import type { NativePluginCapability, PluginContext } from './native';
+import type { NativePluginCapability, NativePluginPlatform, PluginContext } from './native';
 
 /** The kinds of addon a manifest can declare. */
 export const ADDON_TYPES = ['plugin', 'theme', 'icon-pack', 'font'] as const;
@@ -28,8 +28,10 @@ export type AddonManifest = {
 	folder: string;
 	path: string;
 	url: string;
+	/** The platforms the addon supports; absent means every platform. */
+	platforms?: NativePluginPlatform[];
 	capabilities?: NativePluginCapability[];
-	platformCapabilities?: Partial<Record<'ios' | 'android', NativePluginCapability[]>>;
+	platformCapabilities?: Partial<Record<NativePluginPlatform, NativePluginCapability[]>>;
 	minNativePluginApi?: string;
 	/** Requirements on the Unbound client running the addon. */
 	unbound?: {

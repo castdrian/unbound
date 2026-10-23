@@ -33,6 +33,7 @@ const API_ERROR_STATUS: Record<ApiErrorCode, number> = {
 	invalid_changelog: 422,
 	sync_conflict: 409,
 	sync_document_too_large: 413,
+	edit_conflict: 409,
 	sponsorship_required: 403,
 	badge_rejected: 400,
 	perk_revoked: 403,

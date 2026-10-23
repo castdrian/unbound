@@ -1,6 +1,6 @@
 import { addonIdSchema, addonManifestSchema, semverSchema } from './manifest';
-import { changelogSchema } from './changelog';
 import { userSummarySchema } from './account';
+import { changelogSchema } from './changelog';
 import { submissionSchema } from './publish';
 import { sourcePinSchema } from './source';
 import { z } from './zod';

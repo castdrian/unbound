@@ -12,7 +12,7 @@ import Tag from '~/components/tag';
 
 type AddonPickerProps = {
 	listing: ListRepositoryAddonsResponse;
-	addonId?: string;
+	lockedAddonId?: string;
 	selected: string | null;
 	disabled: boolean;
 	onRefChange: (ref: string) => void;
@@ -64,7 +64,7 @@ function AddonOption({ addon, selected, disabled, onPick }: AddonOptionProps) {
 
 function AddonPicker({
 	listing,
-	addonId,
+	lockedAddonId,
 	selected,
 	disabled,
 	onRefChange,
@@ -144,7 +144,7 @@ function AddonPicker({
 							disabled={
 								disabled ||
 								addon.issues.length > 0 ||
-								(addonId !== undefined && addon.id !== addonId)
+								(lockedAddonId !== undefined && addon.id !== lockedAddonId)
 							}
 							onPick={() => onPick(addon)}
 						/>

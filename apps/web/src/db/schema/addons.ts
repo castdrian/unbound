@@ -51,9 +51,7 @@ export const addon = sqliteTable(
 				.on(table.type, table[key], table.id)
 				.where(sql`${table.delistedAt} is null`),
 		]),
-		// The admin addons list, delisted ones included; its published-range filter reads it too.
 		index('addon_createdAt_idx').on(table.createdAt, table.id),
-		// Its `delisted` filter; `listed` reads `addon_listed_createdAt_idx`.
 		index('addon_delisted_createdAt_idx')
 			.on(table.createdAt, table.id)
 			.where(sql`${table.delistedAt} is not null`),

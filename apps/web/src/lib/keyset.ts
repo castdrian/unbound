@@ -107,10 +107,9 @@ export function toKeysetPage<T>(
 	const first = items.at(0);
 	const last = items.at(-1);
 
-	// Reading backwards came from a later page and reading forwards from an earlier one, so that side
-	// always has rows; the lookahead row decides the other side.
-	const hasNext = backwards ? Boolean(request.cursor) : more;
-	const hasPrev = backwards ? more : Boolean(request.cursor);
+	const fromCursor = Boolean(request.cursor);
+	const hasNext = backwards ? fromCursor : more;
+	const hasPrev = backwards ? more : fromCursor;
 
 	return {
 		items,

@@ -21,44 +21,15 @@ import type { Role } from '~/lib/auth/access';
 
 import { createTestContext, signInWithDiscord, snowflakeAt } from './helpers/context';
 import { manifest, seedApprovedAddon } from './helpers/addons';
+import { serveMemoryS3 } from './helpers/memory-s3';
 
 type PlanStep = {
 	detail: string;
 };
 
-// Matched by name, not timestamp, so regenerating the migration on a rebase keeps this test valid.
 const EVENTS_MIGRATION_SUFFIX = '_moderation_events';
 
-// An in-memory object store answering the path-style requests `Bun.S3Client` and presigned uploads make.
-const objects = new Map<string, ArrayBuffer>();
-const s3 = Bun.serve({
-	port: 0,
-	async fetch(request) {
-		const key = new URL(request.url).pathname;
-
-		if (request.method === 'PUT') {
-			objects.set(key, await request.arrayBuffer());
-
-			return new Response(null);
-		}
-
-		if (request.method === 'DELETE') {
-			objects.delete(key);
-
-			return new Response(null, { status: 204 });
-		}
-
-		const body = objects.get(key);
-
-		if (!body) {
-			return new Response(null, { status: 404 });
-		}
-
-		return new Response(request.method === 'HEAD' ? null : body, {
-			headers: { 'content-length': String(body.byteLength) },
-		});
-	},
-});
+const s3 = serveMemoryS3();
 
 const base = createTestContext({ S3_ENDPOINT: s3.url.href, EVENT_PAGE_SIZE: '2' });
 
@@ -356,7 +327,6 @@ describe('events migration', () => {
 				`INSERT INTO user (id, name, email, role) VALUES ('a', 'A', 'a@example.com', 'user'), ('m', 'M', 'm@example.com', 'moderator')`,
 			);
 
-			// The changes-requested listing was republished, so only its superseded row keeps the decision.
 			const submissions = [
 				['s-changes', 'listing', 'superseded', 'changes_requested', 'Add a README.', 1000],
 				['s-approved', 'listing', 'approved', 'approved', 'Thanks.', 2000],

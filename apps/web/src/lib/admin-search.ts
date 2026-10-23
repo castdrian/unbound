@@ -1,7 +1,6 @@
 import type { SQL, SQLWrapper } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
-// The trigram FTS5 tables of the `admin_search` migration, mirroring each subject's searchable text.
 const SEARCH_TABLES = {
 	user: sql.raw('`user_search`'),
 	addon: sql.raw('`addon_search`'),

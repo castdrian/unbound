@@ -130,21 +130,21 @@ describe('dashboard rows', () => {
 		});
 	});
 
-	test('offers to restart an unfinished upload of the viewer and of their listing', async () => {
+	test('republishing reads the repository and addon directory of the pending submission again', async () => {
 		const owner = await signUp();
-		const unfinished = { status: 'awaiting_upload', submittedAt: null } as const;
 
-		await seedApprovedAddon(ctx, owner, manifest('rows.restart'));
-		await seedSubmission(ctx, owner, manifest('rows.restart', '1.1.0'), {
-			kind: 'update',
-			...unfinished,
+		await seedSubmission(
+			ctx,
+			owner,
+			manifest('rows.republish'),
+			{ status: 'changes_requested', reviewNote: 'Fix it.' },
+			{ repository: 'acme/republish', path: 'themes/republish' },
+		);
+
+		expect(rowOf(await dashboardOf(owner), 'rows.republish')).toMatchObject({
+			pending: { source: { repository: 'acme/republish', path: 'themes/republish' } },
+			actions: { submit: 'republish' },
 		});
-		await seedSubmission(ctx, owner, manifest('rows.restart-listing'), unfinished);
-
-		const dashboard = await dashboardOf(owner);
-
-		expect(rowOf(dashboard, 'rows.restart').actions.submit).toBe('restart');
-		expect(rowOf(dashboard, 'rows.restart-listing').actions.submit).toBe('restart');
 	});
 
 	test('offers no update without the update permission', async () => {
@@ -170,7 +170,7 @@ describe('dashboard rows', () => {
 });
 
 describe('the submission timeline', () => {
-	test('shows reviewed submissions newest first and skips never-uploaded ones', async () => {
+	test('shows reviewed submissions newest first and skips expired ones', async () => {
 		const owner = await signUp();
 
 		await seedApprovedAddon(ctx, owner, manifest('timeline.main', '1.0.0', { name: 'Main' }));
@@ -185,10 +185,10 @@ describe('the submission timeline', () => {
 			reviewedAt: minutesAgo(20),
 			reviewNote: 'Drop the token access.',
 		});
-		const unfinished = await seedSubmission(ctx, owner, manifest('timeline.main', '1.2.0'), {
+		const expired = await seedSubmission(ctx, owner, manifest('timeline.main', '1.2.0'), {
 			kind: 'update',
-			status: 'awaiting_upload',
-			submittedAt: null,
+			status: 'expired',
+			submittedAt: minutesAgo(5),
 		});
 		const rejected = await seedSubmission(
 			ctx,
@@ -206,7 +206,7 @@ describe('the submission timeline', () => {
 		const { timeline } = await dashboardOf(owner);
 		const ids = timeline.map((entry) => entry.id);
 
-		expect(ids).not.toContain(unfinished.id);
+		expect(ids).not.toContain(expired.id);
 		expect(ids.indexOf(rejected.id)).toBeLessThan(ids.indexOf(superseded.id));
 		expect(timeline.find((entry) => entry.id === superseded.id)).toMatchObject({
 			name: 'Main',

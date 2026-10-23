@@ -45,7 +45,6 @@ export const envSchema = z.object({
 	/** Per user, across the endpoints that read GitHub with the user's token. */
 	GITHUB_RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(600),
 	GITHUB_RATE_LIMIT_MAX: positiveInt.default(60),
-	SUBMISSION_UPLOAD_TTL_SECONDS: positiveInt.default(900),
 	SUBMISSION_MAX_PENDING_LISTINGS: positiveInt.default(2),
 	SUBMISSION_MAX_PENDING_UPDATES: positiveInt.default(1),
 	SUBMISSION_MIN_ACCOUNT_AGE_DAYS: z.coerce.number().int().nonnegative().default(30),
@@ -55,6 +54,8 @@ export const envSchema = z.object({
 	/** How long a reviewer's presigned download of a staged bundle stays valid. */
 	REVIEW_ARTIFACT_URL_TTL_SECONDS: positiveInt.default(600),
 	STAGING_SWEEP_INTERVAL_SECONDS: positiveInt.default(3600),
+	/** Staged objects younger than this are never orphans: create writes the object before its row. */
+	STAGING_ORPHAN_GRACE_SECONDS: positiveInt.default(3600),
 	UPDATES_RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(60),
 	UPDATES_RATE_LIMIT_MAX: positiveInt.default(30),
 	ADDON_LIST_PAGE_SIZE: positiveInt.default(50),

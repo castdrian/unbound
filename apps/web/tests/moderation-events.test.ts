@@ -8,10 +8,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { addMaintainer, removeMaintainer, transferAddon } from '~/lib/maintainers';
-import { createSubmission, finalizeSubmission } from '~/lib/submissions';
 import { MIGRATIONS_FOLDER, migrateDatabase } from '~/db/migrate';
 import { listEvents, queryEvents } from '~/lib/moderation-events';
 import { delistAddon, relistAddon } from '~/lib/addons';
+import { createSubmission } from '~/lib/submissions';
 import { moderationEvent, user } from '~/db/schema';
 import type { AppContext } from '~/lib/context';
 import { reviewSubmission } from '~/lib/review';
@@ -19,8 +19,9 @@ import { createDatabase } from '~/db/database';
 import type { Caller } from '~/lib/api/caller';
 import type { Role } from '~/lib/auth/access';
 
-import { createTestContext, signInWithDiscord, snowflakeAt } from './helpers/context';
+import { createTestContext, linkGitHub, signInWithDiscord, snowflakeAt } from './helpers/context';
 import { manifest, seedApprovedAddon } from './helpers/addons';
+import { commitPlugin, serveGitHub } from './helpers/github';
 import { serveMemoryS3 } from './helpers/memory-s3';
 
 type PlanStep = {
@@ -29,16 +30,26 @@ type PlanStep = {
 
 const EVENTS_MIGRATION_SUFFIX = '_moderation_events';
 
-const s3 = serveMemoryS3();
+const REPOSITORY = 'acme/addons';
 
-const base = createTestContext({ S3_ENDPOINT: s3.url.href, EVENT_PAGE_SIZE: '2' });
+const s3 = serveMemoryS3();
+const github = serveGitHub({
+	repositories: { [REPOSITORY]: {} },
+	tokens: { owner: { push: [REPOSITORY] } },
+});
+
+const base = createTestContext({
+	S3_ENDPOINT: s3.url.href,
+	GITHUB_API_URL: github.url.href,
+	EVENT_PAGE_SIZE: '2',
+});
 
 let clock = new Date('2026-10-23T12:00:00.000Z');
 
 const ctx: AppContext = { ...base.ctx, now: () => clock };
 
 afterAll(async () => {
-	await s3.stop(true);
+	await Promise.all([s3.stop(true), github.stop()]);
 	base.close();
 });
 
@@ -75,14 +86,11 @@ function tick() {
 }
 
 async function publish(author: Member, id: string) {
-	const bundle = `export default ${JSON.stringify(id)};`;
-	const { submission, upload } = await createSubmission(ctx, author.caller, {
-		manifest: manifest(id),
-		bundleSize: Buffer.byteLength(bundle),
-	});
+	const { request } = commitPlugin(github.repository(REPOSITORY), REPOSITORY, id);
 
-	await fetch(upload.url, { method: upload.method, headers: upload.headers, body: bundle });
-	await finalizeSubmission(ctx, author.caller, submission.id);
+	await linkGitHub(ctx, author.userId, 'owner');
+
+	const { submission } = await createSubmission(ctx, author.caller, request);
 
 	return submission.id;
 }

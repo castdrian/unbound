@@ -52,7 +52,6 @@ import { Route as ApiV1AddonsIdDelistRouteImport } from './routes/api/v1/addons/
 import { Route as ApiV1AddonsIdMaintainersRouteImport } from './routes/api/v1/addons/$id/maintainers'
 import { Route as ApiV1AddonsIdRelistRouteImport } from './routes/api/v1/addons/$id/relist'
 import { Route as ApiV1AddonsIdTransferRouteImport } from './routes/api/v1/addons/$id/transfer'
-import { Route as ApiV1SubmissionsIdFinalizeRouteImport } from './routes/api/v1/submissions/$id/finalize'
 import { Route as ApiV1SubmissionsIdReviewRouteImport } from './routes/api/v1/submissions/$id/review'
 import { Route as ApiV1UsersIdBadgesRouteImport } from './routes/api/v1/users/$id/badges'
 import { Route as ApiV1AddonsIdMaintainersUserIdRouteImport } from './routes/api/v1/addons/$id/maintainers/$userId'
@@ -276,12 +275,6 @@ const ApiV1AddonsIdTransferRoute = ApiV1AddonsIdTransferRouteImport.update({
   path: '/$id/transfer',
   getParentRoute: () => ApiV1AddonsRoute,
 } as any)
-const ApiV1SubmissionsIdFinalizeRoute =
-  ApiV1SubmissionsIdFinalizeRouteImport.update({
-    id: '/$id/finalize',
-    path: '/$id/finalize',
-    getParentRoute: () => ApiV1SubmissionsRoute,
-  } as any)
 const ApiV1SubmissionsIdReviewRoute =
   ApiV1SubmissionsIdReviewRouteImport.update({
     id: '/$id/review',
@@ -351,7 +344,6 @@ export interface FileRoutesByFullPath {
   '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
   '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
   '/api/v1/addons/$id/transfer': typeof ApiV1AddonsIdTransferRoute
-  '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
   '/api/v1/submissions/$id/review': typeof ApiV1SubmissionsIdReviewRoute
   '/api/v1/users/$id/badges': typeof ApiV1UsersIdBadgesRoute
   '/admin/addons/': typeof SiteStaffAdminAddonsIndexRoute
@@ -400,7 +392,6 @@ export interface FileRoutesByTo {
   '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
   '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
   '/api/v1/addons/$id/transfer': typeof ApiV1AddonsIdTransferRoute
-  '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
   '/api/v1/submissions/$id/review': typeof ApiV1SubmissionsIdReviewRoute
   '/api/v1/users/$id/badges': typeof ApiV1UsersIdBadgesRoute
   '/admin/addons': typeof SiteStaffAdminAddonsIndexRoute
@@ -452,7 +443,6 @@ export interface FileRoutesById {
   '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
   '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
   '/api/v1/addons/$id/transfer': typeof ApiV1AddonsIdTransferRoute
-  '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
   '/api/v1/submissions/$id/review': typeof ApiV1SubmissionsIdReviewRoute
   '/api/v1/users/$id/badges': typeof ApiV1UsersIdBadgesRoute
   '/_site/_staff/admin/addons/': typeof SiteStaffAdminAddonsIndexRoute
@@ -503,7 +493,6 @@ export interface FileRouteTypes {
     | '/api/v1/addons/$id/maintainers'
     | '/api/v1/addons/$id/relist'
     | '/api/v1/addons/$id/transfer'
-    | '/api/v1/submissions/$id/finalize'
     | '/api/v1/submissions/$id/review'
     | '/api/v1/users/$id/badges'
     | '/admin/addons/'
@@ -552,7 +541,6 @@ export interface FileRouteTypes {
     | '/api/v1/addons/$id/maintainers'
     | '/api/v1/addons/$id/relist'
     | '/api/v1/addons/$id/transfer'
-    | '/api/v1/submissions/$id/finalize'
     | '/api/v1/submissions/$id/review'
     | '/api/v1/users/$id/badges'
     | '/admin/addons'
@@ -603,7 +591,6 @@ export interface FileRouteTypes {
     | '/api/v1/addons/$id/maintainers'
     | '/api/v1/addons/$id/relist'
     | '/api/v1/addons/$id/transfer'
-    | '/api/v1/submissions/$id/finalize'
     | '/api/v1/submissions/$id/review'
     | '/api/v1/users/$id/badges'
     | '/_site/_staff/admin/addons/'
@@ -937,13 +924,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1AddonsIdTransferRouteImport
       parentRoute: typeof ApiV1AddonsRoute
     }
-    '/api/v1/submissions/$id/finalize': {
-      id: '/api/v1/submissions/$id/finalize'
-      path: '/$id/finalize'
-      fullPath: '/api/v1/submissions/$id/finalize'
-      preLoaderRoute: typeof ApiV1SubmissionsIdFinalizeRouteImport
-      parentRoute: typeof ApiV1SubmissionsRoute
-    }
     '/api/v1/submissions/$id/review': {
       id: '/api/v1/submissions/$id/review'
       path: '/$id/review'
@@ -1087,13 +1067,11 @@ const ApiV1MeRouteWithChildren =
 
 interface ApiV1SubmissionsRouteChildren {
   ApiV1SubmissionsPreviewRoute: typeof ApiV1SubmissionsPreviewRoute
-  ApiV1SubmissionsIdFinalizeRoute: typeof ApiV1SubmissionsIdFinalizeRoute
   ApiV1SubmissionsIdReviewRoute: typeof ApiV1SubmissionsIdReviewRoute
 }
 
 const ApiV1SubmissionsRouteChildren: ApiV1SubmissionsRouteChildren = {
   ApiV1SubmissionsPreviewRoute: ApiV1SubmissionsPreviewRoute,
-  ApiV1SubmissionsIdFinalizeRoute: ApiV1SubmissionsIdFinalizeRoute,
   ApiV1SubmissionsIdReviewRoute: ApiV1SubmissionsIdReviewRoute,
 }
 

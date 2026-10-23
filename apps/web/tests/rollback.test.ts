@@ -4,9 +4,9 @@ import type { SQLQueryBindings } from 'bun:sqlite';
 import { eq } from 'drizzle-orm';
 
 import { LATEST_VERSION, getAddonDetails, getCatalog, listAddons } from '~/lib/addons';
-import { createSubmission, finalizeSubmission } from '~/lib/submissions';
 import { findUpdates, newestCompatibleVersions } from '~/lib/updates';
 import type { ServeVersionResult } from '~/lib/rollback';
+import { createSubmission } from '~/lib/submissions';
 import { moderationEvent, user } from '~/db/schema';
 import { getAdminAddon } from '~/lib/admin-addon';
 import type { AppContext } from '~/lib/context';
@@ -15,24 +15,32 @@ import type { Caller } from '~/lib/api/caller';
 import type { Role } from '~/lib/auth/access';
 import { serveVersion } from '~/lib/rollback';
 
-import { createTestContext, signInWithDiscord, snowflakeAt } from './helpers/context';
+import { createTestContext, linkGitHub, signInWithDiscord, snowflakeAt } from './helpers/context';
 import { manifest, seedApprovedAddon, seedVersion } from './helpers/addons';
+import { commitPlugin, serveGitHub } from './helpers/github';
 import { serveMemoryS3 } from './helpers/memory-s3';
 
 type PlanStep = {
 	detail: string;
 };
 
+const REPOSITORY = 'acme/addons';
+
 const s3 = serveMemoryS3();
+const github = serveGitHub({
+	repositories: { [REPOSITORY]: {} },
+	tokens: { owner: { push: [REPOSITORY] } },
+});
 const base = createTestContext({
 	S3_ENDPOINT: s3.url.href,
+	GITHUB_API_URL: github.url.href,
 	SUBMISSION_RATE_LIMIT_MAX: '1000',
 	ADDON_LIST_PAGE_SIZE: '100',
 });
 const ctx: AppContext = base.ctx;
 
 afterAll(async () => {
-	await s3.stop(true);
+	await Promise.all([s3.stop(true), github.stop()]);
 	base.close();
 });
 
@@ -214,18 +222,27 @@ describe('serveVersion', () => {
 		await seedReleases('rb.approval');
 		serveVersion(ctx, admin.caller, 'rb.approval', { version: '1.0.0', reason: 'Broken' });
 
-		const bundle = 'export default 1;';
 		const developer = await currentCaller(owner.userId);
-		const { submission, upload } = await createSubmission(ctx, developer, {
-			manifest: manifest('rb.approval', '1.3.0', {
-				name: 'Hello 1.3.0',
-				unbound: { min: '5.0.0' },
-			}),
-			bundleSize: Buffer.byteLength(bundle),
-		});
+		const { request } = commitPlugin(
+			github.repository(REPOSITORY),
+			REPOSITORY,
+			'rb.approval',
+			'1.3.0',
+			{
+				'manifest.json': JSON.stringify({
+					...manifest('rb.approval', '1.3.0', {
+						name: 'Hello 1.3.0',
+						unbound: { min: '5.0.0' },
+					}),
+					main: 'src/index.ts',
+				}),
+			},
+		);
 
-		await fetch(upload.url, { method: upload.method, headers: upload.headers, body: bundle });
-		await finalizeSubmission(ctx, developer, submission.id);
+		await linkGitHub(ctx, owner.userId, 'owner');
+
+		const { submission } = await createSubmission(ctx, developer, request);
+
 		await reviewSubmission(ctx, admin.caller, submission.id, { decision: 'approved' });
 
 		expect(await served('rb.approval')).toEqual({

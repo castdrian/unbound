@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage: launch.sh [--name N] [--port N] [--no-s3]
-# Starts a throwaway apps/web instance: fake OAuth, temp SQLite, local MinIO, seeded users.
+# Starts a throwaway apps/web instance: fake OAuth, fake GitHub, temp SQLite, local MinIO, seeded users.
 set -euo pipefail
 
 . "$(dirname "$(readlink -f "$0")")/lib.sh"
@@ -48,6 +48,10 @@ if [ "$S3" = 1 ] && ! command -v podman >/dev/null; then
 	S3=0
 fi
 
+GITHUB_PORT=$((PORT + 1))
+until port_free "$GITHUB_PORT"; do GITHUB_PORT=$((GITHUB_PORT + 1)); done
+GITHUB_TOKEN=verify-web-github
+
 mkdir -p "$DIR/db"
 # Cookies ignore ports, so a per-instance *.localhost host keeps this session cookie from colliding
 # with any other app on localhost.
@@ -94,6 +98,7 @@ DISCORD_CLIENT_ID=verify-web-discord
 DISCORD_CLIENT_SECRET=verify-web-discord-secret
 GITHUB_CLIENT_ID=verify-web-github
 GITHUB_CLIENT_SECRET=verify-web-github-secret
+GITHUB_API_URL=http://127.0.0.1:$GITHUB_PORT
 S3_ENDPOINT=$S3_ENDPOINT
 S3_REGION=us-east-1
 S3_ACCESS_KEY_ID=verify-web
@@ -108,18 +113,26 @@ EOF
 	. "$DIR/web.env"
 	set +a
 	bun scripts/migrate.ts >"$DIR/migrate.log" 2>&1 || { cat "$DIR/migrate.log" >&2; exit 1; }
-	VERIFY_WEB_S3="$S3" bun "$SKILL_DIR/scripts/seed.ts" "$DIR/sessions.json"
+	VERIFY_WEB_S3="$S3" VERIFY_WEB_GITHUB_TOKEN="$GITHUB_TOKEN" \
+		bun "$SKILL_DIR/scripts/seed.ts" "$DIR/sessions.json"
 ) || fail "migrate or seed failed"
 
 # An already-running tmux server keeps its own PATH, so pass ours or `bun` may not resolve.
-tmux new-session -d -s "$SESSION" -e "PATH=$PATH" \
+tmux new-session -d -s "$SESSION" -n vite -e "PATH=$PATH" \
 	"exec >'$DIR/vite.log' 2>&1; cd '$WEB_DIR' && set -a && . '$DIR/web.env' && set +a && exec bun --bun vite dev --port $PORT --strictPort"
-PANE_PID="$(tmux list-panes -t "=$SESSION" -F '#{pane_pid}')"
+PANE_PID="$(tmux list-panes -t "=$SESSION:vite" -F '#{pane_pid}')"
+# Submitting reads from GitHub; this fake serves verify/addons to the seeded users' linked accounts.
+tmux new-window -d -t "=$SESSION:" -n github -e "PATH=$PATH" \
+	"exec >'$DIR/github.log' 2>&1; exec bun '$SKILL_DIR/scripts/fake-github.ts' $GITHUB_PORT $GITHUB_TOKEN"
+GITHUB_PID="$(tmux list-panes -t "=$SESSION:github" -F '#{pane_pid}')"
 
 cat >"$DIR/instance.env" <<EOF
 PORT=$PORT
 URL=$URL
 PANE_PID=$PANE_PID
+GITHUB_PID=$GITHUB_PID
+GITHUB_URL=http://127.0.0.1:$GITHUB_PORT
+GITHUB_TOKEN=$GITHUB_TOKEN
 MINIO_ADDR=$MINIO_ADDR
 EOF
 

@@ -5,7 +5,7 @@ description: Boot and drive apps/web (the unbound.rip addon site and its /api/v1
 
 # Verify apps/web
 
-One command boots a disposable instance from this checkout. It writes a fake env, starts a fresh SQLite and a MinIO container, migrates, seeds one session per role, and serves vite in its own tmux session. Scripts live in `scripts/` next to this file and run from any directory. Never point them at production. They only touch `/tmp/verify-web/<name>/`, their own tmux session and their own container.
+One command boots a disposable instance from this checkout. It writes a fake env, starts a fresh SQLite, a MinIO container and a fake GitHub, migrates, seeds one session per role, and serves vite in its own tmux session. Scripts live in `scripts/` next to this file and run from any directory. Never point them at production. They only touch `/tmp/verify-web/<name>/`, their own tmux session and their own container.
 
 ## Launch
 
@@ -19,11 +19,12 @@ It is ready when it prints `ready: http://verify-web-<name>.localhost:<port>`, a
 
 Seed data (`scripts/seed.ts`):
 
-| Thing              | Value                                                                                                                                                                                       |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Users              | `Verify User` (user), `Verify Developer` (developer), `Verify Moderator` (moderator), `Verify Admin` (admin). Each has a Discord account dated 2020, so the 30-day account-age gate passes. |
-| Approved addon     | `verify.hello` 1.0.0, plugin, owned by Verify Developer. Its manifest and bundle are on the MinIO CDN.                                                                                      |
-| Pending submission | `verify.pending` 0.1.0, new listing by Verify User. Its 1024-byte bundle is staged with a matching sha256, so Approve really publishes.                                                     |
+| Thing              | Value                                                                                                                                                                                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Users              | `Verify User` (user), `Verify Developer` (developer), `Verify Moderator` (moderator), `Verify Admin` (admin). Each has a Discord account dated 2020, so the 30-day account-age gate passes, and a linked GitHub account that can push to `verify/addons`.                |
+| Fake GitHub        | `scripts/fake-github.ts` in the instance's tmux session (window `github`) serves `verify/addons`: a workspace with `plugins/verify.new` 0.1.0, `plugins/verify.hello` 1.1.0 and `plugins/verify.broken` (bundle not committed), tag `v1`. `GITHUB_API_URL` points at it. |
+| Approved addon     | `verify.hello` 1.0.0, plugin, owned by Verify Developer. Its manifest and bundle are on the MinIO CDN.                                                                                                                                                                   |
+| Pending submission | `verify.pending` 0.1.0, new listing by Verify User, pinned to `verify/addons` (a seeded pin, not a real commit there). Its 1024-byte bundle is staged with a matching sha256, so Approve really publishes.                                                               |
 
 ## Sign in
 
@@ -42,7 +43,7 @@ Roles: `user`, `developer`, `moderator`, `admin`. To switch roles in a tab, run 
 scripts/doctor.sh [--name N]
 ```
 
-The doctor is read-only and exits 0 only when every line is `PASS`. It checks the tmux session and pid, that our process holds the port, that the instance serves this checkout, `GET /`, that `/api/v1/addons` lists `verify.hello`, that the admin bearer session is valid, and MinIO liveness. Run it first whenever anything looks off.
+The doctor is read-only and exits 0 only when every line is `PASS`. It checks the tmux session and pid, that our process holds the port, that the instance serves this checkout, `GET /`, that `/api/v1/addons` lists `verify.hello`, that the admin bearer session is valid, that the fake GitHub serves `verify/addons` with push access, and MinIO liveness. Run it first whenever anything looks off.
 
 ## Drive
 
@@ -77,7 +78,7 @@ The CDN view is `curl http://$MINIO_ADDR/unbound-addons/addons/<id>/<version>/ma
 scripts/teardown.sh [--name N]
 ```
 
-Teardown kills the tmux session, the pane pid and its children (matched by parent pid, never by name), stops the MinIO container and deletes `/tmp/verify-web/<name>/`. Also close your tabs with `t3_preview_close`. Run teardown after every failed iteration as well.
+Teardown kills the tmux session, the vite and fake GitHub pane pids and their children (matched by parent pid, never by name), stops the MinIO container and deletes `/tmp/verify-web/<name>/`. Also close your tabs with `t3_preview_close`. Run teardown after every failed iteration as well.
 
 ## Gotchas
 
@@ -86,5 +87,5 @@ Teardown kills the tmux session, the pane pid and its children (matched by paren
 - **Never stop vite with `pkill -f`.** The pattern matches your own shell. `bun --bun vite` runs vite as a `node` child of the tmux pane, so teardown kills by pid.
 - **A tmux server you did not start keeps its own PATH.** launch.sh passes `PATH` explicitly. Copy that if you start anything else in tmux.
 - **Approval changes roles.** Approving a first listing promotes its author to `developer`. Relaunch (`teardown.sh && launch.sh`) for a clean seed.
-- **Browser uploads go to MinIO.** On `/submit`, the browser PUTs the bundle straight to `S3_ENDPOINT` (127.0.0.1). The preview browser runs on this machine, so this works. A browser elsewhere cannot reach it.
+- **Submitting reads the fake GitHub, never github.com.** The server reads `verify/addons` through `GITHUB_API_URL`, and links on `/submit` and `/review` point at github.com, where that repository does not exist. To submit something new, commit to the fake's git repository (its path is in `github.log`) and pick the new commit.
 - **MinIO differs from B2.** MinIO honours headers that B2 rejects (e.g. `if-none-match` on PUT). A storage change proven here is not proven against production storage.

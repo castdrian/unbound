@@ -9,18 +9,18 @@ import { and, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
 
 import { LATEST_VERSION, getManifestType } from '~/lib/addons';
 import { OPEN_SUBMISSION_STATUSES } from '~/lib/submissions';
+import { submission, submissionSource } from '~/db/schema';
 import type { Caller, CallerUser } from '~/lib/api/caller';
 import { hasPermission } from '~/lib/auth/access';
 import type { AppContext } from '~/lib/context';
-import { submission } from '~/db/schema';
 
 export type Visibility = 'listed' | 'delisted';
 
 /**
- * What a row's submit button does: `republish` and `restart` supersede the viewer's own submission
- * with changes requested or an unfinished upload; `update` submits a new version.
+ * What a row's submit button does: `republish` supersedes the viewer's own submission with changes
+ * requested; `update` submits a new version.
  */
-export type SubmitIntent = 'republish' | 'restart' | 'update';
+export type SubmitIntent = 'republish' | 'update';
 
 /** What the viewer may do with a row; the UI renders exactly these and checks nothing itself. */
 export type AddonActions = {
@@ -40,6 +40,13 @@ export type PendingSubmission = {
 	/** The viewer authored it, so submitting the addon again supersedes it. */
 	mine: boolean;
 	note: string | null;
+	/** Where it was read from, to submit from the same place again; `null` on legacy uploads. */
+	source: PendingSource | null;
+};
+
+export type PendingSource = {
+	repository: string;
+	path: string;
 };
 
 export type LiveVersion = {
@@ -89,7 +96,7 @@ export type TimelineEntry = {
 };
 
 export type Dashboard = {
-	/** Most urgent first: changes requested, upload incomplete, in review, then the rest, delisted last. */
+	/** Most urgent first: changes requested, in review, then the rest, delisted last. */
 	addons: DashboardAddon[];
 	/** At most `TIMELINE_LIMIT`, newest first. */
 	timeline: TimelineEntry[];
@@ -106,6 +113,7 @@ type SubmissionRecord = {
 	name: string;
 	type: AddonType;
 	repository: string | null;
+	path: string | null;
 	submittedAt: Date | null;
 	reviewDecision: ReviewDecision | null;
 	reviewedAt: Date | null;
@@ -131,13 +139,11 @@ export const TIMELINE_LIMIT = 20;
 
 const URGENCY: Record<OpenSubmissionStatus, number> = {
 	changes_requested: 0,
-	awaiting_upload: 1,
-	pending_review: 2,
+	pending_review: 1,
 };
 
 const IDLE = Object.keys(URGENCY).length;
 
-// A superseded submission shows the decision it kept; the never-uploaded statuses have no outcome.
 const OUTCOMES: Record<SubmissionStatus, TimelineOutcome | 'kept_decision' | null> = {
 	pending_review: 'pending_review',
 	changes_requested: 'changes_requested',
@@ -145,13 +151,11 @@ const OUTCOMES: Record<SubmissionStatus, TimelineOutcome | 'kept_decision' | nul
 	rejected: 'rejected',
 	cancelled: 'cancelled',
 	superseded: 'kept_decision',
-	awaiting_upload: null,
 	expired: null,
 };
 
 const REPLACING_INTENTS: Partial<Record<OpenSubmissionStatus, SubmitIntent>> = {
 	changes_requested: 'republish',
-	awaiting_upload: 'restart',
 };
 
 const RECORD_COLUMNS = {
@@ -165,6 +169,7 @@ const RECORD_COLUMNS = {
 	manifestType: sql<AddonType | null>`json_extract(${submission.manifest}, '$.type')`,
 	main: sql<string>`json_extract(${submission.manifest}, '$.main')`,
 	repository: submission.repository,
+	path: submissionSource.path,
 	submittedAt: submission.submittedAt,
 	reviewDecision: submission.reviewDecision,
 	reviewedAt: submission.reviewedAt,
@@ -198,10 +203,12 @@ async function querySubmissions(ctx: AppContext, userId: string, addonIds: strin
 		ctx.db
 			.select(RECORD_COLUMNS)
 			.from(submission)
+			.leftJoin(submissionSource, eq(submissionSource.submissionId, submission.id))
 			.where(and(scope, inArray(submission.status, OPEN_SUBMISSION_STATUSES))),
 		ctx.db
 			.select(RECORD_COLUMNS)
 			.from(submission)
+			.leftJoin(submissionSource, eq(submissionSource.submissionId, submission.id))
 			.where(and(scope, isNotNull(submission.submittedAt)))
 			.orderBy(desc(submission.submittedAt))
 			.limit(TIMELINE_LIMIT),
@@ -217,6 +224,10 @@ function toPending(record: OpenRecord, viewer: CallerUser): PendingSubmission {
 		status: record.status,
 		mine: record.authorId === viewer.id,
 		note: record.reviewNote,
+		source:
+			record.repository !== null && record.path !== null
+				? { repository: record.repository, path: record.path }
+				: null,
 	};
 }
 

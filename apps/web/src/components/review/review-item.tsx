@@ -1,10 +1,13 @@
-import { IconAlertTriangle, IconDownload, IconLock } from '@tabler/icons-react';
+import { IconDownload, IconFileCode, IconLock } from '@tabler/icons-react';
 
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '~/components/ui/card';
 import ReviewDecisionDialog from '~/components/review/review-decision-dialog';
 import ManifestDiffTable from '~/components/review/manifest-diff-table';
+import ChangelogSections from '~/components/changelog-sections';
+import AddonMdReview from '~/components/review/addon-md-review';
+import { getBundleUrl, shortSha } from '~/lib/github-urls';
+import SourcePinLink from '~/components/source-pin-link';
 import type { ReviewEntry } from '~/lib/review-entry';
-import GitHubIcon from '~/components/icons/github';
 import UserAvatar from '~/components/user-avatar';
 import { Button } from '~/components/ui/button';
 import Text from '~/components/ui/text';
@@ -22,7 +25,7 @@ const DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
 });
 
 function ReviewItem({ entry }: ReviewItemProps) {
-	const { submission, submitter } = entry;
+	const { submission, submitter, source } = entry;
 
 	return (
 		<Card className='gap-4'>
@@ -37,13 +40,10 @@ function ReviewItem({ entry }: ReviewItemProps) {
 						<Tag className='uppercase'>
 							{submission.kind === 'listing' ? 'New listing' : 'Update'}
 						</Tag>
-						{submission.unverifiedSource ? (
-							<Tag variant='warning' className='gap-1 uppercase'>
-								<IconAlertTriangle size={12} />
-								Unverified source
-							</Tag>
-						) : null}
 					</div>
+					<Text variant='text-xs' color='muted' className='break-all'>
+						<SourcePinLink pin={source} /> · {source.path || '/'} · {source.ref}
+					</Text>
 					<Text variant='text-xs' color='muted'>
 						Submitted by {submitter.name} on{' '}
 						{DATE_FORMAT.format(new Date(entry.submittedAt))} UTC
@@ -59,11 +59,11 @@ function ReviewItem({ entry }: ReviewItemProps) {
 						<Text variant='text-xs' color='muted'>
 							Changelog
 						</Text>
-						<Text variant='text-sm' className='whitespace-pre-wrap'>
-							{entry.changelog}
-						</Text>
+						<ChangelogSections changelog={entry.changelog} />
 					</div>
 				) : null}
+
+				<AddonMdReview entry={entry} />
 
 				<div className='flex flex-wrap gap-2'>
 					<Button asChild variant='outline' size='sm'>
@@ -72,18 +72,12 @@ function ReviewItem({ entry }: ReviewItemProps) {
 							Download staged bundle
 						</a>
 					</Button>
-					{submission.repository ? (
-						<Button asChild variant='outline' size='sm'>
-							<a
-								href={`https://github.com/${submission.repository}`}
-								target='_blank'
-								rel='noopener noreferrer'
-							>
-								<GitHubIcon />
-								{submission.repository}
-							</a>
-						</Button>
-					) : null}
+					<Button asChild variant='outline' size='sm'>
+						<a href={getBundleUrl(source)} target='_blank' rel='noopener noreferrer'>
+							<IconFileCode />
+							Bundle at {shortSha(source.commitSha)}
+						</a>
+					</Button>
 				</div>
 			</CardContent>
 

@@ -16,7 +16,7 @@ import type {
 } from '@unbound-app/contracts/source';
 import { formatChangelogIssues, parseChangelog } from '@unbound-app/contracts/changelog';
 import type { WorkspaceAddon, WorkspaceConfig } from '@unbound-app/contracts/workspace';
-import type { SubmitFromRepositoryRequest } from '@unbound-app/contracts/publish';
+import type { CreateSubmissionRequest } from '@unbound-app/contracts/publish';
 import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import { addonManifestSchema } from '@unbound-app/contracts/manifest';
 import type { Changelog } from '@unbound-app/contracts/changelog';
@@ -337,7 +337,7 @@ function toDetails(
 	repo: GitHubRepository,
 	extras: RepositoryExtras,
 	tree: GitTree,
-	overrides: SubmitFromRepositoryRequest['details'] = {},
+	overrides: CreateSubmissionRequest['details'] = {},
 ): RepositoryDetails {
 	const hasReadme = [...tree.keys()].some((path) => !path.includes('/') && README.test(path));
 
@@ -480,7 +480,7 @@ export async function listRepositoryAddons(
 export async function readAddonSource(
 	ctx: AppContext,
 	github: GitHubClient,
-	request: SubmitFromRepositoryRequest,
+	request: CreateSubmissionRequest,
 ): Promise<AddonSource> {
 	const { repo, commitSha } = await openCommit(github, request.repository, request.ref);
 	const { repository } = repo;

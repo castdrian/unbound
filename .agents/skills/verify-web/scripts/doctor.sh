@@ -66,6 +66,10 @@ me="$(curl -s --max-time 30 -H "authorization: Bearer $token" "$URL/api/v1/me")"
 grep -q '"admin"' <<<"$me" && r=ok || r="admin session rejected: ${me:0:200}"
 check "admin session valid" "$r"
 
+repo="$(curl -s --max-time 10 -H "authorization: Bearer ${GITHUB_TOKEN:-}" "${GITHUB_URL:-http://127.0.0.1:9}/repos/verify/addons")"
+grep -q '"push":true' <<<"$repo" && r=ok || r="fake GitHub did not serve verify/addons: ${repo:0:200}"
+check "fake GitHub ${GITHUB_URL:-}" "$r"
+
 if [ -n "$MINIO_ADDR" ]; then
 	code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://$MINIO_ADDR/minio/health/live")"
 	[ "$code" = 200 ] && r=ok || r="HTTP $code"

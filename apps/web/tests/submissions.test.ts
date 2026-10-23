@@ -4,11 +4,11 @@ import { apiErrorResponseSchema } from '@unbound-app/contracts/errors';
 import { afterAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
-import finalizeSubmissionEndpoint from '~/endpoints/finalize-submission';
 import createSubmissionEndpoint from '~/endpoints/create-submission';
 import { addonMaintainer, submission, user } from '~/db/schema';
 import type { AppContext } from '~/lib/context';
 import { API_KEY_HEADER } from '~/api/client';
+import type { EnvSource } from '~/lib/env';
 
 import {
 	authRequest,
@@ -20,61 +20,80 @@ import {
 	snowflakeAt,
 } from './helpers/context';
 import { manifest, seedApprovedAddon } from './helpers/addons';
+import { commitPlugin, serveGitHub } from './helpers/github';
+import { withMemoryStaging } from './helpers/storage';
 
 const NOW = new Date('2026-10-17T12:00:00.000Z');
 const DAY_MS = 86_400_000;
-const REPOSITORY = 'unbound-mod/hello';
+const REPOSITORY = 'acme/addons';
 
-// GitHub's `GET /repos/{owner}/{repo}` for one repository, answering per access token.
-const github = Bun.serve({
-	port: 0,
-	routes: {
-		[`/repos/${REPOSITORY}`]: (request) => {
-			const push = { 'Bearer pusher': true, 'Bearer reader': false }[
-				request.headers.get('authorization') ?? ''
-			];
-
-			if (push === undefined) {
-				return Response.json({ message: 'Bad credentials' }, { status: 401 });
-			}
-
-			return Response.json({
-				full_name: REPOSITORY,
-				permissions: { admin: false, maintain: false, push, triage: true, pull: true },
-			});
-		},
-	},
+const github = serveGitHub({
+	repositories: { [REPOSITORY]: {} },
+	tokens: { owner: { push: [REPOSITORY] }, reader: { push: [] } },
 });
 
-const base = createTestContext({ GITHUB_API_URL: github.url.href });
-const ctx: AppContext = { ...base.ctx, now: () => NOW };
+const fixture = github.repository(REPOSITORY);
+
+function setup(overrides: EnvSource = {}) {
+	const test = createTestContext({
+		GITHUB_API_URL: github.url.href,
+		GITHUB_RATE_LIMIT_MAX: '1000',
+		...overrides,
+	});
+	let clock = NOW;
+	const { ctx, staging } = withMemoryStaging({ ...test.ctx, now: () => clock });
+
+	return {
+		ctx,
+		staging,
+		close: test.close,
+		advance(ms: number) {
+			clock = new Date(clock.getTime() + ms);
+		},
+	};
+}
+
+const main = setup();
+const { ctx, staging } = main;
 
 afterAll(async () => {
-	await github.stop(true);
-	base.close();
+	main.close();
+	await github.stop();
 });
 
-type SubmitRequest = Partial<CreateSubmissionRequest> & Pick<CreateSubmissionRequest, 'manifest'>;
+function commitAddon(id: string, version?: string) {
+	return commitPlugin(fixture, REPOSITORY, id, version);
+}
 
 let users = 0;
 
-async function signUp(target: AppContext = ctx, accountAgeDays: number = 365) {
+async function signUp(
+	target: AppContext = ctx,
+	token: string | null = 'owner',
+	accountAgeDays: number = 365,
+) {
 	users += 1;
 
-	return signInWithDiscord(target, {
+	const signedIn = await signInWithDiscord(target, {
 		id: snowflakeAt(new Date(target.now().getTime() - accountAgeDays * DAY_MS)),
 		name: `User ${users}`,
 		email: `user-${users}@example.com`,
 	});
+
+	if (token) {
+		await linkGitHub(target, signedIn.userId, token);
+	}
+
+	return signedIn;
 }
 
-function submit(headers: Headers, request: SubmitRequest, target: AppContext = ctx) {
+function submit(headers: Headers, request: CreateSubmissionRequest, target: AppContext = ctx) {
 	return createSubmissionEndpoint.handle(
 		target,
 		new Request(new URL('/api/v1/submissions', target.env.PUBLIC_URL), {
 			method: 'POST',
 			headers,
-			body: JSON.stringify({ bundleSize: 1024, ...request }),
+			body: JSON.stringify(request),
 		}),
 	);
 }
@@ -89,6 +108,10 @@ async function refused(response: Response) {
 	const { error } = apiErrorResponseSchema.parse(await response.json());
 
 	return { status: response.status, code: error.code };
+}
+
+function sha256(text: string): string {
+	return new Bun.CryptoHasher('sha256').update(text).digest('hex');
 }
 
 describe('authentication', () => {
@@ -106,85 +129,91 @@ describe('authentication', () => {
 		const { key } = await created.json();
 
 		const responses = await Promise.all([
-			submit(await browserSessionHeaders(ctx, browser.token), {
-				manifest: manifest('auth.browser'),
-			}),
-			submit(await authorizeDevice(ctx, device.headers), {
-				manifest: manifest('auth.device'),
-			}),
-			submit(new Headers({ [API_KEY_HEADER]: key }), { manifest: manifest('auth.api-key') }),
+			submit(
+				await browserSessionHeaders(ctx, browser.token),
+				commitAddon('auth.browser').request,
+			),
+			submit(await authorizeDevice(ctx, device.headers), commitAddon('auth.device').request),
+			submit(new Headers({ [API_KEY_HEADER]: key }), commitAddon('auth.api-key').request),
 		]);
 
 		expect(responses.map((response) => response.status)).toEqual([200, 200, 200]);
 	});
 
 	test('rejects an anonymous caller', async () => {
-		const response = await submit(new Headers(), { manifest: manifest('auth.anonymous') });
+		const response = await submit(new Headers(), commitAddon('auth.anonymous').request);
 
 		expect(await refused(response)).toEqual({ status: 401, code: 'unauthorized' });
 	});
 });
 
 describe('new listings', () => {
-	test('claims the addon id and reserves an upload of the declared size', async () => {
+	test('claims the addon id, records the pinned source and stages the commit’s bundle', async () => {
 		const { userId, headers } = await signUp();
-		const result = await accepted(
-			await submit(headers, { manifest: manifest('listing.claim') }),
-		);
+		const { request, bundle } = commitAddon('listing.claim');
+		const result = await accepted(await submit(headers, request));
 
 		expect(result.submission).toEqual({
 			id: expect.any(String),
 			addonId: 'listing.claim',
 			version: '1.0.0',
 			kind: 'listing',
-			status: 'awaiting_upload',
-			repository: null,
-			unverifiedSource: true,
+			status: 'pending_review',
+			source: {
+				repository: REPOSITORY,
+				repositoryId: expect.any(Number),
+				path: 'plugins/listing.claim',
+				ref: request.ref,
+				commitSha: request.commitSha,
+				bundlePath: 'plugins/listing.claim/dist/index.js',
+				bundleBlobSha: expect.stringMatching(/^[0-9a-f]{40}$/),
+			},
 			review: null,
 		});
 
-		expect(result.upload.method).toBe('PUT');
-		expect(result.upload.headers).toEqual({ 'content-length': '1024' });
-		expect(result.upload.expiresAt).toBe(
-			new Date(NOW.getTime() + ctx.env.SUBMISSION_UPLOAD_TTL_SECONDS * 1000).toISOString(),
-		);
-
 		const row = await ctx.db.query.submission.findFirst({
 			where: { id: result.submission.id },
+			with: { source: true },
 		});
 
-		expect(row).toMatchObject({ authorId: userId, bundleSize: 1024, sha256: null });
-		expect(new URL(result.upload.url).pathname).toBe(
-			`/${ctx.env.S3_STAGING_BUCKET}/${row?.stagingKey}`,
-		);
+		expect(row).toMatchObject({
+			authorId: userId,
+			repository: REPOSITORY,
+			bundleSize: bundle.length,
+			sha256: sha256(bundle),
+			submittedAt: NOW,
+			manifest: { id: 'listing.claim', main: 'index.js' },
+			source: { commitSha: request.commitSha, addonMd: null, changelog: null },
+		});
+		expect(new TextDecoder().decode(staging.objects.get(row?.stagingKey ?? ''))).toBe(bundle);
 	});
 
-	test('refuses an id another user has claimed', async () => {
+	test('refuses an id another user has claimed and deletes what it staged', async () => {
 		const first = await signUp();
 		const second = await signUp();
+		const { request } = commitAddon('listing.taken');
 
-		await accepted(await submit(first.headers, { manifest: manifest('listing.taken') }));
+		await accepted(await submit(first.headers, request));
 
-		const response = await submit(second.headers, { manifest: manifest('listing.taken') });
+		const staged = staging.objects.size;
+		const response = await submit(second.headers, request);
 
 		expect(await refused(response)).toEqual({ status: 409, code: 'addon_id_taken' });
+		expect(staging.objects.size).toBe(staged);
 	});
 
 	test('releases the id once the claiming submission is rejected', async () => {
 		const first = await signUp();
 		const second = await signUp();
-		const claimed = await accepted(
-			await submit(first.headers, { manifest: manifest('listing.released') }),
-		);
+		const { request } = commitAddon('listing.released');
+		const claimed = await accepted(await submit(first.headers, request));
 
 		await ctx.db
 			.update(submission)
 			.set({ status: 'rejected' })
 			.where(eq(submission.id, claimed.submission.id));
 
-		const result = await accepted(
-			await submit(second.headers, { manifest: manifest('listing.released') }),
-		);
+		const result = await accepted(await submit(second.headers, request));
 
 		expect(result.submission.kind).toBe('listing');
 	});
@@ -192,64 +221,62 @@ describe('new listings', () => {
 	test('caps the pending new listings per user', async () => {
 		const { headers } = await signUp();
 
-		await accepted(await submit(headers, { manifest: manifest('cap.one') }));
-		await accepted(await submit(headers, { manifest: manifest('cap.two') }));
+		await accepted(await submit(headers, commitAddon('cap.one').request));
+		await accepted(await submit(headers, commitAddon('cap.two').request));
 
-		const response = await submit(headers, { manifest: manifest('cap.three') });
+		const response = await submit(headers, commitAddon('cap.three').request);
 
 		expect(await refused(response)).toEqual({ status: 409, code: 'pending_listing_cap' });
 	});
 
-	test('rejects a bundle over ADDON_MAX_BYTES without reserving the id', async () => {
+	test('rejects a request naming a manifest instead of a source', async () => {
 		const { headers } = await signUp();
-		const response = await submit(headers, {
-			manifest: manifest('listing.huge'),
-			bundleSize: ctx.env.ADDON_MAX_BYTES + 1,
-		});
-
-		expect(await refused(response)).toEqual({ status: 413, code: 'artifact_too_large' });
-		expect(
-			await ctx.db.query.submission.findFirst({ where: { addonId: 'listing.huge' } }),
-		).toBeUndefined();
-	});
-
-	test('rejects a manifest that fails the shared contract', async () => {
-		const { headers } = await signUp();
-		const response = await submit(headers, {
-			manifest: { ...manifest('listing.invalid'), version: 'one' },
-		});
+		const response = await createSubmissionEndpoint.handle(
+			ctx,
+			new Request(new URL('/api/v1/submissions', ctx.env.PUBLIC_URL), {
+				method: 'POST',
+				headers,
+				body: JSON.stringify({ manifest: manifest('listing.legacy'), bundleSize: 1 }),
+			}),
+		);
 
 		expect(await refused(response)).toEqual({ status: 400, code: 'invalid_request' });
 	});
 });
 
-describe('finalize', () => {
-	test('accepts the empty body stream a bodiless POST arrives with behind the app server', async () => {
+describe('republishing', () => {
+	test('supersedes the author’s submission with changes requested and deletes its staged bundle', async () => {
 		const { headers } = await signUp();
-		const response = await finalizeSubmissionEndpoint.handle(
-			ctx,
-			new Request(new URL('/api/v1/submissions/missing/finalize', ctx.env.PUBLIC_URL), {
-				method: 'POST',
-				headers,
-				body: '',
-			}),
-			{ id: 'missing' },
-		);
+		const first = await accepted(await submit(headers, commitAddon('republish.one').request));
+		const firstKey = `submissions/${first.submission.id}/bundle`;
 
-		expect(await refused(response)).toEqual({ status: 404, code: 'not_found' });
+		await ctx.db
+			.update(submission)
+			.set({ status: 'changes_requested' })
+			.where(eq(submission.id, first.submission.id));
+
+		const second = await accepted(await submit(headers, commitAddon('republish.one').request));
+		const replaced = await ctx.db.query.submission.findFirst({
+			where: { id: first.submission.id },
+		});
+
+		expect(second.submission.id).not.toBe(first.submission.id);
+		expect(replaced?.status).toBe('superseded');
+		expect(staging.objects.has(firstKey)).toBe(false);
+		expect(staging.objects.has(`submissions/${second.submission.id}/bundle`)).toBe(true);
 	});
 });
 
 describe('account age', () => {
 	test('requires a Discord account at least SUBMISSION_MIN_ACCOUNT_AGE_DAYS old', async () => {
 		const days = ctx.env.SUBMISSION_MIN_ACCOUNT_AGE_DAYS;
-		const young = await signUp(ctx, days - 1);
-		const old = await signUp(ctx, days);
+		const young = await signUp(ctx, 'owner', days - 1);
+		const old = await signUp(ctx, 'owner', days);
 
-		const response = await submit(young.headers, { manifest: manifest('age.young') });
+		const response = await submit(young.headers, commitAddon('age.young').request);
 
 		expect(await refused(response)).toEqual({ status: 403, code: 'account_too_new' });
-		await accepted(await submit(old.headers, { manifest: manifest('age.old') }));
+		await accepted(await submit(old.headers, commitAddon('age.old').request));
 	});
 });
 
@@ -260,9 +287,10 @@ describe('updates', () => {
 
 		await seedApprovedAddon(ctx, owner.userId, manifest('update.foreign'));
 
-		const response = await submit(stranger.headers, {
-			manifest: manifest('update.foreign', '1.1.0'),
-		});
+		const response = await submit(
+			stranger.headers,
+			commitAddon('update.foreign', '1.1.0').request,
+		);
 
 		expect(await refused(response)).toEqual({ status: 403, code: 'not_maintainer' });
 	});
@@ -280,12 +308,13 @@ describe('updates', () => {
 		await ctx.db.update(user).set({ role: 'developer' }).where(eq(user.id, maintainer.userId));
 
 		const first = await accepted(
-			await submit(owner.headers, { manifest: manifest('update.pending', '1.1.0') }),
+			await submit(owner.headers, commitAddon('update.pending', '1.1.0').request),
 		);
 
-		const response = await submit(maintainer.headers, {
-			manifest: manifest('update.pending', '1.2.0'),
-		});
+		const response = await submit(
+			maintainer.headers,
+			commitAddon('update.pending', '1.2.0').request,
+		);
 
 		expect(first.submission.kind).toBe('update');
 		expect(await refused(response)).toEqual({ status: 409, code: 'pending_update_exists' });
@@ -296,90 +325,117 @@ describe('updates', () => {
 
 		await seedApprovedAddon(ctx, owner.userId, manifest('update.existing'));
 
-		const response = await submit(owner.headers, { manifest: manifest('update.existing') });
+		const response = await submit(owner.headers, commitAddon('update.existing').request);
 
 		expect(await refused(response)).toEqual({ status: 409, code: 'version_exists' });
 	});
 });
 
-describe('source verification', () => {
-	test('a named repository requires a linked GitHub account', async () => {
-		const { headers } = await signUp();
-		const response = await submit(headers, {
-			manifest: manifest('source.unlinked'),
-			repository: REPOSITORY,
-		});
+describe('the GitHub source', () => {
+	test('requires a linked GitHub account', async () => {
+		const { headers } = await signUp(ctx, null);
+		const response = await submit(headers, commitAddon('source.unlinked').request);
 
 		expect(await refused(response)).toEqual({ status: 403, code: 'github_not_linked' });
 	});
 
-	test('a named repository requires push access', async () => {
-		const { userId, headers } = await signUp();
-
-		await linkGitHub(ctx, userId, 'reader');
-
-		const response = await submit(headers, {
-			manifest: manifest('source.reader'),
-			repository: REPOSITORY,
-		});
+	test('requires push access to the repository', async () => {
+		const { headers } = await signUp(ctx, 'reader');
+		const response = await submit(headers, commitAddon('source.reader').request);
 
 		expect(await refused(response)).toEqual({ status: 403, code: 'github_no_push_access' });
 	});
 
-	test('a repository the author can push to is recorded as a verified source', async () => {
-		const { userId, headers } = await signUp();
-
-		await linkGitHub(ctx, userId, 'pusher');
-
-		const result = await accepted(
-			await submit(headers, { manifest: manifest('source.pusher'), repository: REPOSITORY }),
-		);
-
-		expect(result.submission).toMatchObject({
-			repository: REPOSITORY,
-			unverifiedSource: false,
-		});
-	});
-
-	test('a revoked GitHub token asks the author to link GitHub again', async () => {
-		const { userId, headers } = await signUp();
-
-		await linkGitHub(ctx, userId, 'revoked');
-
-		const response = await submit(headers, {
-			manifest: manifest('source.revoked'),
-			repository: REPOSITORY,
-		});
+	test('asks the author to link GitHub again when the token was revoked', async () => {
+		const { headers } = await signUp(ctx, 'revoked');
+		const response = await submit(headers, commitAddon('source.revoked').request);
 
 		expect(await refused(response)).toEqual({ status: 403, code: 'github_not_linked' });
+	});
+
+	test('refuses a ref that moved since the preview, staging nothing', async () => {
+		const { headers } = await signUp();
+		const { request } = commitAddon('source.moved');
+		const staged = staging.objects.size;
+
+		fixture.commit({ [`${request.path}/dist/index.js`]: 'moved' }, { branch: request.ref });
+
+		expect(await refused(await submit(headers, request))).toEqual({
+			status: 409,
+			code: 'source_changed',
+		});
+		expect(staging.objects.size).toBe(staged);
 	});
 });
 
 describe('rate limiting', () => {
 	test('limits submissions per user within SUBMISSION_RATE_LIMIT_WINDOW_SECONDS', async () => {
-		const limited = createTestContext({
+		const limited = setup({
 			SUBMISSION_RATE_LIMIT_MAX: '2',
 			SUBMISSION_MAX_PENDING_LISTINGS: '10',
 		});
 
-		let clock = NOW;
-		const target: AppContext = { ...limited.ctx, now: () => clock };
-
 		try {
-			const { headers } = await signUp(target);
+			const { headers } = await signUp(limited.ctx);
 
-			await accepted(await submit(headers, { manifest: manifest('rate.one') }, target));
-			await accepted(await submit(headers, { manifest: manifest('rate.two') }, target));
+			await accepted(await submit(headers, commitAddon('rate.one').request, limited.ctx));
+			await accepted(await submit(headers, commitAddon('rate.two').request, limited.ctx));
 
-			const response = await submit(headers, { manifest: manifest('rate.three') }, target);
+			const response = await submit(headers, commitAddon('rate.three').request, limited.ctx);
 
 			expect(await refused(response)).toEqual({ status: 429, code: 'rate_limited' });
 
-			clock = new Date(
-				NOW.getTime() + target.env.SUBMISSION_RATE_LIMIT_WINDOW_SECONDS * 1000 + 1,
+			limited.advance(limited.ctx.env.SUBMISSION_RATE_LIMIT_WINDOW_SECONDS * 1000 + 1);
+
+			await accepted(await submit(headers, commitAddon('rate.three').request, limited.ctx));
+		} finally {
+			limited.close();
+		}
+	});
+
+	test('refusals cost no quota', async () => {
+		const limited = setup({
+			SUBMISSION_RATE_LIMIT_MAX: '2',
+			SUBMISSION_MAX_PENDING_LISTINGS: '10',
+		});
+
+		try {
+			const author = await signUp(limited.ctx);
+			const other = await signUp(limited.ctx);
+			const claimed = commitAddon('quota.claimed');
+			const moved = commitAddon('quota.moved');
+
+			fixture.commit(
+				{ [`${moved.request.path}/dist/index.js`]: 'moved' },
+				{
+					branch: moved.request.ref,
+				},
 			);
 
-			await accepted(await submit(headers, { manifest: manifest('rate.three') }, target));
+			await accepted(await submit(other.headers, claimed.request, limited.ctx));
+
+			const refusals = await Promise.all([
+				submit(author.headers, claimed.request, limited.ctx).then(refused),
+				submit(author.headers, moved.request, limited.ctx).then(refused),
+				submit(
+					author.headers,
+					{ ...claimed.request, path: 'plugins/none' },
+					limited.ctx,
+				).then(refused),
+			]);
+
+			expect(refusals.map((entry) => entry.code)).toEqual([
+				'addon_id_taken',
+				'source_changed',
+				'addon_not_found',
+			]);
+
+			await accepted(
+				await submit(author.headers, commitAddon('quota.one').request, limited.ctx),
+			);
+			await accepted(
+				await submit(author.headers, commitAddon('quota.two').request, limited.ctx),
+			);
 		} finally {
 			limited.close();
 		}

@@ -116,17 +116,20 @@ function unavailable(reason: string): ApiError {
 	);
 }
 
-async function send(env: Env, token: string, path: string): Promise<Response> {
+async function send(env: Env, token: string | null, path: string): Promise<Response> {
+	const headers = new Headers({
+		accept: 'application/vnd.github+json',
+		'x-github-api-version': '2022-11-28',
+	});
+
+	if (token) {
+		headers.set('authorization', `Bearer ${token}`);
+	}
+
 	let response: Response;
 
 	try {
-		response = await fetch(new URL(path, env.GITHUB_API_URL), {
-			headers: {
-				accept: 'application/vnd.github+json',
-				authorization: `Bearer ${token}`,
-				'x-github-api-version': '2022-11-28',
-			},
-		});
+		response = await fetch(new URL(path, env.GITHUB_API_URL), { headers });
 	} catch {
 		throw unavailable('network error');
 	}
@@ -149,7 +152,7 @@ async function send(env: Env, token: string, path: string): Promise<Response> {
 // `null` when GitHub has nothing there: a 404, or the 204 an empty repository's lists answer with.
 async function getJson<TSchema extends z.ZodType>(
 	env: Env,
-	token: string,
+	token: string | null,
 	path: string,
 	schema: TSchema,
 ): Promise<z.output<TSchema> | null> {
@@ -205,10 +208,10 @@ export function gitBlobSha(bytes: Uint8Array): string {
  * @description Binds GitHub's REST calls to one user's token. Every response is parsed here; callers
  * see domain types. A 401 is `github_not_linked`; rate limits, 5xx and network errors are `github_unavailable`.
  * @param env The validated environment; `GITHUB_API_URL` points tests at a fake.
- * @param token The user's GitHub OAuth access token.
+ * @param token The user's GitHub OAuth access token, or `null` to read public data anonymously.
  * @returns The calls publishing from GitHub needs.
  */
-export function createGitHubClient(env: Env, token: string) {
+export function createGitHubClient(env: Env, token: string | null) {
 	function get<TSchema extends z.ZodType>(path: string, schema: TSchema) {
 		return getJson(env, token, path, schema);
 	}
@@ -443,22 +446,4 @@ export async function connectGitHub(ctx: AppContext, userId: string): Promise<Gi
 	return createGitHubClient(ctx.env, linked.accessToken);
 }
 
-/**
- * @description Asks GitHub whether the token's user can push to a repository.
- * @param env The validated environment.
- * @param token The user's GitHub OAuth access token.
- * @param repository The repository as `owner/name`.
- * @returns Whether the user has push access. A repository the token cannot see counts as no access.
- */
-export async function hasPushAccess(env: Env, token: string, repository: string): Promise<boolean> {
-	const found = await getJson(
-		env,
-		token,
-		`/repos/${repository}`,
-		repositoryResponseSchema.pick({ permissions: true }),
-	);
-
-	return found?.permissions?.push ?? false;
-}
-
-export default { gitBlobSha, createGitHubClient, connectGitHub, hasPushAccess };
+export default { gitBlobSha, createGitHubClient, connectGitHub };

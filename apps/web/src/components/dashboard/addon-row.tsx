@@ -80,6 +80,7 @@ function AddonRow({ addon, userId, githubLinked }: AddonRowProps) {
 						addonId={addon.id}
 						intent={addon.actions.submit}
 						githubLinked={githubLinked}
+						source={addon.pending?.source}
 					/>
 				) : null}
 				<AddonMenu addon={addon} userId={userId} />

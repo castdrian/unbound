@@ -12,24 +12,24 @@ description: "Model-check addon review publishing in apps/web (TLA+/TLC plus a r
 ## 1. Does your change touch the verified code?
 
 ```sh
-git diff 6577e20c280073bdd9b7b3d3c18f7b7323072aae -- apps/web/src/lib/review.ts apps/web/src/lib/submissions.ts apps/web/src/lib/staging.ts apps/web/src/lib/github.ts apps/web/src/lib/auth/auth.ts apps/web/src/db/schema/addons.ts apps/web/src/lib/artifacts.ts
+git diff 208ddd3a95e00d4ce3f78656aab54dd8cfd74bb5 -- apps/web/src/lib/review.ts apps/web/src/lib/submissions.ts apps/web/src/lib/staging.ts apps/web/src/lib/github.ts apps/web/src/lib/auth/auth.ts apps/web/src/db/schema/addons.ts apps/web/src/lib/artifacts.ts
 ```
 
 Empty output: the verification still describes the code. Otherwise map each hunk to the coverage table below and go on.
 
 | Code (at the sync commit)                                                        | Model action in `spec/ReviewPublish.tla`     |
 | -------------------------------------------------------------------------------- | -------------------------------------------- |
-| `submissions.ts` `stageAndReserve` 291-308 (staging write before the row)        | `Stage`                                      |
+| `submissions.ts` `stageAndReserve` 291-309 (staging write before the row)        | `Stage`                                      |
 | `submissions.ts` `reserve` 226-287, `createSubmission` 322-341                   | `Create`; supersede is `Purge` then `Create` |
 | a staging write outside the app (no app path writes after create)                | `Tamper` (`Evil` bytes, any time)            |
-| `staging.ts` `deleteOrphans` 23-62 (grace window `STAGING_ORPHAN_GRACE_SECONDS`) | `Orphan`                                     |
-| `staging.ts` `purgeUserSubmissions` 105-124 (ban hook `auth.ts` 100)             | `Purge`                                      |
-| `review.ts` `requirePendingReview` 154-185                                       | `Start` (row snapshot incl. `sha256`)        |
-| `review.ts` `publishArtifact` 206-232, `refetchBundle` 189-202                   | `ReadStaged`, `WriteBundle`, `WriteManifest` |
-| `review.ts` `decide` 238-313 (CAS 255, PKs from `db/schema/addons.ts`)           | `Decide`                                     |
-| `review.ts` `reviewSubmission` 328-350 (order, staged delete 345-347)            | `pc` sequence, `Cleanup`                     |
+| `staging.ts` `deleteOrphans` 23-64 (grace window `STAGING_ORPHAN_GRACE_SECONDS`) | `Orphan`                                     |
+| `staging.ts` `purgeUserSubmissions` 105-124 (ban hook `auth.ts` 102)             | `Purge`                                      |
+| `review.ts` `requirePendingReview` 155-186                                       | `Start` (row snapshot incl. `sha256`)        |
+| `review.ts` `publishArtifact` 207-233, `refetchBundle` 190-203                   | `ReadStaged`, `WriteBundle`, `WriteManifest` |
+| `review.ts` `decide` 239-321 (CAS 256, PKs from `db/schema/addons.ts`)           | `Decide`                                     |
+| `review.ts` `reviewSubmission` 337-359 (order, staged delete 354-356)            | `pc` sequence, `Cleanup`                     |
 
-Sync commit: `6577e20c280073bdd9b7b3d3c18f7b7323072aae`. Move it forward only after you confirm, hunk by hunk, that every row above still describes the code at the new commit, and update the line numbers in the table and in the spec comments.
+Sync commit: `208ddd3a95e00d4ce3f78656aab54dd8cfd74bb5`. Move it forward only after you confirm, hunk by hunk, that every row above still describes the code at the new commit, and update the line numbers in the table and in the spec comments.
 
 ## 2. Run the check
 

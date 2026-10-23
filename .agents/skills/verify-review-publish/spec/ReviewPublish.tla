@@ -12,8 +12,8 @@ CONSTANTS
     Reviewers,             \* concurrent POST /api/v1/submissions/$id/review requests
     MaxPendingUpdates,     \* env SUBMISSION_MAX_PENDING_UPDATES (default 1)
     PublishAfterCommit,    \* FALSE = current code; TRUE = public writes moved after decide()
-    CasOnStatus,           \* decide() WHERE status = 'pending_review' (review.ts:236)
-    HashCheck,             \* publishArtifact re-hash check (review.ts:211-215)
+    CasOnStatus,           \* decide() WHERE status = 'pending_review' (review.ts:256)
+    HashCheck,             \* publishArtifact re-hash check (review.ts:212-216)
     None                   \* model value: no row, no object
 
 Subs     == SubsV1 \cup SubsV2
@@ -63,7 +63,7 @@ StoreVars    == <<addonExists, versionRow, publicBundle, publicManifest, decisio
 
 (* ---------------- Authors and background jobs ---------------- *)
 
-\* createSubmission -> stageAndReserve (submissions.ts:291-308): the bundle read from the pinned blob
+\* createSubmission -> stageAndReserve (submissions.ts:291-309): the bundle read from the pinned blob
 \* is written to staging before the row exists. A refused claim deletes it again, which Orphan covers.
 Stage(s) ==
     /\ status[s] = None
@@ -92,7 +92,7 @@ Tamper(s) ==
     /\ staged' = [staged EXCEPT ![s] = Evil]
     /\ UNCHANGED <<status, kind, recordedSha, StoreVars, ReviewerVars>>
 
-\* purgeUserSubmissions on ban (staging.ts:105-124, auth.ts:100): cancels any open submission,
+\* purgeUserSubmissions on ban (staging.ts:105-124, auth.ts:102): cancels any open submission,
 \* pending_review too. reserve()'s supersede (submissions.ts:239-243, 337) moves the author's own
 \* changes_requested row out of Open and deletes its bundle: Purge then Create.
 Purge(s) ==
@@ -101,7 +101,7 @@ Purge(s) ==
     /\ staged' = [staged EXCEPT ![s] = None]
     /\ UNCHANGED <<kind, recordedSha, StoreVars, ReviewerVars>>
 
-\* sweepStaging -> deleteOrphans (staging.ts:23-62): deletes a staged object no open submission owns.
+\* sweepStaging -> deleteOrphans (staging.ts:23-64): deletes a staged object no open submission owns.
 \* Status None over-approximates a create slower than STAGING_ORPHAN_GRACE_SECONDS; approval refetches.
 Orphan(s) ==
     /\ status[s] \notin Open
@@ -109,9 +109,9 @@ Orphan(s) ==
     /\ staged' = [staged EXCEPT ![s] = None]
     /\ UNCHANGED <<status, kind, recordedSha, StoreVars, ReviewerVars>>
 
-(* ---------------- reviewSubmission (review.ts:328-350) ---------------- *)
+(* ---------------- reviewSubmission (review.ts:337-359) ---------------- *)
 
-\* requirePendingReview (review.ts:154-185): reads the row (163), status check at 171.
+\* requirePendingReview (review.ts:155-186): reads the row (164), status check at 172.
 Start(r, s, d) ==
     /\ pc[r] = "idle"
     /\ status[s] = "pending_review"
@@ -133,7 +133,7 @@ Got(r, b) ==
     /\ pc' = [pc EXCEPT ![r] = IF PublishAfterCommit THEN "decide" ELSE "write"]
     /\ UNCHANGED <<target, dec, rowSha, wroteB, wroteM>>
 
-\* publishArtifact read (review.ts:206-221): the staged bytes, or, when the object is gone, the pinned
+\* publishArtifact read (review.ts:207-222): the staged bytes, or, when the object is gone, the pinned
 \* blob read again (refetchBundle 189-202). The blob is content-addressed and readBlob checks its
 \* SHA-1, so a refetch yields the honest bytes or fails with github_unavailable. Then the re-hash; a
 \* mismatch throws artifact_mismatch and the request ends.
@@ -149,7 +149,7 @@ ReadStaged(r) ==
 
 AfterWrite == IF PublishAfterCommit THEN "cleanup" ELSE "decide"
 
-\* publishArtifact writes (review.ts:224-229): bundle and manifest, two independent PUTs.
+\* publishArtifact writes (review.ts:225-230): bundle and manifest, two independent PUTs.
 WriteBundle(r) ==
     LET s == target[r] IN
     /\ pc[r] = "write" /\ ~wroteB[r]
@@ -168,7 +168,7 @@ WriteManifest(r) ==
     /\ UNCHANGED <<status, kind, staged, recordedSha, addonExists, versionRow, publicBundle,
                    decisions, target, dec, rowSha, bytes, wroteB>>
 
-\* decide (review.ts:238-313): one immediate transaction. CAS at 255, throw at 259-264.
+\* decide (review.ts:239-321): one immediate transaction. CAS at 256, throw at 260-265.
 \* Approval inserts addon (271, PK id) for a listing and addon_version (301, PK addonId+version);
 \* a conflict throws and rolls the whole transaction back.
 Decide(r) ==
@@ -193,7 +193,7 @@ Decide(r) ==
                /\ UNCHANGED <<publicBundle, publicManifest, target, dec, rowSha, bytes, wroteB, wroteM>>
     /\ UNCHANGED <<kind, staged, recordedSha>>
 
-\* review.ts:345-347: approve and reject delete the staged bundle; changes_requested keeps it.
+\* review.ts:354-356: approve and reject delete the staged bundle; changes_requested keeps it.
 Cleanup(r) ==
     LET s == target[r] IN
     /\ pc[r] = "cleanup"

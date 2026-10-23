@@ -1,156 +1,233 @@
-import type { Submission } from '@unbound-app/contracts/publish';
-import { repositorySchema } from '@unbound-app/contracts/source';
-import { useId, useState, useTransition } from 'react';
-import { IconUpload } from '@tabler/icons-react';
+import type {
+	ListRepositoryAddonsResponse,
+	PushableRepository,
+	RepositoryAddon,
+} from '@unbound-app/contracts/source';
+import {
+	listRepositoryAddonsResponseSchema,
+	pushableRepositoriesResponseSchema,
+	repositoryInputSchema,
+} from '@unbound-app/contracts/source';
+import type { CreateSubmissionRequest, Submission } from '@unbound-app/contracts/publish';
+import type { SubmissionPreview as Preview } from '@unbound-app/contracts/review';
+import { createSubmissionResponseSchema } from '@unbound-app/contracts/publish';
+import { submissionPreviewResponseSchema } from '@unbound-app/contracts/review';
+import { useEffect, useState, useTransition } from 'react';
+import { IconBrandGithub, IconSend } from '@tabler/icons-react';
 import { Link } from '@tanstack/react-router';
-import type { FormEvent } from 'react';
 
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '~/components/ui/field';
+import type { DetailsDraft } from '~/components/submit/submission-preview';
+import SubmissionPreview from '~/components/submit/submission-preview';
+import RepositoryPicker from '~/components/submit/repository-picker';
 import { createBrowserClient } from '~/lib/api/browser-client';
-import { readArtifactManifest } from '~/lib/addon-artifact';
+import AddonPicker from '~/components/submit/addon-picker';
 import getApiErrorMessage from '~/lib/api/error-message';
-import { publishArtifact } from '~/api/publish';
+import type { PendingSource } from '~/lib/dashboard';
+import { FieldError } from '~/components/ui/field';
 import { Button } from '~/components/ui/button';
-import Textarea from '~/components/ui/textarea';
-import Input from '~/components/ui/input';
+import Text from '~/components/ui/text';
 
 type SubmitFormProps = {
 	githubLinked: boolean;
-	/** Restricts the form to this addon's manifest, when republishing it. */
+	/** Restricts the form to this addon, when republishing it. */
 	addonId?: string;
+	/** Where the addon was submitted from before; its repository is read straight away. */
+	initial?: PendingSource;
 	onSubmitted: (submission: Submission) => void;
 };
 
-type FormErrors = {
-	manifest?: string;
-	repository?: string;
-	/** The server's refusal, e.g. a spam gate or the size limit. */
-	submit?: string;
+type Previewed = {
+	request: CreateSubmissionRequest;
+	preview: Preview;
 };
 
-function SubmitForm({ githubLinked, addonId, onSubmitted }: SubmitFormProps) {
-	const id = useId();
-	const [manifestFile, setManifestFile] = useState<File | null>(null);
-	const [bundleFile, setBundleFile] = useState<File | null>(null);
-	const [repository, setRepository] = useState('');
-	const [changelog, setChangelog] = useState('');
-	const [errors, setErrors] = useState<FormErrors>({});
+function toDraft(preview: Preview): DetailsDraft {
+	return { homepage: preview.details.homepage ?? '', tags: preview.details.tags.join(', ') };
+}
+
+function toOverrides(draft: DetailsDraft): CreateSubmissionRequest['details'] {
+	return {
+		homepage: draft.homepage.trim() || null,
+		tags: draft.tags
+			.split(',')
+			.map((tag) => tag.trim())
+			.filter(Boolean),
+	};
+}
+
+function SubmitForm({ githubLinked, addonId, initial, onSubmitted }: SubmitFormProps) {
+	const [repository, setRepository] = useState(initial?.repository ?? '');
+	const [pushable, setPushable] = useState<PushableRepository[]>([]);
+	const [listing, setListing] = useState<ListRepositoryAddonsResponse | null>(null);
+	const [previewed, setPreviewed] = useState<Previewed | null>(null);
+	const [draft, setDraft] = useState<DetailsDraft>({ homepage: '', tags: '' });
+	const [error, setError] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
 
-	function submit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-
-		if (!manifestFile || !bundleFile) return;
-
-		const repo = repository.trim();
-		const parsedRepository = repo ? repositorySchema.safeParse(repo) : null;
-
+	function run(action: () => Promise<void>) {
+		setError(null);
 		startTransition(async () => {
-			const read = readArtifactManifest(await manifestFile.text(), bundleFile.name, addonId);
-			const next: FormErrors = {
-				manifest: read.success ? undefined : read.error,
-				repository: parsedRepository?.error?.issues[0]?.message,
-			};
-
-			setErrors(next);
-
-			if (!read.success || next.repository) return;
-
 			try {
-				const submission = await publishArtifact(createBrowserClient(), {
-					manifest: read.manifest,
-					bundle: bundleFile,
-					repository: repo || undefined,
-					changelog: changelog.trim() || undefined,
-				});
-
-				onSubmitted(submission);
-			} catch (error) {
-				setErrors({ submit: getApiErrorMessage(error) });
+				await action();
+			} catch (cause) {
+				setError(getApiErrorMessage(cause));
 			}
 		});
 	}
 
+	async function fetchListing(repository: string, ref?: string) {
+		const found = await createBrowserClient()('GET /api/v1/github/addons', {
+			query: { repository, ref },
+			response: listRepositoryAddonsResponseSchema,
+		});
+
+		setListing(found);
+		setPreviewed(null);
+
+		return found;
+	}
+
+	async function fetchPreview(from: ListRepositoryAddonsResponse, addon: RepositoryAddon) {
+		const request = {
+			repository: from.repository,
+			path: addon.path,
+			ref: from.ref,
+			commitSha: from.commitSha,
+		};
+
+		const { preview } = await createBrowserClient()('POST /api/v1/submissions/preview', {
+			body: request,
+			response: submissionPreviewResponseSchema,
+		});
+
+		setPreviewed({ request, preview });
+		setDraft(toDraft(preview));
+	}
+
+	function readRepository(input: string, ref?: string) {
+		const parsed = repositoryInputSchema.safeParse(input);
+
+		if (!parsed.success) {
+			setError(parsed.error.issues[0]?.message ?? 'Not a GitHub repository.');
+
+			return;
+		}
+
+		run(async () => {
+			await fetchListing(parsed.data, ref);
+		});
+	}
+
+	function previewAddon(addon: RepositoryAddon) {
+		if (!listing) return;
+
+		run(() => fetchPreview(listing, addon));
+	}
+
+	// Republishing reads the same directory again and previews it if it can be submitted as it is.
+	function reopen(source: PendingSource) {
+		run(async () => {
+			const found = await fetchListing(source.repository);
+			const addon = found.addons.find((entry) => entry.path === source.path);
+
+			if (addon && addon.issues.length === 0) {
+				await fetchPreview(found, addon);
+			}
+		});
+	}
+
+	function submit() {
+		if (!previewed) return;
+
+		run(async () => {
+			const { submission } = await createBrowserClient()('POST /api/v1/submissions', {
+				body: { ...previewed.request, details: toOverrides(draft) },
+				response: createSubmissionResponseSchema,
+			});
+
+			onSubmitted(submission);
+		});
+	}
+
+	useEffect(() => {
+		if (!githubLinked) return;
+
+		createBrowserClient()('GET /api/v1/github/repositories', {
+			response: pushableRepositoriesResponseSchema,
+		})
+			.then(({ repositories }) => setPushable(repositories.slice(0, 12)))
+			.catch(() => setPushable([]));
+
+		if (initial) {
+			reopen(initial);
+		}
+	}, []);
+
+	if (!githubLinked) {
+		return (
+			<div className='flex flex-col items-start gap-3'>
+				<Text variant='text-sm' color='muted'>
+					Addons are submitted from a public GitHub repository you can push to. Link your
+					GitHub account first.
+				</Text>
+				<Button asChild variant='outline'>
+					<Link to='/account'>
+						<IconBrandGithub />
+						Link GitHub
+					</Link>
+				</Button>
+			</div>
+		);
+	}
+
 	return (
-		<form onSubmit={submit}>
-			<FieldGroup>
-				<Field data-invalid={Boolean(errors.manifest)}>
-					<FieldLabel htmlFor={`${id}-manifest`}>Manifest *</FieldLabel>
-					<Input
-						id={`${id}-manifest`}
-						type='file'
-						accept='.json,application/json'
-						onChange={(event) => setManifestFile(event.target.files?.[0] ?? null)}
-						aria-invalid={Boolean(errors.manifest)}
-						disabled={isPending}
-						required
-					/>
-					<FieldDescription>
-						{addonId
-							? `The manifest.json of ${addonId}, with the changes reviewers asked for.`
-							: 'Your addon’s manifest.json.'}
-					</FieldDescription>
-					<FieldError className='whitespace-pre-wrap'>{errors.manifest}</FieldError>
-				</Field>
+		<div className='flex flex-col gap-6'>
+			<RepositoryPicker
+				value={repository}
+				repositories={pushable}
+				disabled={isPending}
+				onChange={setRepository}
+				onPick={(picked) => {
+					setRepository(picked);
+					readRepository(picked);
+				}}
+			/>
 
-				<Field>
-					<FieldLabel htmlFor={`${id}-bundle`}>Bundle *</FieldLabel>
-					<Input
-						id={`${id}-bundle`}
-						type='file'
-						onChange={(event) => setBundleFile(event.target.files?.[0] ?? null)}
-						disabled={isPending}
-						required
-					/>
-					<FieldDescription>
-						The file ubd build wrote for the addon. It is published as the manifest’s
-						main.
-					</FieldDescription>
-				</Field>
+			{listing ? (
+				<AddonPicker
+					key={`${listing.repository}@${listing.commitSha}`}
+					listing={listing}
+					addonId={addonId}
+					selected={previewed?.request.path ?? null}
+					disabled={isPending}
+					onRefChange={(ref) => readRepository(listing.repository, ref)}
+					onPick={previewAddon}
+				/>
+			) : null}
 
-				<Field data-invalid={Boolean(errors.repository)}>
-					<FieldLabel htmlFor={`${id}-repository`}>Source repository</FieldLabel>
-					<Input
-						id={`${id}-repository`}
-						value={repository}
-						onChange={(event) => setRepository(event.target.value)}
-						placeholder='owner/name'
-						aria-invalid={Boolean(errors.repository)}
-						disabled={isPending || !githubLinked}
-					/>
-					<FieldDescription>
-						{githubLinked ? (
-							'Optional. The GitHub repository the addon is built from; you need push access to it. Without one, reviewers see the source as unverified.'
-						) : (
-							<>
-								Submitting from a GitHub repository needs a linked GitHub account.{' '}
-								<Link to='/account'>Link GitHub</Link> to name one; without it,
-								reviewers see the source as unverified.
-							</>
-						)}
-					</FieldDescription>
-					<FieldError>{errors.repository}</FieldError>
-				</Field>
+			{previewed ? (
+				<SubmissionPreview
+					preview={previewed.preview}
+					draft={draft}
+					disabled={isPending}
+					onDraftChange={setDraft}
+				/>
+			) : null}
 
-				<Field>
-					<FieldLabel htmlFor={`${id}-changelog`}>Changelog</FieldLabel>
-					<Textarea
-						id={`${id}-changelog`}
-						value={changelog}
-						onChange={(event) => setChangelog(event.target.value)}
-						placeholder='What changed in this version...'
-						disabled={isPending}
-					/>
-				</Field>
+			<FieldError className='whitespace-pre-wrap'>{error}</FieldError>
 
-				<FieldError>{errors.submit}</FieldError>
-
-				<Button type='submit' disabled={isPending} className='w-full md:w-auto'>
-					<IconUpload />
+			{previewed ? (
+				<Button
+					type='button'
+					disabled={isPending}
+					onClick={submit}
+					className='w-full md:w-auto md:self-start'
+				>
+					<IconSend />
 					{isPending ? 'Submitting...' : 'Submit for Review'}
 				</Button>
-			</FieldGroup>
-		</form>
+			) : null}
+		</div>
 	);
 }
 

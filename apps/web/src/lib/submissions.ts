@@ -19,9 +19,9 @@ import type { Transaction } from '~/db/database';
 import { getSnowflakeDate } from '~/lib/discord';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
-import { pinSource } from '~/lib/artifacts';
 import { connectGitHub } from '~/lib/github';
 import { ApiError } from '~/lib/api/errors';
+import { pinSource } from '~/lib/artifacts';
 
 export type SubmissionRow = typeof submission.$inferSelect;
 

@@ -7,3 +7,4 @@ export * as schema from '~/db/schema';
 export * from './context';
 export * from './addons';
 export * from './server';
+export * from './github';

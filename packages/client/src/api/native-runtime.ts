@@ -316,6 +316,36 @@ export class NativePluginPlatformError extends Error {
 	}
 }
 
+export class NativeJavaError extends Error {
+	readonly code: string;
+
+	constructor(code: string, message: string) {
+		super(message);
+		this.code = code;
+	}
+}
+
+type NativeJavaFailure = {
+	__nativeFailure: { code: string; message: string };
+};
+
+function isNativeJavaFailure(value: unknown): value is NativeJavaFailure {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'__nativeFailure' in value &&
+		typeof (value as NativeJavaFailure).__nativeFailure?.message === 'string'
+	);
+}
+
+function unwrapJava<T>(value: T): T {
+	if (isNativeJavaFailure(value)) {
+		throw new NativeJavaError(value.__nativeFailure.code, value.__nativeFailure.message);
+	}
+
+	return value;
+}
+
 export class NativePluginUnsupportedPlatformError extends Error {
 	readonly code = 'NATIVE_PLUGIN_PLATFORM_EXCLUDED';
 	readonly platforms: readonly NativePluginPlatform[];
@@ -1112,43 +1142,66 @@ function createScopedNativePlugin(
 	const java: NativeJavaBridge = {
 		getClass: (name) =>
 			trackJavaHandle(
-				scopeMethod(
-					javaBridge.getClass.bind(javaBridge),
-					nativeJavaCapabilityRequirements.getClass,
-				)(name),
+				unwrapJava(
+					scopeMethod(
+						javaBridge.getClass.bind(javaBridge),
+						nativeJavaCapabilityRequirements.getClass,
+					)(name),
+				),
 			),
-		className: scopeMethod(
-			javaBridge.className.bind(javaBridge),
-			nativeJavaCapabilityRequirements.className,
-		),
+		className: (handle) =>
+			unwrapJava(
+				scopeMethod(
+					javaBridge.className.bind(javaBridge),
+					nativeJavaCapabilityRequirements.className,
+				)(handle),
+			),
 		construct: (name, args) =>
 			trackJavaHandle(
-				scopeMethod(
-					javaBridge.construct.bind(javaBridge),
-					nativeJavaCapabilityRequirements.construct,
-				)(name, args),
+				unwrapJava(
+					scopeMethod(
+						javaBridge.construct.bind(javaBridge),
+						nativeJavaCapabilityRequirements.construct,
+					)(name, args),
+				),
 			),
-		respondsTo: scopeMethod(
-			javaBridge.respondsTo.bind(javaBridge),
-			nativeJavaCapabilityRequirements.respondsTo,
-		),
-		invoke: scopeMethod(
-			javaBridge.invoke.bind(javaBridge),
-			nativeJavaCapabilityRequirements.invoke,
-		),
-		invokeAsync: scopeAsyncMethod(
-			javaBridge.invokeAsync?.bind(javaBridge),
-			nativeJavaCapabilityRequirements.invokeAsync,
-			'Asynchronous Java invocation is unavailable.',
-		),
-		getField: scopeMethod(
-			javaBridge.getField.bind(javaBridge),
-			nativeJavaCapabilityRequirements.getField,
-		),
-		setField: scopeMethod(
-			javaBridge.setField.bind(javaBridge),
-			nativeJavaCapabilityRequirements.setField,
-		),
+		respondsTo: (handle, name, args) =>
+			unwrapJava(
+				scopeMethod(
+					javaBridge.respondsTo.bind(javaBridge),
+					nativeJavaCapabilityRequirements.respondsTo,
+				)(handle, name, args),
+			),
+		invoke: (handle, name, args) =>
+			unwrapJava(
+				scopeMethod(
+					javaBridge.invoke.bind(javaBridge),
+					nativeJavaCapabilityRequirements.invoke,
+				)(handle, name, args),
+			),
+		invokeAsync: (handle, name, args) => {
+			const pending = scopeAsyncMethod(
+				javaBridge.invokeAsync?.bind(javaBridge),
+				nativeJavaCapabilityRequirements.invokeAsync,
+				'Asynchronous Java invocation is unavailable.',
+			)(handle, name, args);
+
+			return Object.assign(pending.then(unwrapJava), { cancel: () => pending.cancel() });
+		},
+		getField: (handle, name) =>
+			unwrapJava(
+				scopeMethod(
+					javaBridge.getField.bind(javaBridge),
+					nativeJavaCapabilityRequirements.getField,
+				)(handle, name),
+			),
+		setField: (handle, name, value) =>
+			unwrapJava(
+				scopeMethod(
+					javaBridge.setField.bind(javaBridge),
+					nativeJavaCapabilityRequirements.setField,
+				)(handle, name, value),
+			),
 		release: (handle) => {
 			javaHandles.delete(handle);
 			scopeMethod(

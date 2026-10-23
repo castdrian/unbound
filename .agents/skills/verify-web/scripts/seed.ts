@@ -1,7 +1,8 @@
-// Usage: bun seed.ts <sessions.json>, run by launch.sh with apps/web as cwd and the instance env loaded.
-// Seeds one user per role with a live session, an approved addon and a pending submission.
+// Usage: bun seed.ts <sessions.json>, run by launch.sh from apps/web with the instance env loaded.
+// Seeds a user per role (session, linked GitHub), an approved addon and a pending submission.
 import {
 	browserSessionHeaders,
+	linkGitHub,
 	manifest,
 	seedSubmission,
 	seedVersion,
@@ -37,6 +38,8 @@ if (!output) {
 const env = parseEnv();
 const ctx = createAppContext(env, createDatabase(env.DATABASE_PATH));
 const s3 = process.env.VERIFY_WEB_S3 === '1';
+// The fake GitHub launch.sh starts accepts this token and lets it push to verify/addons.
+const githubToken = process.env.VERIFY_WEB_GITHUB_TOKEN;
 const sessions: Record<string, SeededSession> = {};
 
 for (const [index, role] of ROLES.entries()) {
@@ -50,12 +53,16 @@ for (const [index, role] of ROLES.entries()) {
 
 	await internalAdapter.updateUser(signedIn.userId, { role });
 
+	if (githubToken) {
+		await linkGitHub(ctx, signedIn.userId, githubToken);
+	}
+
 	const cookie = (await browserSessionHeaders(ctx, signedIn.token)).get('cookie') ?? '';
 
 	sessions[role] = { userId: signedIn.userId, name, token: signedIn.token, cookie };
 }
 
-const developer = sessions.developer!;
+const developer = sessions.developer;
 const approved = manifest('verify.hello', '1.0.0', {
 	name: 'Verify Hello',
 	description: 'Seeded by verify-web.',
@@ -75,13 +82,14 @@ await seedVersion(ctx, developer.userId, approved, SHA256);
 
 const pending = await seedSubmission(
 	ctx,
-	sessions.user!.userId,
+	sessions.user.userId,
 	manifest('verify.pending', '0.1.0', {
 		name: 'Verify Pending',
 		description: 'Seeded by verify-web, waiting for review.',
 		type: 'plugin',
 	}),
 	{ sha256: SHA256 },
+	{ repository: 'verify/addons', path: 'plugins/verify.pending' },
 );
 
 if (s3) {

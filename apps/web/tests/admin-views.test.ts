@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
-import { createSubmission, finalizeSubmission } from '~/lib/submissions';
 import { delistAddon, relistAddon } from '~/lib/addons';
+import { createSubmission } from '~/lib/submissions';
 import { getAdminAddon } from '~/lib/admin-addon';
 import { addMaintainer } from '~/lib/maintainers';
 import { getAdminUser } from '~/lib/admin-users';
@@ -10,21 +10,35 @@ import type { AppContext } from '~/lib/context';
 import { reviewSubmission } from '~/lib/review';
 import type { Caller } from '~/lib/api/caller';
 import type { Role } from '~/lib/auth/access';
-import { user } from '~/db/schema';
+import { addon, user } from '~/db/schema';
 
-import { authRequest, createTestContext, signInWithDiscord, snowflakeAt } from './helpers/context';
+import {
+	authRequest,
+	createTestContext,
+	linkGitHub,
+	signInWithDiscord,
+	snowflakeAt,
+} from './helpers/context';
 import { manifest, seedApprovedAddon, seedVersion } from './helpers/addons';
+import { commitPlugin, serveGitHub } from './helpers/github';
 import { serveMemoryS3 } from './helpers/memory-s3';
 
+const REPOSITORY = 'acme/addons';
+const MOVED_REPOSITORY = 'acme/moved';
+
 const s3 = serveMemoryS3();
-const base = createTestContext({ S3_ENDPOINT: s3.url.href });
+const github = serveGitHub({
+	repositories: { [REPOSITORY]: {}, [MOVED_REPOSITORY]: {} },
+	tokens: { owner: { push: [REPOSITORY, MOVED_REPOSITORY] } },
+});
+const base = createTestContext({ S3_ENDPOINT: s3.url.href, GITHUB_API_URL: github.url.href });
 
 let clock = new Date('2026-10-23T12:00:00.000Z');
 
 const ctx: AppContext = { ...base.ctx, now: () => clock };
 
 afterAll(async () => {
-	await s3.stop(true);
+	await Promise.all([s3.stop(true), github.stop()]);
 	base.close();
 });
 
@@ -61,15 +75,17 @@ function tick() {
 	return clock;
 }
 
-async function publish(author: Member, id: string) {
-	const bundle = `export default ${JSON.stringify(id)};`;
-	const { submission, upload } = await createSubmission(ctx, author.caller, {
-		manifest: manifest(id),
-		bundleSize: Buffer.byteLength(bundle),
-	});
+async function publish(
+	author: Member,
+	id: string,
+	version: string = '1.0.0',
+	repository: string = REPOSITORY,
+) {
+	const { request } = commitPlugin(github.repository(repository), repository, id, version);
 
-	await fetch(upload.url, { method: upload.method, headers: upload.headers, body: bundle });
-	await finalizeSubmission(ctx, author.caller, submission.id);
+	await linkGitHub(ctx, author.userId, 'owner');
+
+	const { submission } = await createSubmission(ctx, author.caller, request);
 
 	return submission.id;
 }
@@ -126,6 +142,40 @@ describe('the admin addon view', () => {
 				decisions: [{ decision: 'changes_requested', note: 'Add a README.', reviewer }],
 			},
 		]);
+	});
+
+	test('approval records the verified repository, and an approved update from another one replaces it', async () => {
+		const author = await signUp();
+		const moderator = await signUp('moderator');
+		const repositoryOf = () =>
+			ctx.db
+				.select({ repository: addon.repository })
+				.from(addon)
+				.where(eq(addon.id, 'views.moved'))
+				.get()?.repository;
+
+		await reviewSubmission(ctx, moderator.caller, await publish(author, 'views.moved'), {
+			decision: 'approved',
+		});
+
+		expect(repositoryOf()).toBe(REPOSITORY);
+
+		const developer = await ctx.db.query.user.findFirst({ where: { id: author.userId } });
+
+		if (!developer) {
+			throw new Error(`User ${author.userId} was not stored.`);
+		}
+
+		const update = await publish(
+			{ ...author, caller: { user: developer, via: 'session' } },
+			'views.moved',
+			'1.1.0',
+			MOVED_REPOSITORY,
+		);
+
+		await reviewSubmission(ctx, moderator.caller, update, { decision: 'approved' });
+
+		expect(repositoryOf()).toBe(MOVED_REPOSITORY);
 	});
 
 	test('lists every version newest first by version, not by approval order', async () => {

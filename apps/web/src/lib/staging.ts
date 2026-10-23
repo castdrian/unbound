@@ -1,5 +1,5 @@
-import { and, eq, inArray, lte } from 'drizzle-orm';
 import { createLogger } from '@unbound-app/logger';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { OPEN_SUBMISSION_STATUSES } from '~/lib/submissions';
 import type { AppContext } from '~/lib/context';
@@ -12,8 +12,6 @@ const LIST_PAGE_SIZE = 1000;
 export type StagingContext = Pick<AppContext, 'db' | 'storage'>;
 
 export type SweepResult = {
-	/** Reservations closed because their upload lapsed without being finalized. */
-	expired: number;
 	/** Staged objects deleted because no open submission owns them. */
 	orphans: number;
 };
@@ -22,39 +20,24 @@ async function deleteStaged(ctx: StagingContext, keys: string[]) {
 	await Promise.all(keys.map((key) => ctx.storage.staging.delete(key)));
 }
 
-async function expireReservations(ctx: AppContext): Promise<number> {
-	const expired = ctx.db
-		.update(submission)
-		.set({ status: 'expired' })
-		.where(
-			and(
-				eq(submission.status, 'awaiting_upload'),
-				lte(submission.uploadExpiresAt, ctx.now()),
-			),
-		)
-		.returning({ key: submission.stagingKey })
-		.all();
-
-	await deleteStaged(
-		ctx,
-		expired.map((row) => row.key),
-	);
-
-	return expired.length;
-}
-
 async function deleteOrphans(ctx: AppContext): Promise<number> {
+	const settled = ctx.now().getTime() - ctx.env.STAGING_ORPHAN_GRACE_SECONDS * 1000;
+
 	let deleted = 0;
 	let startAfter: string | undefined;
 	let truncated = true;
 
 	while (truncated) {
 		const page = await ctx.storage.staging.list({ startAfter, maxKeys: LIST_PAGE_SIZE });
-		const keys = (page.contents ?? []).map((object) => object.key);
+		const objects = page.contents ?? [];
 
-		if (keys.length === 0) {
+		if (objects.length === 0) {
 			break;
 		}
+
+		const keys = objects
+			.filter((object) => new Date(object.lastModified ?? 0).getTime() <= settled)
+			.map((object) => object.key);
 
 		const owned = ctx.db
 			.select({ key: submission.stagingKey })
@@ -73,7 +56,7 @@ async function deleteOrphans(ctx: AppContext): Promise<number> {
 		await deleteStaged(ctx, orphans);
 
 		deleted += orphans.length;
-		startAfter = keys.at(-1);
+		startAfter = objects.at(-1)?.key;
 		truncated = page.isTruncated ?? false;
 	}
 
@@ -81,17 +64,13 @@ async function deleteOrphans(ctx: AppContext): Promise<number> {
 }
 
 /**
- * @description Cleans the staging bucket: closes `awaiting_upload` reservations whose upload URL has
- * expired as `expired` and deletes their objects, then deletes every staged object no open submission
- * owns. An upload that landed just before its URL expired can be finalized only until the next sweep.
- * @param ctx The application context; its clock decides which reservations have lapsed.
- * @returns How many reservations were expired and orphaned objects deleted.
+ * @description Deletes every staged object no open submission owns, except those younger than
+ * `STAGING_ORPHAN_GRACE_SECONDS`.
+ * @param ctx The application context.
+ * @returns How many orphaned objects were deleted.
  */
 export async function sweepStaging(ctx: AppContext): Promise<SweepResult> {
-	const expired = await expireReservations(ctx);
-	const orphans = await deleteOrphans(ctx);
-
-	return { expired, orphans };
+	return { orphans: await deleteOrphans(ctx) };
 }
 
 /**
@@ -103,11 +82,11 @@ export async function sweepStaging(ctx: AppContext): Promise<SweepResult> {
 export function startStagingSweeper(ctx: AppContext): Timer {
 	async function sweep() {
 		try {
-			const { expired, orphans } = await sweepStaging(ctx);
+			const { orphans } = await sweepStaging(ctx);
 
-			if (expired + orphans === 0) return;
+			if (orphans === 0) return;
 
-			logger.info(`Expired ${expired} reservations and deleted ${orphans} orphaned objects.`);
+			logger.info(`Deleted ${orphans} orphaned objects.`);
 		} catch (error) {
 			logger.error('Failed to sweep the staging bucket:', error);
 		}

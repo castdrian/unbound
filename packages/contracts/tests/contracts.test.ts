@@ -1,10 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import {
-	createSubmissionRequestSchema,
-	createSubmissionResponseSchema,
-	finalizeSubmissionResponseSchema,
-} from '../src/publish';
+import { createSubmissionRequestSchema, createSubmissionResponseSchema } from '../src/publish';
 import { updatesRequestSchema, updatesResponseSchema } from '../src/updates';
 import { addonManifestSchema, semverSchema } from '../src/manifest';
 import { reviewSubmissionRequestSchema } from '../src/review';
@@ -174,65 +170,59 @@ describe('updatesResponseSchema', () => {
 });
 
 describe('publish contract', () => {
+	const commitSha = 'a'.repeat(40);
 	const submission = {
 		id: 'sub_1',
 		addonId: manifest.id,
 		version: manifest.version,
 		kind: 'listing',
-		status: 'awaiting_upload',
-		repository: null,
-		unverifiedSource: true,
+		status: 'pending_review',
+		source: {
+			repository: 'marioparaschiv/unbound',
+			repositoryId: 1,
+			path: 'plugins/hello',
+			ref: 'v1.0.0',
+			commitSha,
+			bundlePath: 'plugins/hello/dist/index.js',
+			bundleBlobSha: 'b'.repeat(40),
+		},
 		review: null,
 	};
 
-	test('parses a create request with an optional repository', () => {
-		const request = { manifest, bundleSize: 1024, repository: 'marioparaschiv/unbound' };
-
-		expect(createSubmissionRequestSchema.parse(request).repository).toBe(request.repository);
-		expect(createSubmissionRequestSchema.parse({ manifest, bundleSize: 1 }).repository).toBe(
-			undefined,
-		);
-	});
-
-	test('rejects a non-positive bundle size, an invalid manifest and a malformed repository', () => {
-		expect(createSubmissionRequestSchema.safeParse({ manifest, bundleSize: 0 }).success).toBe(
-			false,
-		);
-		expect(
-			createSubmissionRequestSchema.safeParse({
-				manifest: { ...manifest, version: 'one' },
-				bundleSize: 1,
-			}).success,
-		).toBe(false);
-		expect(
-			createSubmissionRequestSchema.safeParse({
-				manifest,
-				bundleSize: 1,
-				repository: 'https://github.com/a/b',
-			}).success,
-		).toBe(false);
-	});
-
-	test('parses create and finalize responses', () => {
-		const created = {
-			submission,
-			upload: {
-				url: 'https://s3.example.test/staging/sub_1?X-Amz-Signature=x',
-				method: 'PUT',
-				headers: { 'content-type': 'application/javascript' },
-				expiresAt: '2026-10-17T10:00:00.000Z',
-			},
+	test('reads the repository of a create request from a URL', () => {
+		const request = {
+			repository: 'https://github.com/marioparaschiv/unbound',
+			path: 'plugins/hello',
+			ref: 'main',
+			commitSha,
 		};
 
-		expect<unknown>(createSubmissionResponseSchema.parse(created)).toEqual(created);
+		expect(createSubmissionRequestSchema.parse(request).repository).toBe(
+			'marioparaschiv/unbound',
+		);
+	});
+
+	test('rejects a short commit, a path leaving the repository and a manifest instead of a source', () => {
+		const request = { repository: 'a/b', path: 'plugins/hello', ref: 'main', commitSha };
+
 		expect(
-			finalizeSubmissionResponseSchema.parse({
-				submission: { ...submission, status: 'pending_review' },
-			}).submission.status,
-		).toBe('pending_review');
+			createSubmissionRequestSchema.safeParse({ ...request, commitSha: 'abc1234' }).success,
+		).toBe(false);
+		expect(createSubmissionRequestSchema.safeParse({ ...request, path: '../x' }).success).toBe(
+			false,
+		);
+		expect(createSubmissionRequestSchema.safeParse({ manifest, bundleSize: 1 }).success).toBe(
+			false,
+		);
+	});
+
+	test('parses a create response and refuses the retired upload status', () => {
+		expect<unknown>(createSubmissionResponseSchema.parse({ submission })).toEqual({
+			submission,
+		});
 		expect(
-			finalizeSubmissionResponseSchema.safeParse({
-				submission: { ...submission, status: 'queued' },
+			createSubmissionResponseSchema.safeParse({
+				submission: { ...submission, status: 'awaiting_upload' },
 			}).success,
 		).toBe(false);
 	});

@@ -1,6 +1,8 @@
-import type { ApiRequest } from '~/api/publish';
 import { createApiClient } from '~/api/client';
 import type { Api } from '~/api';
+
+/** The typed `request(route, options)` function `createApiClient<Api>()` returns. */
+export type ApiRequest = ReturnType<typeof createApiClient<Api>>;
 
 /**
  * @description Creates the typed API client for browser code. It calls the page's own origin, where

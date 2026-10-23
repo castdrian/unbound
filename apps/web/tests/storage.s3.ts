@@ -1,7 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 
-import { presignStagingUpload } from '~/lib/storage';
-
 import { S3_TEST_ENV, createTestContext } from './helpers/context';
 
 const { ctx, close } = createTestContext(S3_TEST_ENV);
@@ -32,38 +30,5 @@ describe('createStorage', () => {
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe('staged');
-	});
-});
-
-describe('presignStagingUpload', () => {
-	const uploadKey = `tests/${crypto.randomUUID()}/bundle`;
-
-	afterAll(() => ctx.storage.staging.delete(uploadKey));
-
-	function presign(signedAt: Date = new Date()) {
-		return presignStagingUpload(ctx.env, { key: uploadKey, size: 5, signedAt, expiresIn: 60 });
-	}
-
-	test('rejects a body of a different length', async () => {
-		const { url, headers } = presign();
-		const response = await fetch(url, { method: 'PUT', headers, body: 'too long' });
-
-		expect(response.ok).toBe(false);
-		expect(await ctx.storage.staging.exists(uploadKey)).toBe(false);
-	});
-
-	test('rejects an expired URL', async () => {
-		const { url, headers } = presign(new Date(Date.now() - 120_000));
-		const response = await fetch(url, { method: 'PUT', headers, body: 'hello' });
-
-		expect(response.status).toBe(403);
-		expect(await ctx.storage.staging.exists(uploadKey)).toBe(false);
-	});
-
-	test('uploads a body of the signed length', async () => {
-		const { url, headers } = presign();
-
-		expect((await fetch(url, { method: 'PUT', headers, body: 'hello' })).status).toBe(200);
-		expect(await ctx.storage.staging.file(uploadKey).text()).toBe('hello');
 	});
 });

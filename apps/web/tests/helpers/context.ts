@@ -50,6 +50,12 @@ export type DiscordProfile = {
 	email: string;
 };
 
+/** An expiring GitHub token, as GitHub Apps and OAuth apps with token expiry issue them. */
+export type ExpiringGitHubToken = {
+	accessTokenExpiresAt: Date;
+	refreshToken: string;
+};
+
 export type SignedInUser = {
 	userId: string;
 	/** The session token, sent as a bearer token in `headers`. */
@@ -190,8 +196,14 @@ export async function authorizeDevice(ctx: AppContext, headers: Headers): Promis
  * @param ctx The application context.
  * @param userId The user to link.
  * @param accessToken The GitHub OAuth token GitHub's API is called with.
+ * @param expiring When the token expires and the refresh token that renews it; omitted, it never expires.
  */
-export async function linkGitHub(ctx: AppContext, userId: string, accessToken: string) {
+export async function linkGitHub(
+	ctx: AppContext,
+	userId: string,
+	accessToken: string,
+	expiring?: ExpiringGitHubToken,
+) {
 	const { internalAdapter } = await ctx.auth.$context;
 
 	await internalAdapter.linkAccount({
@@ -199,5 +211,6 @@ export async function linkGitHub(ctx: AppContext, userId: string, accessToken: s
 		providerId: 'github',
 		accountId: userId,
 		accessToken,
+		...expiring,
 	});
 }

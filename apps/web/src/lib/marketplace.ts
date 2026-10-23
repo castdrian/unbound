@@ -62,8 +62,8 @@ function toMarketplaceAddon(addon: ListedAddonFields, latest: AddonVersion): Mar
 	return {
 		id: addon.id,
 		type: addon.type,
-		name: addon.name,
-		description: addon.description,
+		name: addon.name ?? latest.manifest.name,
+		description: addon.description ?? latest.manifest.description,
 		authors: latest.manifest.authors,
 		version: latest.version,
 		manifestUrl: latest.manifestUrl,

@@ -15,7 +15,7 @@ const validManifest = {
 	id: 'unbound.example-plugin',
 	name: 'Example Plugin',
 	description: 'A concise example plugin description.',
-	authors: [{ name: 'Unbound Team', id: '0' }],
+	authors: [{ name: 'adrian', id: '224617799434108928' }],
 	version: '1.0.0',
 	main: 'index.js',
 };
@@ -26,7 +26,7 @@ test('every plugin folder follows the workspace convention', () => {
 	expect(readdirSync(pluginsDirectory)).toContain('hello-there');
 });
 
-test('the workspace contains only Unbound Team plugins', () => {
+test('the workspace contains only first-party plugins', () => {
 	const pluginsDirectory = resolve(import.meta.dir, '..');
 	const plugins = readdirSync(pluginsDirectory, { withFileTypes: true }).filter((entry) => {
 		return entry.isDirectory() && !['node_modules', 'shared', 'scripts'].includes(entry.name);

@@ -12,12 +12,12 @@ import { addon, addonMaintainer, addonVersion, submission, user } from '~/db/sch
 import { LATEST_VERSION, refreshAddonSummary, toAddonSummary } from '~/lib/addons';
 import type { SourcedSubmissionRow, SubmissionRow } from '~/lib/submissions';
 import { getArtifactKeys, toAddonVersion } from '~/lib/artifacts';
+import { requireSourced, toSubmission } from '~/lib/submissions';
 import { recordReviewDecision } from '~/lib/moderation-events';
 import { requirePermission } from '~/lib/api/caller';
 import type { Permissions } from '~/lib/auth/access';
 import { hasPermission } from '~/lib/auth/access';
 import { createGitHubClient } from '~/lib/github';
-import { requireSourced, toSubmission } from '~/lib/submissions';
 import { toVersionKey } from '~/lib/version-key';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';

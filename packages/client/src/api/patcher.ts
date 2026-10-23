@@ -10,6 +10,8 @@ import * as Possess from 'possess';
 
 import { patch, recordRemovals } from '~/lib/hot/live-patch';
 
+type ScopedPatcher = Pick<PatcherInstance, 'before' | 'instead' | 'after'>;
+
 export * from 'possess';
 
 /**
@@ -69,6 +71,50 @@ export function after<M extends PatchParent, P extends PropOf<M>>(
 	return patch(Possess.PatchType.After, parent, method, callback as PatchCallback, options);
 }
 
+function trackPatches<T extends (...args: never[]) => () => void>(
+	method: T,
+	unpatches: Set<() => void>,
+): T {
+	function register(...args: never[]): () => void {
+		const unpatch = Reflect.apply(method, undefined, args);
+		const parent = args[0] as object;
+		const key = args[1] as PropertyKey;
+		const installed = Reflect.get(parent, key);
+		let active = true;
+
+		function remove(): void {
+			if (!active) return;
+
+			active = false;
+			unpatches.delete(remove);
+
+			if (Reflect.get(parent, key) !== installed) {
+				const replacement = Reflect.get(parent, key);
+				const descriptor = Object.getOwnPropertyDescriptor(parent, key);
+
+				try {
+					unpatch();
+				} finally {
+					if (descriptor) {
+						Object.defineProperty(parent, key, descriptor);
+					} else {
+						Reflect.set(parent, key, replacement);
+					}
+				}
+
+				return;
+			}
+
+			unpatch();
+		}
+		unpatches.add(remove);
+
+		return remove;
+	}
+
+	return register as T;
+}
+
 /**
  * @description Creates a patcher whose patches share default options, so they can be removed together.
  * @param defaultOptions A caller id, or options merged into every patch; a caller id is generated if missing.
@@ -77,16 +123,43 @@ export function after<M extends PatchParent, P extends PropOf<M>>(
 export function createPatcher(defaultOptions: string | PatchOptions): PatcherInstance {
 	const defaults =
 		typeof defaultOptions === 'string' ? { caller: defaultOptions } : defaultOptions;
-	const caller = (defaults.caller ??= uuid());
+
+	defaults.caller ??= uuid();
+	const unpatches = new Set<() => void>();
+	const scoped: ScopedPatcher = {
+		before<M extends PatchParent, P extends PropOf<M>>(
+			parent: M,
+			method: P,
+			callback: Parameters<typeof Possess.before<M, P>>[2],
+			options: PatchOptions = {},
+		) {
+			return before(parent, method, callback, { ...defaults, ...options });
+		},
+		instead<M extends PatchParent, P extends PropOf<M>>(
+			parent: M,
+			method: P,
+			callback: Parameters<typeof Possess.before<M, P>>[2],
+			options: PatchOptions = {},
+		) {
+			return instead(parent, method, callback, { ...defaults, ...options });
+		},
+		after<M extends PatchParent, P extends PropOf<M>>(
+			parent: M,
+			method: P,
+			callback: Parameters<typeof Possess.before<M, P>>[2],
+			options: PatchOptions = {},
+		) {
+			return after(parent, method, callback, { ...defaults, ...options });
+		},
+	};
 
 	return {
-		before: (parent, method, callback, options = {}) =>
-			before(parent, method, callback, { ...defaults, ...options }),
-		instead: (parent, method, callback, options = {}) =>
-			instead(parent, method, callback, { ...defaults, ...options }),
-		after: (parent, method, callback, options = {}) =>
-			after(parent, method, callback, { ...defaults, ...options }),
-		unpatchAll: () => unpatchAllByCaller(caller),
+		before: trackPatches(scoped.before, unpatches),
+		instead: trackPatches(scoped.instead, unpatches),
+		after: trackPatches(scoped.after, unpatches),
+		unpatchAll(): void {
+			for (const unpatch of unpatches) unpatch();
+		},
 	};
 }
 

@@ -5,7 +5,8 @@ mock.module('~/api/metro/wrappers', () => ({
 	findByPropsLazy: () => ({ getPublicInstanceFromRootTag: () => null }),
 }));
 
-const { after, before, createPatcher, instead, unpatchAll } = await import('~/api/patcher');
+const { after, before, createPatcher, instead, patches, unpatchAll } =
+	await import('~/api/patcher');
 const { flush } = await import('~/lib/hot/live-patch');
 
 function createTarget() {
@@ -71,6 +72,22 @@ describe('patcher', () => {
 		mine.unpatchAll();
 
 		expect(math.add(1, 2)).toBe(4);
+	});
+
+	test('preserves a replacement installed after a scoped patch', () => {
+		const { math } = createTarget();
+		const patcher = createPatcher('external-replacement');
+		const originalCount = patches.length;
+		const replacement = (a: number, b: number) => a - b;
+
+		patcher.after(math, 'add', () => 0);
+		math.add = replacement;
+
+		patcher.unpatchAll();
+
+		expect(math.add).toBe(replacement);
+		expect(math.add(4, 2)).toBe(2);
+		expect(patches.length).toBe(originalCount);
 	});
 
 	test('a flush with no mounted roots touches nothing', async () => {

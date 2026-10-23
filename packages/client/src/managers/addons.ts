@@ -1,10 +1,16 @@
 import type { Addon, AddonManifest, PluginContext } from '@unbound-app/types';
+import { NATIVE_PLUGIN_CAPABILITIES } from '@unbound-app/types/native';
 import type { AddonRelease } from '@unbound-app/contracts/updates';
 import toError from '@unbound-app/utils/to-error';
 import sha256 from '@unbound-app/utils/sha256';
 import noop from '@unbound-app/utils/noop';
 
-import { validateNativePluginRequirements } from '~/api/native-runtime';
+import {
+	NativePlatform,
+	NativePluginCapabilityError,
+	NativePluginPlatformError,
+	validateNativePluginRequirements,
+} from '~/api/native-runtime';
 import { Manager, ManagerType } from '~/managers/base';
 import storage from '~/api/storage';
 import fs from '~/api/fs';
@@ -44,6 +50,24 @@ type AddonEvents<T extends Addon> = {
  * @template T The addon entity type this manager governs.
  */
 export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>> {
+	private pendingStops = new Map<string, Promise<void>>();
+	private pendingStarts = new Set<string>();
+	protected stopTimeoutMs = 5000;
+
+	async shutdown(): Promise<void> {
+		this.pendingStarts.clear();
+		const pending = [...this.pendingStops.values()];
+		const stops = this.getEntities().map((entity) => this.stop(entity));
+
+		try {
+			await Promise.all([...pending, ...stops]);
+		} finally {
+			this.pendingStops.clear();
+			this.pendingStarts.clear();
+			super.shutdown();
+		}
+	}
+
 	/**
 	 * @description Evaluates an addon's bundle source into a running instance. Implemented by each subclass.
 	 * @param bundle The addon's bundle source.
@@ -99,23 +123,38 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 * @description Unloads an addon from the manager, stopping it if running, and emits `unloaded`.
 	 * @param entity The addon to unload, as its id or the entity itself.
 	 */
-	unload(entity: AddonResolveable) {
+	unload(entity: AddonResolveable): void | Promise<void> {
 		const resolved = this.resolve(entity);
 
 		if (!resolved) return;
 
 		try {
-			if (resolved.started) {
-				this.stop(resolved);
+			this.pendingStarts.delete(resolved.id);
+			const stopping = this.stop(resolved);
+
+			if (stopping) {
+				return stopping.then(() => this.finishUnload(resolved));
 			}
 
-			this.entities.delete(resolved.id);
-			this.errors.delete(resolved.id);
-
-			this.emit('unloaded', resolved);
+			this.finishUnload(resolved);
 		} catch (error) {
 			this.logger.error(`Failed to unload addon ${resolved.id}:`, error);
 			this.errors.set(resolved.id, toError(error));
+		}
+	}
+
+	private finishUnload(resolved: T): void {
+		if (this.entities.get(resolved.id) !== resolved) return;
+
+		try {
+			this.entities.delete(resolved.id);
+			this.errors.delete(resolved.id);
+			this.emit('unloaded', resolved);
+		} catch (error) {
+			const failure = toError(error);
+
+			this.logger.error(`Failed to unload addon ${resolved.id}:`, failure);
+			this.errors.set(resolved.id, failure);
 		}
 	}
 
@@ -192,14 +231,16 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 
 			// Restart only what was running, mirroring enable/disable: a save must not start an addon the
 			// user has explicitly disabled.
-			const wasStarted = resolved.started;
+			const wasStarted = resolved.started || this.pendingStarts.has(resolved.id);
 
 			await this.persist(bundle, manifest);
 
-			// A throwing stop() must not abort the swap; stop() catches and records internally, so its
-			// failure surfaces as a recorded error rather than a throw.
-			if (wasStarted) {
-				this.stop(resolved);
+			this.pendingStarts.delete(resolved.id);
+
+			if (resolved.started) {
+				await this.stop(resolved);
+			} else {
+				await this.pendingStops.get(resolved.id);
 			}
 
 			// A throwing stop() leaves `started`/`instance` set, wedging start()'s guard. Force a stopped
@@ -324,7 +365,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		if (!resolved) return;
 
 		try {
-			this.unload(resolved);
+			await this.unload(resolved);
 			await fs.rm(`Unbound/${ManagerType[this.type]}/${resolved.id}`);
 			this.forgetSource(resolved.id);
 			this.emit('deleted', resolved);
@@ -342,6 +383,14 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		const resolved = this.resolve(entity);
 
 		if (!resolved || resolved.started) return;
+
+		if (this.pendingStops.has(resolved.id)) {
+			this.pendingStarts.add(resolved.id);
+
+			return;
+		}
+
+		this.pendingStarts.delete(resolved.id);
 
 		try {
 			const recoveryMode = storage.get('unbound', 'recovery', false);
@@ -372,31 +421,106 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 * @description Stops an addon, tearing down its instance, and emits `stopped`.
 	 * @param entity The addon to stop, as its id or the entity itself.
 	 */
-	stop(entity: AddonResolveable) {
+	stop(entity: AddonResolveable): void | Promise<void> {
 		const resolved = this.resolve(entity);
 
-		if (!resolved || !resolved.started) return;
+		if (!resolved) return;
+
+		this.pendingStarts.delete(resolved.id);
+
+		if (!resolved.started) {
+			return this.pendingStops.get(resolved.id);
+		}
+
+		const instance = resolved.instance;
+		const context = resolved.context;
+
+		resolved.instance = null;
+		resolved.context = undefined;
+		resolved.started = false;
 
 		try {
-			resolved.instance?.stop?.();
-			resolved.context?.dispose();
-			resolved.context = undefined;
-			resolved.instance = null;
-			resolved.started = false;
+			const result = instance?.stop?.();
 
-			this.emit('stopped', resolved);
+			if (result && typeof result.then === 'function') {
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				const timeout = new Promise<never>((_, reject) => {
+					timer = setTimeout(
+						() => reject(new Error(`Addon ${resolved.id} cleanup timed out`)),
+						this.stopTimeoutMs,
+					);
+				});
+				let stopped = false;
+
+				const pending = Promise.race([Promise.resolve(result), timeout])
+					.then(
+						() => {
+							stopped = this.finishStop(resolved, context);
+						},
+						(error) => {
+							this.finishStop(resolved, context, toError(error));
+						},
+					)
+					.finally(() => {
+						if (timer) {
+							clearTimeout(timer);
+						}
+
+						if (this.pendingStops.get(resolved.id) === pending) {
+							this.pendingStops.delete(resolved.id);
+						}
+
+						const shouldRestart = this.pendingStarts.delete(resolved.id);
+
+						if (stopped && shouldRestart && this.getStates()[resolved.id]) {
+							this.start(resolved);
+						}
+					});
+
+				this.pendingStops.set(resolved.id, pending);
+
+				return pending;
+			}
+
+			this.finishStop(resolved, context);
 		} catch (error) {
-			resolved.context?.dispose();
-			resolved.context = undefined;
-			this.logger.error(`Failed to stop addon ${resolved.id}:`, error);
-			this.errors.set(resolved.id, toError(error));
+			this.finishStop(resolved, context, toError(error));
+		}
+	}
+
+	private finishStop(resolved: T, context: PluginContext | undefined, error?: Error): boolean {
+		try {
+			context?.dispose();
+		} catch (disposeError) {
+			error ??= toError(disposeError);
+		}
+
+		if (error) {
+			const failure = toError(error);
+
+			this.logger.error(`Failed to stop addon ${resolved.id}:`, failure);
+			this.errors.set(resolved.id, failure);
+
+			return false;
+		}
+
+		try {
+			this.emit('stopped', resolved);
+
+			return true;
+		} catch (emitError) {
+			const failure = toError(emitError);
+
+			this.logger.error(`Failed to stop addon ${resolved.id}:`, failure);
+			this.errors.set(resolved.id, failure);
+
+			return false;
 		}
 	}
 
 	/**
 	 * @description Enables an addon, persisting its state and starting it if not already running, and emits `enabled`.
 	 * @param entity The addon to enable, as its id or the entity itself.
-	 * @returns Nothing here; subclasses that enable asynchronously return a promise.
 	 */
 	enable(entity: AddonResolveable): void | Promise<void> {
 		const resolved = this.resolve(entity);
@@ -430,6 +554,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		if (!resolved) return;
 
 		try {
+			this.pendingStarts.delete(resolved.id);
 			const states = this.getStates();
 
 			states[resolved.id] = false;
@@ -572,6 +697,44 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			throw new Error('Manifest capabilities must be an array');
 		}
 
+		if (
+			manifest.platformCapabilities !== undefined &&
+			(typeof manifest.platformCapabilities !== 'object' ||
+				manifest.platformCapabilities === null ||
+				Array.isArray(manifest.platformCapabilities))
+		) {
+			throw new Error('Manifest platformCapabilities must be an object');
+		}
+
+		for (const [platform, capabilities] of Object.entries(
+			manifest.platformCapabilities ?? {},
+		)) {
+			if (platform !== 'ios' && platform !== 'android') {
+				throw new Error(
+					`Manifest platformCapabilities has unsupported platform: ${platform}`,
+				);
+			}
+
+			if (!Array.isArray(capabilities)) {
+				throw new Error(`Manifest platformCapabilities.${platform} must be an array`);
+			}
+
+			const unsupported = capabilities.find(
+				(capability) => !NATIVE_PLUGIN_CAPABILITIES.includes(capability),
+			);
+
+			if (unsupported) {
+				throw new NativePluginCapabilityError(unsupported);
+			}
+		}
+
+		const currentPlatform = NativePlatform?.device.platform ?? NativePlatform?.platform;
+		const hasPlatformRequirements = Object.keys(manifest.platformCapabilities ?? {}).length > 0;
+
+		if (hasPlatformRequirements && currentPlatform !== 'ios' && currentPlatform !== 'android') {
+			throw new NativePluginPlatformError();
+		}
+
 		if (manifest.unbound !== undefined) {
 			if (typeof manifest.unbound !== 'object' || manifest.unbound === null) {
 				throw new Error('Manifest unbound must be an object');
@@ -582,8 +745,21 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			}
 		}
 
-		if (manifest.capabilities || manifest.minNativePluginApi) {
-			validateNativePluginRequirements(manifest.capabilities, manifest.minNativePluginApi);
+		if (
+			!manifest.capabilities &&
+			!manifest.minNativePluginApi &&
+			!manifest.platformCapabilities
+		) {
+			return;
 		}
+
+		const capabilities = [
+			...(manifest.capabilities ?? []),
+			...(currentPlatform === 'ios' || currentPlatform === 'android'
+				? (manifest.platformCapabilities?.[currentPlatform] ?? [])
+				: []),
+		];
+
+		validateNativePluginRequirements(capabilities, manifest.minNativePluginApi);
 	}
 }

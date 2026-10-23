@@ -1,4 +1,4 @@
-import { intro, text, select, confirm, isCancel, cancel } from '@clack/prompts';
+import { intro, text, select, confirm, isCancel, cancel, type CANCEL_SYMBOL } from '@clack/prompts';
 
 import type { ResolvedConfig } from '~/lib/config';
 import { DOCS_BASE_URL } from '~/lib/templates';
@@ -222,7 +222,7 @@ async function resolveConfirm(flag: boolean | undefined, message: string): Promi
 	return unwrap(value);
 }
 
-function unwrap<T>(value: T | symbol): T {
+function unwrap<T>(value: T | typeof CANCEL_SYMBOL): T {
 	if (isCancel(value)) {
 		cancel('Cancelled.');
 		process.exit(0);

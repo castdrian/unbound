@@ -27,6 +27,7 @@ export const mcpCommand: Command = command(
 			},
 		},
 		help: {
+			description: 'Serve the debugger as a stdio MCP server for AI clients.',
 			usage: ['ubd mcp [flags]', ...tools.map((tool) => `ubd mcp ${tool.name} --help`)],
 		},
 	},

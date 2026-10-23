@@ -142,6 +142,30 @@ test('keeps a combined OP and custom tag in the normal tag style when selected',
 	expect(patched.tagTextColor).toBe('#ffffff');
 });
 
+test('uses the reply message role color when the guild member cache misses', async () => {
+	useOpTagStyle = false;
+	await plugin.start({
+		platform: 'ios',
+		native: { objc: { getClass: () => null } },
+	} as any);
+	const patched = afterHandler?.({
+		args: [
+			{
+				message: {
+					author: { id: 'author', bot: false },
+					channel_id: 'thread',
+					colorString: '#123456',
+					messageReference: { channel_id: 'thread', message_id: 'parent' },
+				},
+			},
+		],
+		result: { tagText: null },
+	});
+
+	expect(patched.tagBackgroundColor).toBe('#123456');
+	expect(patched.tagTextColor).toBe('#ffffff');
+});
+
 test('applies native tag properties on Android without accessing Objective-C', async () => {
 	useOpTagStyle = false;
 	await plugin.start({

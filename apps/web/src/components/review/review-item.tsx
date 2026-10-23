@@ -4,6 +4,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '~/componen
 import ReviewDecisionDialog from '~/components/review/review-decision-dialog';
 import ManifestDiffTable from '~/components/review/manifest-diff-table';
 import ChangelogSections from '~/components/changelog-sections';
+import AddonMdReview from '~/components/review/addon-md-review';
 import { getBundleUrl, shortSha } from '~/lib/github-urls';
 import SourcePinLink from '~/components/source-pin-link';
 import type { ReviewEntry } from '~/lib/review-entry';
@@ -61,6 +62,8 @@ function ReviewItem({ entry }: ReviewItemProps) {
 						<ChangelogSections changelog={entry.changelog} />
 					</div>
 				) : null}
+
+				<AddonMdReview entry={entry} />
 
 				<div className='flex flex-wrap gap-2'>
 					<Button asChild variant='outline' size='sm'>

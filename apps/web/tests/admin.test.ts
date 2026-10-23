@@ -76,11 +76,13 @@ describe('the review queue', () => {
 		]);
 	});
 
-	test('an update entry diffs its manifest and bundle against the approved version', async () => {
+	test('an update entry diffs its manifest, bundle and ADDON.md against the approved version', async () => {
 		const reviewer = await signUp('moderator');
 		const owner = await signUp('developer');
 
-		await seedApprovedAddon(ctx, owner.userId, manifest('queue.diffed'));
+		await seedApprovedAddon(ctx, owner.userId, manifest('queue.diffed'), {
+			addonMd: '# Hello\r\nSays hello.\r\n',
+		});
 
 		const row = await seedSubmission(
 			ctx,
@@ -101,6 +103,13 @@ describe('the review queue', () => {
 
 		expect(entry).toMatchObject({ name: 'Hello', previousVersion: '1.0.0', selfReview: false });
 		expect(changed).toEqual(['description', 'version', 'bundle size', 'sha256']);
+		expect(entry.addonMdDiff).toEqual({
+			state: 'changed',
+			lines: [
+				{ type: 'context', text: '# Hello', before: 1, after: 1 },
+				{ type: 'removed', text: 'Says hello.', before: 2, after: null },
+			],
+		});
 		expect(entry.fields.find((field) => field.field === 'bundle size')).toEqual({
 			field: 'bundle size',
 			previous: '1,024 bytes',
@@ -124,6 +133,7 @@ describe('the review queue', () => {
 		const entry = toReviewEntry(item);
 
 		expect(entry.previousVersion).toBeNull();
+		expect(entry.addonMdDiff).toEqual({ state: 'new' });
 		expect(entry.fields.some((field) => field.changed)).toBe(false);
 		expect(entry.fields.find((field) => field.field === 'authors')?.next).toBe(
 			'[{"name":"Mario","id":"1234567890"}]',

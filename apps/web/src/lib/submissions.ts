@@ -1,34 +1,40 @@
 import type {
 	CreateSubmissionRequest,
 	CreateSubmissionResponse,
-	FinalizeSubmissionResponse,
 	OpenSubmissionStatus,
 	Submission,
 	SubmissionKind,
-	SubmitFromRepositoryRequest,
 } from '@unbound-app/contracts/publish';
 import type { SubmissionPreviewResponse } from '@unbound-app/contracts/review';
 import { openSubmissionStatusSchema } from '@unbound-app/contracts/publish';
 import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import { and, count, eq, gte, inArray, ne } from 'drizzle-orm';
 
-import { addon, addonMaintainer, addonVersion, submission } from '~/db/schema';
-import { connectGitHub, hasPushAccess } from '~/lib/github';
+import { addon, addonMaintainer, addonVersion, submission, submissionSource } from '~/db/schema';
+import type { SubmissionSourceRow } from '~/lib/artifacts';
+import type { AddonSource } from '~/lib/addon-source';
 import { readAddonSource } from '~/lib/addon-source';
 import { requirePermission } from '~/lib/api/caller';
-import { presignStagingUpload } from '~/lib/storage';
 import type { Transaction } from '~/db/database';
 import { getSnowflakeDate } from '~/lib/discord';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
+import { pinSource } from '~/lib/artifacts';
+import { connectGitHub } from '~/lib/github';
 import { ApiError } from '~/lib/api/errors';
 
 export type SubmissionRow = typeof submission.$inferSelect;
 
-type LinkedAccount = {
-	providerId: string;
-	accountId: string;
-	accessToken: string | null;
+/** A submission as a relational query loads it with `with: { source: true }`. */
+export type SubmissionWithSource = SubmissionRow & {
+	source: SubmissionSourceRow | null;
+};
+
+/** A submission read from GitHub; legacy uploads, which lack these, never narrow to it. */
+export type SourcedSubmissionRow = SubmissionRow & {
+	repository: string;
+	sha256: string;
+	source: SubmissionSourceRow;
 };
 
 type ClaimReader = Pick<Transaction, 'select'>;
@@ -38,8 +44,13 @@ type Claim = {
 	replaced: SubmissionRow | undefined;
 };
 
+type Staged = {
+	id: string;
+	stagingKey: string;
+};
+
 type Reservation = {
-	created: SubmissionRow;
+	created: SourcedSubmissionRow;
 	replaced: SubmissionRow | undefined;
 };
 
@@ -49,24 +60,38 @@ export const OPEN_SUBMISSION_STATUSES = openSubmissionStatusSchema.options;
 
 /** The caller's own open submission in one of these states is superseded by submitting the addon again. */
 export const REPLACEABLE_SUBMISSION_STATUSES = [
-	'awaiting_upload',
 	'changes_requested',
 ] as const satisfies OpenSubmissionStatus[];
 
 /**
+ * @description Narrows a submission loaded with its source to one read from GitHub.
+ * @template T The loaded row, with any further relations.
+ * @param row The submission with its source.
+ * @returns The row, typed as sourced.
+ */
+export function requireSourced<T extends SubmissionWithSource>(row: T): T & SourcedSubmissionRow {
+	const { repository, sha256, source } = row;
+
+	if (!repository || !sha256 || !source) {
+		throw new Error(`Submission ${row.id} is a legacy upload without a GitHub source.`);
+	}
+
+	return { ...row, repository, sha256, source };
+}
+
+/**
  * @description Renders a submission row as the wire contract.
- * @param row The submission row.
+ * @param row The submission row with its source.
  * @returns The submission as API responses carry it.
  */
-export function toSubmission(row: SubmissionRow): Submission {
+export function toSubmission(row: SourcedSubmissionRow): Submission {
 	return {
 		id: row.id,
 		addonId: row.addonId,
 		version: row.version,
 		kind: row.kind,
 		status: row.status,
-		repository: row.repository,
-		unverifiedSource: row.repository === null,
+		source: pinSource(row.repository, row.source),
 		review:
 			row.reviewDecision && row.reviewedAt
 				? {
@@ -90,14 +115,12 @@ async function checkRateLimit(ctx: AppContext, userId: string, now: Date) {
 	}
 }
 
-function findLinkedAccounts(ctx: AppContext, userId: string): Promise<LinkedAccount[]> {
-	return ctx.db.query.account.findMany({
-		where: { userId, providerId: { in: ['discord', 'github'] } },
-		columns: { providerId: true, accountId: true, accessToken: true },
+async function checkAccountAge(ctx: AppContext, userId: string, now: Date) {
+	const discord = await ctx.db.query.account.findFirst({
+		where: { userId, providerId: 'discord' },
+		columns: { accountId: true },
 	});
-}
 
-function checkAccountAge(ctx: AppContext, discord: LinkedAccount | undefined, now: Date) {
 	if (!discord) {
 		throw new ApiError('forbidden', 'A Discord account is required to submit addons.');
 	}
@@ -111,26 +134,6 @@ function checkAccountAge(ctx: AppContext, discord: LinkedAccount | undefined, no
 			`Your Discord account must be at least ${days} days old to submit addons.`,
 		);
 	}
-}
-
-async function verifyRepository(
-	ctx: AppContext,
-	github: LinkedAccount | undefined,
-	repository: string,
-) {
-	if (!github?.accessToken) {
-		throw new ApiError(
-			'github_not_linked',
-			`Link your GitHub account to submit from ${repository}.`,
-		);
-	}
-
-	if (await hasPushAccess(ctx.env, github.accessToken, repository)) return;
-
-	throw new ApiError(
-		'github_no_push_access',
-		`Your linked GitHub account cannot push to ${repository}.`,
-	);
 }
 
 function checkClaim(
@@ -239,10 +242,11 @@ function checkClaim(
 function reserve(
 	ctx: AppContext,
 	caller: Caller,
-	request: CreateSubmissionRequest,
+	staged: Staged,
+	source: AddonSource,
 	now: Date,
 ): Reservation {
-	const { manifest } = request;
+	const { manifest, pin } = source;
 
 	return ctx.db.transaction(
 		(tx) => {
@@ -255,45 +259,85 @@ function reserve(
 					.run();
 			}
 
-			const id = Bun.randomUUIDv7();
 			const created = tx
 				.insert(submission)
 				.values({
-					id,
+					id: staged.id,
 					addonId: manifest.id,
 					authorId: caller.user.id,
 					kind,
-					status: 'awaiting_upload',
+					status: 'pending_review',
 					version: manifest.version,
 					manifest,
-					changelog: request.changelog ?? null,
-					repository: request.repository ?? null,
-					bundleSize: request.bundleSize,
-					stagingKey: `submissions/${id}/bundle`,
-					uploadExpiresAt: new Date(
-						now.getTime() + ctx.env.SUBMISSION_UPLOAD_TTL_SECONDS * 1000,
-					),
+					repository: pin.repository,
+					bundleSize: source.bundleSize,
+					stagingKey: staged.stagingKey,
+					sha256: source.sha256,
 					createdAt: now,
+					submittedAt: now,
 				})
 				.returning()
 				.get();
 
-			return { created, replaced };
+			const row = tx
+				.insert(submissionSource)
+				.values({
+					submissionId: staged.id,
+					repositoryId: pin.repositoryId,
+					path: pin.path,
+					ref: pin.ref,
+					commitSha: pin.commitSha,
+					bundlePath: pin.bundlePath,
+					bundleBlobSha: pin.bundleBlobSha,
+					addonMd: source.addonMd,
+					changelog: source.changelog,
+					details: source.details,
+				})
+				.returning()
+				.get();
+
+			return {
+				created: {
+					...created,
+					repository: pin.repository,
+					sha256: source.sha256,
+					source: row,
+				},
+				replaced,
+			};
 		},
 		{ behavior: 'immediate' },
 	);
 }
 
+async function stageAndReserve(
+	ctx: AppContext,
+	caller: Caller,
+	source: AddonSource,
+	now: Date,
+): Promise<Reservation> {
+	const id = Bun.randomUUIDv7();
+	const staged = { id, stagingKey: `submissions/${id}/bundle` };
+
+	// Until the row exists, only STAGING_ORPHAN_GRACE_SECONDS keeps the sweeper off this object.
+	await ctx.storage.staging.write(staged.stagingKey, source.bundle);
+
+	try {
+		return reserve(ctx, caller, staged, source, now);
+	} catch (error) {
+		await ctx.storage.staging.delete(staged.stagingKey);
+
+		throw error;
+	}
+}
+
 /**
- * @description Opens a submission and reserves its upload: checks the size limit, the submission
- * rate, the Discord account age and, when a repository is named, GitHub push access; then claims
- * the addon id (new listing) or checks maintainership (update), enforces the pending caps,
- * supersedes the caller's own replaceable submission for the addon (deleting its staged bundle)
- * and presigns an upload of exactly `bundleSize` bytes.
+ * @description Submits one addon of a GitHub repository for review, superseding the caller's own
+ * submission with changes requested.
  * @param ctx The application context.
  * @param caller The submitting user.
- * @param request The validated create request.
- * @returns The new submission and its upload.
+ * @param request The repository, addon path, ref, commit and detail overrides.
+ * @returns The submission, pending review.
  */
 export async function createSubmission(
 	ctx: AppContext,
@@ -302,41 +346,18 @@ export async function createSubmission(
 ): Promise<CreateSubmissionResponse> {
 	const now = ctx.now();
 
-	if (request.bundleSize > ctx.env.ADDON_MAX_BYTES) {
-		throw new ApiError(
-			'artifact_too_large',
-			`Bundles may be at most ${ctx.env.ADDON_MAX_BYTES} bytes.`,
-		);
-	}
-
 	await checkRateLimit(ctx, caller.user.id, now);
+	await checkAccountAge(ctx, caller.user.id, now);
 
-	const accounts = await findLinkedAccounts(ctx, caller.user.id);
-	const find = (providerId: string) => accounts.find((entry) => entry.providerId === providerId);
-
-	checkAccountAge(ctx, find('discord'), now);
-
-	if (request.repository) {
-		await verifyRepository(ctx, find('github'), request.repository);
-	}
-
-	const { created, replaced } = reserve(ctx, caller, request, now);
+	const github = await connectGitHub(ctx, caller.user.id);
+	const source = await readAddonSource(ctx, github, request);
+	const { created, replaced } = await stageAndReserve(ctx, caller, source, now);
 
 	if (replaced) {
 		await ctx.storage.staging.delete(replaced.stagingKey);
 	}
 
-	const upload = presignStagingUpload(ctx.env, {
-		key: created.stagingKey,
-		size: created.bundleSize,
-		signedAt: now,
-		expiresIn: ctx.env.SUBMISSION_UPLOAD_TTL_SECONDS,
-	});
-
-	return {
-		submission: toSubmission(created),
-		upload: { ...upload, method: 'PUT', expiresAt: created.uploadExpiresAt.toISOString() },
-	};
+	return { submission: toSubmission(created) };
 }
 
 /**
@@ -350,15 +371,9 @@ export async function createSubmission(
 export async function previewSubmission(
 	ctx: AppContext,
 	caller: Caller,
-	request: SubmitFromRepositoryRequest,
+	request: CreateSubmissionRequest,
 ): Promise<SubmissionPreviewResponse> {
-	const accounts = await findLinkedAccounts(ctx, caller.user.id);
-
-	checkAccountAge(
-		ctx,
-		accounts.find((entry) => entry.providerId === 'discord'),
-		ctx.now(),
-	);
+	await checkAccountAge(ctx, caller.user.id, ctx.now());
 
 	const github = await connectGitHub(ctx, caller.user.id);
 	const source = await readAddonSource(ctx, github, request);
@@ -378,90 +393,11 @@ export async function previewSubmission(
 	};
 }
 
-async function hashObject(file: Bun.S3File): Promise<string> {
-	const hasher = new Bun.CryptoHasher('sha256');
-
-	for await (const chunk of file.stream()) {
-		hasher.update(chunk);
-	}
-
-	return hasher.digest('hex');
-}
-
-/**
- * @description Confirms the caller's upload landed with the declared size, records its SHA-256 and
- * moves the submission to `pending_review`. An object uploaded before the URL expired is accepted
- * even if finalize itself runs later; a wrong-sized object is deleted so the URL can be used again.
- * @param ctx The application context.
- * @param caller The submitting user.
- * @param id The submission id.
- * @returns The submission, now pending review.
- */
-export async function finalizeSubmission(
-	ctx: AppContext,
-	caller: Caller,
-	id: string,
-): Promise<FinalizeSubmissionResponse> {
-	const row = await ctx.db.query.submission.findFirst({
-		where: { id, authorId: caller.user.id },
-	});
-
-	if (!row) {
-		throw new ApiError('not_found', `Submission ${id} does not exist.`);
-	}
-
-	if (row.status !== 'awaiting_upload') {
-		throw new ApiError('submission_not_awaiting_upload', `Submission ${id} is ${row.status}.`);
-	}
-
-	const file = ctx.storage.staging.file(row.stagingKey);
-
-	if (!(await file.exists())) {
-		if (ctx.now() > row.uploadExpiresAt) {
-			throw new ApiError('upload_expired', `The upload for submission ${id} has expired.`);
-		}
-
-		throw new ApiError('upload_missing', `Nothing has been uploaded for submission ${id}.`);
-	}
-
-	const { size } = await file.stat();
-
-	if (size !== row.bundleSize) {
-		await file.delete();
-
-		if (size > ctx.env.ADDON_MAX_BYTES) {
-			throw new ApiError(
-				'artifact_too_large',
-				`Bundles may be at most ${ctx.env.ADDON_MAX_BYTES} bytes.`,
-			);
-		}
-
-		throw new ApiError(
-			'upload_size_mismatch',
-			`Uploaded ${size} bytes but declared ${row.bundleSize}.`,
-		);
-	}
-
-	const sha256 = await hashObject(file);
-
-	const [updated] = await ctx.db
-		.update(submission)
-		.set({ status: 'pending_review', sha256, submittedAt: ctx.now() })
-		.where(and(eq(submission.id, id), eq(submission.status, 'awaiting_upload')))
-		.returning();
-
-	if (!updated) {
-		throw new ApiError('submission_not_awaiting_upload', `Submission ${id} changed meanwhile.`);
-	}
-
-	return { submission: toSubmission(updated) };
-}
-
 export default {
 	OPEN_SUBMISSION_STATUSES,
 	REPLACEABLE_SUBMISSION_STATUSES,
+	requireSourced,
 	toSubmission,
 	createSubmission,
 	previewSubmission,
-	finalizeSubmission,
 };

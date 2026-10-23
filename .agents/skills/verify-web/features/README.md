@@ -26,10 +26,10 @@ Each file has an H1, one paragraph, then four H2s in order: `Sub-features`, `How
 
 ## Features
 
-| Feature                                                                                                | Status                                                          |
-| ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| [Review queue](./review-queue.md) covers approve, reject and request changes as a moderator.           | Approve was driven end to end on 2026-10-23.                    |
-| [Browse addons](./browse.md) covers the home page, the plugins and themes lists, search and sort.      | Pages render with the seed. Search and sort are not yet driven. |
-| [Addon detail](./addon-detail.md) covers the detail page and the install link.                         | The page renders with the seed. Install is not yet driven.      |
-| [Submit an addon](./submit.md) covers the manifest and bundle upload to review.                        | Not yet driven.                                                 |
-| [Dashboard and staff gates](./dashboard.md) covers per-role access, the dashboard and the admin pages. | Signed-out redirects and the moderator dashboard were observed. |
+| Feature                                                                                                | Status                                                               |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| [Review queue](./review-queue.md) covers approve, reject and request changes as a moderator.           | Approve of a GitHub-sourced listing driven end to end on 2026-10-23. |
+| [Browse addons](./browse.md) covers the home page, the plugins and themes lists, search and sort.      | Pages render with the seed. Search and sort are not yet driven.      |
+| [Addon detail](./addon-detail.md) covers the detail page and the install link.                         | The page renders with the seed. Install is not yet driven.           |
+| [Submit an addon](./submit.md) covers repository, addon and commit selection, preview and submit.      | Listing driven end to end against the fake GitHub on 2026-10-23.     |
+| [Dashboard and staff gates](./dashboard.md) covers per-role access, the dashboard and the admin pages. | Signed-out redirects and the moderator dashboard were observed.      |

@@ -13,14 +13,15 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '~/components/ui/dialog';
+import type { PendingSource, SubmitIntent } from '~/lib/dashboard';
 import SubmitForm from '~/components/submit/submit-form';
-import type { SubmitIntent } from '~/lib/dashboard';
 import { Button } from '~/components/ui/button';
 
 type SubmitDialogProps = {
 	addonId: string;
 	intent: SubmitIntent;
 	githubLinked: boolean;
+	source?: PendingSource | null;
 	variant?: 'default' | 'outline';
 };
 
@@ -35,23 +36,23 @@ const INTENTS: Record<SubmitIntent, IntentCopy> = {
 		label: 'Republish',
 		icon: <IconRefresh />,
 		description:
-			'Pick the rebuilt manifest and bundle. The new submission replaces the one with changes requested and goes back into the review queue.',
-	},
-	restart: {
-		label: 'Restart upload',
-		icon: <IconRefresh />,
-		description:
-			'Pick the manifest and bundle again. The new submission replaces the upload that never finished.',
+			'Push the changes, then pick the commit that has them. The new submission replaces the one with changes requested and goes back into the review queue.',
 	},
 	update: {
 		label: 'Submit update',
 		icon: <IconUpload />,
 		description:
-			'Pick the manifest and bundle of the new version. The live version stays until reviewers approve it.',
+			'Pick the commit with the new version. The live version stays until reviewers approve it.',
 	},
 };
 
-function SubmitDialog({ addonId, intent, githubLinked, variant = 'default' }: SubmitDialogProps) {
+function SubmitDialog({
+	addonId,
+	intent,
+	githubLinked,
+	source,
+	variant = 'default',
+}: SubmitDialogProps) {
 	const router = useRouter();
 	const [open, setOpen] = useState(false);
 	const copy = INTENTS[intent];
@@ -79,7 +80,8 @@ function SubmitDialog({ addonId, intent, githubLinked, variant = 'default' }: Su
 				</DialogHeader>
 				<SubmitForm
 					githubLinked={githubLinked}
-					addonId={addonId}
+					lockedAddonId={addonId}
+					pendingSource={source ?? undefined}
 					onSubmitted={handleSubmitted}
 				/>
 			</DialogContent>

@@ -310,7 +310,7 @@ describe('my addons', () => {
 			kind: 'update',
 		});
 		await seedSubmission(ctx, helper.userId, manifest('mine.listing'), {
-			status: 'awaiting_upload',
+			status: 'changes_requested',
 		});
 		await seedSubmission(ctx, helper.userId, manifest('mine.rejected'), {
 			status: 'rejected',

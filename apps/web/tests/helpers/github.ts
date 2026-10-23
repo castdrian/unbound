@@ -1,7 +1,10 @@
+import type { CreateSubmissionRequest } from '@unbound-app/contracts/publish';
 import type { RepositoryContributor } from '@unbound-app/contracts/source';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import { manifest } from './addons';
 
 export type FakeRelease = {
 	tag: string;
@@ -24,7 +27,7 @@ export type FakeRepositoryOptions = {
 	truncated?: boolean;
 };
 
-/** One access token: the repositories its user can push to. Unknown tokens get a 401. */
+/** One access token: the repositories its user can push to. Unknown tokens get a 401; no token reads public data. */
 export type FakeToken = {
 	push: string[];
 };
@@ -34,6 +37,8 @@ export type FakeGitHubOptions = {
 	repositories: Record<string, FakeRepositoryOptions>;
 	/** By the bearer token value. */
 	tokens: Record<string, FakeToken>;
+	/** Defaults to a free port. */
+	port?: number;
 };
 
 /** File contents by repository-relative path; `null` deletes the file. */
@@ -73,6 +78,13 @@ export type FakeGitHub = {
 	stop(): Promise<void>;
 };
 
+/** A plugin committed on a branch of its own, and the request that submits it. */
+export type CommittedPlugin = {
+	request: CreateSubmissionRequest;
+	/** The committed bundle at `{path}/dist/index.js`. */
+	bundle: string;
+};
+
 type GitResult = {
 	ok: boolean;
 	stdout: Buffer;
@@ -102,6 +114,10 @@ const IDENTITY = {
 };
 
 const PUSHED_AT = '2026-10-01T12:00:00Z';
+
+const ANONYMOUS: FakeToken = { push: [] };
+
+let pluginBranches = 0;
 
 function runGit(
 	dir: string,
@@ -420,8 +436,10 @@ export function serveGitHub(options: FakeGitHubOptions): FakeGitHub {
 	}
 
 	function handle(request: Request): Response {
-		const authorization = request.headers.get('authorization') ?? '';
-		const token = options.tokens[authorization.replace(/^Bearer /, '')];
+		const authorization = request.headers.get('authorization');
+		const token = authorization
+			? options.tokens[authorization.replace(/^Bearer /, '')]
+			: ANONYMOUS;
 
 		if (failing !== null) {
 			return Response.json(
@@ -466,7 +484,7 @@ export function serveGitHub(options: FakeGitHubOptions): FakeGitHub {
 		return notFound();
 	}
 
-	const server = Bun.serve({ port: 0, fetch: handle });
+	const server = Bun.serve({ port: options.port ?? 0, fetch: handle });
 
 	return {
 		url: server.url,
@@ -490,4 +508,45 @@ export function serveGitHub(options: FakeGitHubOptions): FakeGitHub {
 			rmSync(root, { recursive: true, force: true });
 		},
 	};
+}
+
+/**
+ * @description Commits a built plugin at `plugins/{id}` of a workspace that lists `plugins/*`, as the
+ * root commit of a new branch.
+ * @param fixture The fake repository's git fixture.
+ * @param repository The repository as `owner/name`.
+ * @param id The addon id.
+ * @param version The manifest version.
+ * @param files More files under the plugin directory, by relative path; `null` deletes one.
+ * @returns The request that submits the commit and the committed bundle.
+ */
+export function commitPlugin(
+	fixture: GitFixture,
+	repository: string,
+	id: string,
+	version: string = '1.0.0',
+	files: FixtureFiles = {},
+): CommittedPlugin {
+	pluginBranches += 1;
+
+	const ref = `plugin-${pluginBranches}`;
+	const path = `plugins/${id}`;
+	const bundle = `export default '${id} ${version}';`;
+	const commitSha = fixture.commit(
+		{
+			'unbound.config.json': JSON.stringify({ addons: ['plugins/*'] }),
+			[`${path}/manifest.json`]: JSON.stringify({
+				...manifest(id, version),
+				main: 'src/index.ts',
+			}),
+			[`${path}/package.json`]: JSON.stringify({ scripts: { build: 'bun build' } }),
+			[`${path}/dist/index.js`]: bundle,
+			...Object.fromEntries(
+				Object.entries(files).map(([name, content]) => [`${path}/${name}`, content]),
+			),
+		},
+		{ branch: ref },
+	);
+
+	return { request: { repository, path, ref, commitSha }, bundle };
 }

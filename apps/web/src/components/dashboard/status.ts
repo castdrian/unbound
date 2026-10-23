@@ -20,13 +20,12 @@ type ToneClasses = {
 export const STATUSES: Record<DisplayStatus, StatusStyle> = {
 	listed: { label: 'Listed', tone: 'success' },
 	delisted: { label: 'Delisted', tone: 'neutral' },
-	awaiting_upload: { label: 'Upload incomplete', tone: 'neutral' },
 	pending_review: { label: 'In review', tone: 'info' },
 	changes_requested: { label: 'Changes requested', tone: 'warning' },
 	approved: { label: 'Approved', tone: 'success' },
 	rejected: { label: 'Rejected', tone: 'danger' },
 	superseded: { label: 'Superseded', tone: 'neutral' },
-	expired: { label: 'Upload expired', tone: 'neutral' },
+	expired: { label: 'Expired', tone: 'neutral' },
 	cancelled: { label: 'Cancelled', tone: 'neutral' },
 };
 

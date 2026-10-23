@@ -1,19 +1,14 @@
 import {
-	createSubmissionResponseSchema,
-	finalizeSubmissionResponseSchema,
-} from '@unbound-app/contracts/publish';
-import {
 	reviewQueueResponseSchema,
 	reviewSubmissionResponseSchema,
 } from '@unbound-app/contracts/review';
+import { createSubmissionResponseSchema } from '@unbound-app/contracts/publish';
 import type { ReviewSubmissionRequest } from '@unbound-app/contracts/review';
-import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import type { SubmissionKind } from '@unbound-app/contracts/publish';
 import { addonResponseSchema } from '@unbound-app/contracts/addons';
 import { afterAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
-import finalizeSubmissionEndpoint from '~/endpoints/finalize-submission';
 import createSubmissionEndpoint from '~/endpoints/create-submission';
 import reviewSubmissionEndpoint from '~/endpoints/review-submission';
 import { addonMaintainer, submission, user } from '~/db/schema';
@@ -23,16 +18,27 @@ import { createApiClient } from '~/api/client';
 import type { Role } from '~/lib/auth/access';
 import type { Api } from '~/api';
 
-import { S3_TEST_ENV, createTestContext, signInWithDiscord } from './helpers/context';
+import { S3_TEST_ENV, createTestContext, linkGitHub, signInWithDiscord } from './helpers/context';
+import { commitPlugin, serveGitHub } from './helpers/github';
 import { failure, serveEndpoints } from './helpers/server';
 import { manifest } from './helpers/addons';
 
+const REPOSITORY = 'acme/addons';
+
+const CHANGELOG = '## [1.0.0]\n\n### Added\n\n- Hello.\n';
+
+const github = serveGitHub({
+	repositories: { [REPOSITORY]: {} },
+	tokens: { owner: { push: [REPOSITORY] } },
+});
+
+const fixture = github.repository(REPOSITORY);
+
 // The real clock: MinIO checks presigned URLs against it.
-const { ctx, close } = createTestContext(S3_TEST_ENV);
+const { ctx, close } = createTestContext({ ...S3_TEST_ENV, GITHUB_API_URL: github.url.href });
 
 const server = serveEndpoints(ctx, {
 	'POST /api/v1/submissions': createSubmissionEndpoint,
-	'POST /api/v1/submissions/$id/finalize': finalizeSubmissionEndpoint,
 	'POST /api/v1/submissions/$id/review': reviewSubmissionEndpoint,
 	'GET /api/v1/review/queue': reviewQueueEndpoint,
 	'POST /api/v1/addons/$id/delist': delistAddonEndpoint,
@@ -47,6 +53,7 @@ afterAll(async () => {
 		...(published.contents ?? []).map((object) => ctx.storage.public.delete(object.key)),
 	]);
 	await server.stop(true);
+	await github.stop();
 	close();
 });
 
@@ -62,6 +69,7 @@ async function signUp(role: Role = 'user') {
 	});
 
 	await ctx.db.update(user).set({ role }).where(eq(user.id, userId));
+	await linkGitHub(ctx, userId, 'owner');
 
 	return { userId, client: createApiClient<Api>({ baseUrl: server.url.href, headers }) };
 }
@@ -72,22 +80,25 @@ function sha256(bundle: string): string {
 	return new Bun.CryptoHasher('sha256').update(bundle).digest('hex');
 }
 
-async function publish(author: Member, published: PublishedManifest, bundle: string) {
+async function publish(
+	author: Member,
+	id: string,
+	bundle: string,
+	version: string = '1.0.0',
+	files: Record<string, string> = {},
+) {
+	const { request } = commitPlugin(fixture, REPOSITORY, id, version, {
+		'dist/index.js': bundle,
+		'CHANGELOG.md': CHANGELOG.replace('1.0.0', version),
+		'ADDON.md': `# ${id} ${version}`,
+		...files,
+	});
 	const created = await author.client('POST /api/v1/submissions', {
-		body: { manifest: published, bundleSize: Buffer.byteLength(bundle), changelog: 'Hello.' },
+		body: request,
 		response: createSubmissionResponseSchema,
 	});
 
-	const { url, method, headers } = created.upload;
-
-	await fetch(url, { method, headers, body: bundle });
-
-	const { submission: finalized } = await author.client('POST /api/v1/submissions/$id/finalize', {
-		params: { id: created.submission.id },
-		response: finalizeSubmissionResponseSchema,
-	});
-
-	return finalized.id;
+	return created.submission.id;
 }
 
 function review(reviewer: Member, id: string, request: ReviewSubmissionRequest) {
@@ -124,18 +135,18 @@ async function approvedAddon(id: string, bundle: string = 'export default 1;') {
 	const author = await signUp();
 	const moderator = await signUp('moderator');
 
-	await review(moderator, await publish(author, manifest(id), bundle), { decision: 'approved' });
+	await review(moderator, await publish(author, id, bundle), { decision: 'approved' });
 
 	return { author, moderator };
 }
 
 describe('approval', () => {
-	test('publishes the verified bundle and manifest and makes the version live', async () => {
+	test('publishes the commit’s bundle and manifest and makes the version live', async () => {
 		const author = await signUp();
 		const moderator = await signUp('moderator');
 		const bundle = 'console.log("approved");';
 		const published = manifest('review.approve');
-		const id = await publish(author, published, bundle);
+		const id = await publish(author, 'review.approve', bundle);
 		const { stagingKey } = findRow(id);
 
 		const { submission: reviewed } = await review(moderator, id, {
@@ -155,11 +166,7 @@ describe('approval', () => {
 		});
 		expect(sha256(publicBundle)).toBe(sha256(bundle));
 		expect(await ctx.storage.public.file(`${base}/manifest.json`).json()).toEqual(published);
-		expect(version).toMatchObject({
-			submissionId: id,
-			sha256: sha256(bundle),
-			changelog: 'Hello.',
-		});
+		expect(version).toMatchObject({ submissionId: id, sha256: sha256(bundle) });
 		expect(await ctx.storage.staging.exists(stagingKey)).toBe(false);
 		expect(findRow(id).reviewerId).toBe(moderator.userId);
 		expect(
@@ -167,12 +174,11 @@ describe('approval', () => {
 		).toMatchObject({ userId: author.userId, role: 'owner' });
 	});
 
-	test('refuses a staged bundle that changed after finalize, publishing nothing', async () => {
+	test('refuses a staged bundle that no longer matches the submission, publishing nothing', async () => {
 		const author = await signUp();
 		const moderator = await signUp('moderator');
-		const id = await publish(author, manifest('review.tampered'), 'original');
+		const id = await publish(author, 'review.tampered', 'original');
 
-		// Same size, different bytes: what reusing the upload URL after finalize would leave staged.
 		await ctx.storage.staging.write(findRow(id).stagingKey, 'replaced');
 
 		expect(await failure(review(moderator, id, { decision: 'approved' }))).toEqual({
@@ -188,16 +194,49 @@ describe('approval', () => {
 		).toBeUndefined();
 	});
 
+	test('reads a bundle the staging bucket lost again from its pinned blob', async () => {
+		const author = await signUp();
+		const moderator = await signUp('moderator');
+		const bundle = 'export default "refetched";';
+		const id = await publish(author, 'review.refetched', bundle);
+
+		await ctx.storage.staging.delete(findRow(id).stagingKey);
+		await review(moderator, id, { decision: 'approved' });
+
+		expect(await ctx.storage.public.file('addons/review.refetched/1.0.0/index.js').text()).toBe(
+			bundle,
+		);
+	});
+
+	test('refuses a lost bundle whose pinned blob arrives altered, publishing nothing', async () => {
+		const author = await signUp();
+		const moderator = await signUp('moderator');
+		const id = await publish(author, 'review.refetch-tampered', 'export default 1;');
+
+		await ctx.storage.staging.delete(findRow(id).stagingKey);
+		github.tamper(true);
+
+		try {
+			expect(await failure(review(moderator, id, { decision: 'approved' }))).toEqual({
+				status: 502,
+				code: 'github_unavailable',
+			});
+		} finally {
+			github.tamper(false);
+		}
+
+		expect(findRow(id).status).toBe('pending_review');
+		expect(
+			await ctx.storage.public.exists('addons/review.refetch-tampered/1.0.0/index.js'),
+		).toBe(false);
+	});
+
 	test('grants developer on the first approved listing only', async () => {
 		const { author, moderator } = await approvedAddon('review.first');
 
 		expect(getRole(author.userId)).toBe('developer');
 
-		const update = await publish(
-			author,
-			manifest('review.first', '1.1.0'),
-			'export default 2;',
-		);
+		const update = await publish(author, 'review.first', 'export default 2;', '1.1.0');
 
 		await review(moderator, update, { decision: 'approved' });
 
@@ -208,7 +247,7 @@ describe('approval', () => {
 		const author = await signUp('moderator');
 		const reviewer = await signUp('moderator');
 
-		await review(reviewer, await publish(author, manifest('review.staff'), 'staff'), {
+		await review(reviewer, await publish(author, 'review.staff', 'staff'), {
 			decision: 'approved',
 		});
 
@@ -234,7 +273,7 @@ describe('approval', () => {
 describe('who may review', () => {
 	test('a plain user or developer cannot review at all', async () => {
 		const author = await signUp();
-		const id = await publish(author, manifest('review.unprivileged'), 'bundle');
+		const id = await publish(author, 'review.unprivileged', 'bundle');
 
 		for (const role of ['user', 'developer'] as const) {
 			const reviewer = await signUp(role);
@@ -249,7 +288,7 @@ describe('who may review', () => {
 
 	test('a moderator cannot review their own listing', async () => {
 		const author = await signUp('moderator');
-		const id = await publish(author, manifest('review.own-listing'), 'bundle');
+		const id = await publish(author, 'review.own-listing', 'bundle');
 
 		expect(await failure(review(author, id, { decision: 'approved' }))).toEqual({
 			status: 403,
@@ -267,7 +306,7 @@ describe('who may review', () => {
 			role: 'maintainer',
 		});
 
-		const id = await publish(author, manifest('review.own-update', '1.1.0'), 'update');
+		const id = await publish(author, 'review.own-update', 'update', '1.1.0');
 
 		expect(
 			await failure(review(maintainer, id, { decision: 'rejected', note: 'No.' })),
@@ -277,19 +316,27 @@ describe('who may review', () => {
 });
 
 describe('the queue', () => {
-	test('lists pending submissions with their submitter, previous version and a download', async () => {
+	test('lists pending submissions with their source, content, previous version and a download', async () => {
 		const { author, moderator } = await approvedAddon('review.queued', 'version one');
 		const bundle = 'version two';
-		const id = await publish(author, manifest('review.queued', '2.0.0'), bundle);
+		const id = await publish(author, 'review.queued', bundle, '2.0.0');
 
 		const { submissions } = await queue(moderator, 'update');
 		const item = submissions.find((entry) => entry.submission.id === id);
 
 		expect(submissions.every((entry) => entry.submission.kind === 'update')).toBe(true);
 		expect(item).toMatchObject({
-			submission: { kind: 'update', status: 'pending_review', unverifiedSource: true },
+			submission: { kind: 'update', status: 'pending_review' },
+			source: {
+				repository: REPOSITORY,
+				path: 'plugins/review.queued',
+				bundlePath: 'plugins/review.queued/dist/index.js',
+			},
 			manifest: { id: 'review.queued', version: '2.0.0' },
-			changelog: 'Hello.',
+			changelog: { date: null, sections: [{ type: 'added', items: ['Hello.'] }] },
+			addonMd: '# review.queued 2.0.0',
+			previousAddonMd: '# review.queued 1.0.0',
+			details: { htmlUrl: `https://github.com/${REPOSITORY}` },
 			sha256: sha256(bundle),
 			submitter: { id: author.userId, name: expect.any(String) },
 			previousVersion: { version: '1.0.0' },
@@ -309,7 +356,7 @@ describe('rejection and requested changes', () => {
 		const author = await signUp();
 		const moderator = await signUp('moderator');
 		const other = await signUp();
-		const id = await publish(author, manifest('review.rejected'), 'rejected');
+		const id = await publish(author, 'review.rejected', 'rejected');
 		const { stagingKey } = findRow(id);
 
 		const { submission: reviewed } = await review(moderator, id, {
@@ -322,13 +369,13 @@ describe('rejection and requested changes', () => {
 			review: { decision: 'rejected', note: 'Malware.' },
 		});
 		expect(await ctx.storage.staging.exists(stagingKey)).toBe(false);
-		expect(await publish(other, manifest('review.rejected'), 'mine now')).toBeString();
+		expect(await publish(other, 'review.rejected', 'mine now')).toBeString();
 	});
 
 	test('a rejection or change request needs a note', async () => {
 		const author = await signUp();
 		const moderator = await signUp('moderator');
-		const id = await publish(author, manifest('review.no-note'), 'bundle');
+		const id = await publish(author, 'review.no-note', 'bundle');
 
 		expect(
 			await failure(review(moderator, id, { decision: 'changes_requested', note: ' ' })),
@@ -338,7 +385,7 @@ describe('rejection and requested changes', () => {
 	test('requested changes return to the queue once the author republishes', async () => {
 		const author = await signUp();
 		const moderator = await signUp('moderator');
-		const first = await publish(author, manifest('review.changes'), 'first try');
+		const first = await publish(author, 'review.changes', 'first try');
 
 		await review(moderator, first, { decision: 'changes_requested', note: 'Add a README.' });
 
@@ -346,7 +393,7 @@ describe('rejection and requested changes', () => {
 
 		expect(pending.submissions.some((entry) => entry.submission.id === first)).toBe(false);
 
-		const second = await publish(author, manifest('review.changes'), 'second try');
+		const second = await publish(author, 'review.changes', 'second try');
 		const requeued = await queue(moderator, 'listing');
 
 		expect(findRow(first)).toMatchObject({

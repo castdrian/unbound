@@ -6,5 +6,5 @@ export type { AppContext } from '~/lib/context';
 export * as schema from '~/db/schema';
 export * from './context';
 export * from './addons';
-export * from './server';
 export * from './github';
+export * from './server';

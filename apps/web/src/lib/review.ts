@@ -11,8 +11,9 @@ import { and, eq } from 'drizzle-orm';
 import { addon, addonMaintainer, addonVersion, submission, user } from '~/db/schema';
 import { LATEST_VERSION, refreshAddonSummary, toAddonSummary } from '~/lib/addons';
 import { getArtifactKeys, toAddonVersion } from '~/lib/artifacts';
-import type { SubmissionRow } from '~/lib/submissions';
+import type { SourcedSubmissionRow, SubmissionRow } from '~/lib/submissions';
 import { requirePermission } from '~/lib/api/caller';
+import { createGitHubClient } from '~/lib/github';
 import type { Permissions } from '~/lib/auth/access';
 import { hasPermission } from '~/lib/auth/access';
 import { toSubmission } from '~/lib/submissions';
@@ -71,8 +72,8 @@ export function toVersionRow(
 
 /**
  * @description Lists the submissions waiting for review that the caller may review, oldest first,
- * each with its submitter, the addon's newest approved version and a presigned download of the
- * staged bundle.
+ * each with its source and content, its submitter, the addon's newest approved version and ADDON.md,
+ * and a presigned download of the staged bundle.
  * @param ctx The application context.
  * @param caller The reviewer.
  * @param kind Only list new listings or only updates.
@@ -91,7 +92,7 @@ export async function listReviewQueue(
 
 	const rows = await ctx.db.query.submission.findMany({
 		where: { status: 'pending_review', kind: { in: kinds } },
-		with: { author: { columns: { id: true, name: true, image: true } } },
+		with: { author: { columns: { id: true, name: true, image: true } }, source: true },
 		orderBy: { submittedAt: 'asc' },
 	});
 
@@ -117,23 +118,29 @@ export async function listReviewQueue(
 	const expiresAt = new Date(ctx.now().getTime() + expiresIn * 1000).toISOString();
 
 	const submissions = rows.map((row): ReviewQueueItem => {
-		const { author, sha256, submittedAt } = row;
+		const { author, source, sha256, submittedAt } = row;
 		const version = previous.get(row.addonId);
 
-		if (!author || !sha256 || !submittedAt) {
-			throw new Error(`Submission ${row.id} is pending review without an author or upload.`);
+		if (!author || !source || !sha256 || !submittedAt) {
+			throw new Error(`Submission ${row.id} is pending review without an author or source.`);
 		}
 
+		const submission = toSubmission(row);
+
 		return {
-			submission: toSubmission(row),
+			submission,
+			source: submission.source,
 			manifest: row.manifest,
-			changelog: row.changelog,
 			bundleSize: row.bundleSize,
 			sha256,
+			addonMd: source.addonMd,
+			changelog: source.changelog,
+			details: source.details,
 			submittedAt: submittedAt.toISOString(),
 			submitter: { id: author.id, name: author.name, image: author.image ?? null },
 			selfReview: author.id === caller.user.id || maintained.has(row.addonId),
 			previousVersion: version ? toAddonVersion(ctx.env, version, version.submission) : null,
+			previousAddonMd: version?.submission?.source?.addonMd ?? null,
 			artifact: {
 				url: ctx.storage.staging.presign(row.stagingKey, { method: 'GET', expiresIn }),
 				expiresAt,
@@ -148,12 +155,12 @@ async function requirePendingReview(
 	ctx: AppContext,
 	caller: Caller,
 	id: string,
-): Promise<SubmissionRow> {
+): Promise<SourcedSubmissionRow> {
 	if (getReviewableKinds(caller).length === 0) {
 		throw new ApiError('forbidden', 'You do not have permission to review submissions.');
 	}
 
-	const row = await ctx.db.query.submission.findFirst({ where: { id } });
+	const row = await ctx.db.query.submission.findFirst({ where: { id }, with: { source: true } });
 
 	if (!row) {
 		throw new ApiError('not_found', `Submission ${id} does not exist.`);
@@ -177,16 +184,28 @@ async function requirePendingReview(
 	return row;
 }
 
-// Re-checks the staged bundle against the size limit and the size and SHA-256 recorded on finalize
-// (the upload URL stays reusable until it expires), then publishes it and its manifest.
-async function publishArtifact(ctx: AppContext, row: SubmissionRow): Promise<string> {
-	const staged = ctx.storage.staging.file(row.stagingKey);
-
-	if (!(await staged.exists())) {
+// B2 hides staged objects after 14 days. The pinned blob is content-addressed, so reading it again
+// gives the same bytes; `readBlob` checks them against the blob id and the caller checks the SHA-256.
+async function refetchBundle(ctx: AppContext, row: SourcedSubmissionRow): Promise<Uint8Array> {
+	if (!row.repository || !row.source) {
 		throw new ApiError('artifact_mismatch', `The staged bundle of ${row.id} is missing.`);
 	}
 
-	const bundle = await staged.bytes();
+	const linked = await ctx.db.query.account.findFirst({
+		where: { userId: row.authorId, providerId: 'github' },
+		columns: { accessToken: true },
+	});
+
+	const github = createGitHubClient(ctx.env, linked?.accessToken ?? null);
+
+	return github.readBlob(row.repository, row.source.bundleBlobSha);
+}
+
+// Re-checks the bundle against the size limit and the size and SHA-256 recorded when it was read from
+// its source, so what goes public is what reviewers downloaded, then publishes it and its manifest.
+async function publishArtifact(ctx: AppContext, row: SourcedSubmissionRow): Promise<string> {
+	const staged = ctx.storage.staging.file(row.stagingKey);
+	const bundle = (await staged.exists()) ? await staged.bytes() : await refetchBundle(ctx, row);
 	const sha256 = new Bun.CryptoHasher('sha256').update(bundle).digest('hex');
 
 	if (
@@ -196,7 +215,7 @@ async function publishArtifact(ctx: AppContext, row: SubmissionRow): Promise<str
 	) {
 		throw new ApiError(
 			'artifact_mismatch',
-			`The staged bundle of ${row.id} changed after it was finalized.`,
+			`The bundle of ${row.id} no longer matches what was submitted.`,
 		);
 	}
 
@@ -296,7 +315,7 @@ function decide(
 /**
  * @description Approves, rejects or requests changes on a pending submission. Reviewers need the
  * review permission for its kind and may not maintain the addon. Approval re-verifies the staged
- * bundle, publishes it to `addons/{id}/{version}/`, then in one transaction marks the submission
+ * bundle (read again from its pinned blob when the staging bucket no longer has it), publishes it to `addons/{id}/{version}/`, then in one transaction marks the submission
  * approved and writes the live version (plus, for a first listing, the addon, its owner and the
  * author's `developer` role); the staged bundle is deleted last. Rejection deletes the staged bundle,
  * which also frees a new listing's id. Requesting changes keeps it until the author republishes.
@@ -327,7 +346,7 @@ export async function reviewSubmission(
 		await ctx.storage.staging.delete(row.stagingKey);
 	}
 
-	return { submission: toSubmission(reviewed) };
+	return { submission: toSubmission({ ...reviewed, source: row.source }) };
 }
 
 export default { toVersionRow, listReviewQueue, reviewSubmission };

@@ -109,8 +109,7 @@ async function skippedVersions(
 }
 
 /**
- * @description Reads the source changelogs of the given submissions, in one keyed statement. It stays
- * apart from {@link newestCompatibleVersions}, whose bare columns only hold without joins.
+ * @description Reads the source changelogs of the given submissions, in one keyed statement.
  * @param ctx The application context.
  * @param submissionIds The submissions the listed versions were approved from.
  * @returns The source rows keyed by submission id; legacy uploads have none.

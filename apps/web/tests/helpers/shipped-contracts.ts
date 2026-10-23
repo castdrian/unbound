@@ -2,9 +2,6 @@ import { addonIdSchema, addonManifestSchema, semverSchema } from '@unbound-app/c
 import { addonTypeSchema, sha256Schema } from '@unbound-app/contracts/addons';
 import { z } from '@unbound-app/contracts/zod';
 
-// The catalog and update schemas as shipped clients parse them, copied from origin/main before
-// GitHub sources added `changes` and `source`. A server response must keep parsing with these.
-
 const addonVersionSchema = z.object({
 	version: semverSchema,
 	manifest: addonManifestSchema,

@@ -31,8 +31,8 @@ export const submissionSource = sqliteTable('submission_source', {
 	details: text('details', { mode: 'json' }).$type<RepositoryDetails>().notNull(),
 });
 
-// Drizzle keeps one relations entry per table across parts, so every relation of `submission` and
-// `addon_version` lives here, next to the table they now reach.
+// Drizzle keeps one relations entry per table across parts, so add `submission` and `addon_version`
+// relations here, not in `addonRelations`, or this part silently replaces them.
 export const sourceRelations = defineRelationsPart(
 	{ user, addon, submission, addonVersion, submissionSource },
 	(r) => ({

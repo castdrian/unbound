@@ -254,8 +254,12 @@ export interface NativeReactBridge {
 	forceRemount(fiber: NativeFiberHandle): NativeCancelablePromise<void>;
 }
 
+export type NativePlatformName = 'ios' | 'android';
+
 export interface NativePlatformDevice {
+	readonly platform?: NativePlatformName;
 	getDeviceModel(): string;
+	getOSVersionString?(): string;
 	getiOSVersionString(): string;
 	isJailbroken(): boolean;
 	isSystemApp(): boolean;
@@ -269,6 +273,7 @@ export interface NativePlatformApp {
 }
 
 export interface NativePlatformBridge {
+	readonly platform?: NativePlatformName;
 	evaluateBytecode(bytecode: ArrayBuffer, tag?: string): unknown;
 	readonly device: NativePlatformDevice;
 	readonly app: NativePlatformApp;

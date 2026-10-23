@@ -12,6 +12,7 @@ import type {
 	NativeObjCBridge,
 	NativeObjectHandle,
 	NativePlatformBridge,
+	NativePlatformName,
 	NativePluginBridge,
 	NativePluginCapability,
 	NativeReactBridge,
@@ -170,6 +171,14 @@ function getNativePlugin(): NativePluginBridge | undefined {
 }
 
 export const NativePlatform: NativePlatformBridge | undefined = globalThis.NativePlatform;
+
+/**
+ * @description Reports which native loader the client is running under.
+ * @returns `'android'` under the Android loader, otherwise `'ios'`.
+ */
+export function getPlatform(): NativePlatformName {
+	return NativePlatform?.platform ?? NativePlatform?.device?.platform ?? 'ios';
+}
 
 const capabilityRequirements: Record<string, NativePluginCapability> = {
 	getClass: 'native.objc.classes',

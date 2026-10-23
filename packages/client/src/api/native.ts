@@ -22,6 +22,7 @@ export type {
 	NativeObjCBridge,
 	NativeObjectHandle,
 	NativePlatformBridge,
+	NativePlatformName,
 	NativeReactBridge,
 	NativePluginBridge,
 	NativePluginCapability,
@@ -46,6 +47,7 @@ export {
 	NativePluginVersionError,
 	NativeReactStaleFiberError,
 	getNativeModule,
+	getPlatform,
 	getRuntimeProperties,
 	reload,
 } from '~/api/native-runtime';

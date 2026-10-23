@@ -1,5 +1,6 @@
 import type { AppContext } from '../../../../apps/web/tests/helpers/index.ts';
 import type { Caller } from '../../../../apps/web/src/lib/api/caller.ts';
+import type { EnvSource } from '../../../../apps/web/src/lib/env.ts';
 
 import {
 	createTestContext,
@@ -7,9 +8,11 @@ import {
 	schema,
 	seedApprovedAddon,
 	seedSubmission,
+	serveGitHub,
 	signInWithDiscord,
 } from '../../../../apps/web/tests/helpers/index.ts';
 import { reviewSubmission } from '../../../../apps/web/src/lib/review.ts';
+import { gitBlobSha } from '../../../../apps/web/src/lib/github.ts';
 
 // Replays the TLC counterexamples against the real reviewSubmission, real SQLite and an in-memory
 // object store whose public writes can be held open. Invariant names match spec/ReviewPublish.tla.
@@ -69,8 +72,8 @@ function sha256(bytes: Uint8Array | string): string {
 	return new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
 }
 
-async function setup(): Promise<Seeded> {
-	const { ctx, close } = createTestContext();
+async function setup(env: EnvSource = {}): Promise<Seeded> {
+	const { ctx, close } = createTestContext(env);
 	const staging = new MemoryBucket();
 	const bucket = new MemoryBucket();
 
@@ -206,6 +209,62 @@ async function secondUpdateOverwrites(): Promise<Checks> {
 	}
 }
 
+// ReadStaged's refetch: the staged object is gone (B2 hides it after 14 days), so approval reads the
+// pinned blob again. Honest bytes go live under the recorded sha256; altered bytes publish nothing.
+async function refetchLostBundle(): Promise<Checks> {
+	const repository = 'acme/addons';
+	const github = serveGitHub({ repositories: { [repository]: {} }, tokens: {} });
+	const seeded = await setup({ GITHUB_API_URL: github.url.href });
+	const [a] = seeded.reviewers;
+
+	async function lost(version: string, bundle: string, kind: 'listing' | 'update') {
+		const bytes = new TextEncoder().encode(bundle);
+
+		github.repository(repository).commit({ [`plugins/${version}/dist/index.js`]: bundle });
+
+		return seedSubmission(
+			seeded.ctx,
+			seeded.author,
+			manifest(ADDON, version),
+			{ kind, bundleSize: bytes.length, sha256: sha256(bytes) },
+			{ repository, bundleBlobSha: gitBlobSha(bytes) },
+		);
+	}
+
+	try {
+		const honest = await lost('1.0.0', 'export default "pinned";', 'listing');
+		const approved = await settle(
+			reviewSubmission(seeded.ctx, a, honest.id, { decision: 'approved' }),
+		);
+
+		const altered = await lost('2.0.0', 'export default "altered";', 'update');
+
+		github.tamper(true);
+
+		const refused = await settle(
+			reviewSubmission(seeded.ctx, a, altered.id, { decision: 'approved' }),
+		);
+		const live = await seeded.ctx.db.query.addonVersion.findFirst({
+			where: { addonId: ADDON, version: '1.0.0' },
+		});
+		const bundle = seeded.public.objects.get(`addons/${ADDON}/1.0.0/index.js`);
+		const keys = [...seeded.public.objects.keys()];
+
+		console.log(`    approve honest refetch:  ${approved}`);
+		console.log(`    approve altered refetch: ${refused}`);
+		console.log(`    public bucket = ${keys.join(', ') || '(empty)'}`);
+
+		return {
+			LiveIsReviewed: live?.sha256 === honest.sha256,
+			PublicMatchesLive: Boolean(bundle) && sha256(bundle ?? '') === live?.sha256,
+			PublicOnlyIfLiveAtRest: !keys.some((key) => key.includes('/2.0.0/')),
+		};
+	} finally {
+		seeded.close();
+		await github.stop();
+	}
+}
+
 // `violated` is what the code at the sync commit does; change it only with ../SKILL.md's findings.
 const REPLAYS: Replay[] = [
 	{
@@ -217,6 +276,11 @@ const REPLAYS: Replay[] = [
 		name: 'second pending update overwrites',
 		violated: ['PublicMatchesLive'],
 		run: secondUpdateOverwrites,
+	},
+	{
+		name: 'approval refetches a lost bundle',
+		violated: [],
+		run: refetchLostBundle,
 	},
 ];
 

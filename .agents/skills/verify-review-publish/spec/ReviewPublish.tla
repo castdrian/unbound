@@ -13,22 +13,21 @@ CONSTANTS
     MaxPendingUpdates,     \* env SUBMISSION_MAX_PENDING_UPDATES (default 1)
     PublishAfterCommit,    \* FALSE = current code; TRUE = public writes moved after decide()
     CasOnStatus,           \* decide() WHERE status = 'pending_review' (review.ts:236)
-    HashCheck,             \* publishArtifact re-hash check (review.ts:192-196)
+    HashCheck,             \* publishArtifact re-hash check (review.ts:211-215)
     None                   \* model value: no row, no object
 
 Subs     == SubsV1 \cup SubsV2
 Versions == {"v1", "v2"}
 VersionOf(s) == IF s \in SubsV1 THEN "v1" ELSE "v2"
-Evil     == "evil"         \* bytes the author re-PUT through the still-valid upload URL
-Bytes    == Subs \cup {Evil} \* value s = the honest bundle of submission s
-Open     == {"awaiting_upload", "pending_review", "changes_requested"} \* OPEN_SUBMISSION_STATUSES
+Evil     == "evil"         \* bytes written to the staging bucket outside the app; s = s's pinned bundle
+Open     == {"pending_review", "changes_requested"} \* OPEN_SUBMISSION_STATUSES
 Decisions == {"approved", "rejected", "changes_requested"}
 
 VARIABLES
     status,         \* submission.status
     kind,           \* submission.kind
     staged,         \* staging bucket object at submission.stagingKey
-    recordedSha,    \* submission.sha256 (set by finalize)
+    recordedSha,    \* submission.sha256 (set by create from the bytes read at the pin)
     addonExists,    \* addon row for the id
     versionRow,     \* addon_version row per version: [sub, sha]
     publicBundle,   \* public bucket addons/{id}/{version}/{main}: [from, bytes]
@@ -64,9 +63,16 @@ StoreVars    == <<addonExists, versionRow, publicBundle, publicManifest, decisio
 
 (* ---------------- Authors and background jobs ---------------- *)
 
-\* createSubmission -> reserve(), one immediate transaction (submissions.ts:121-252, 294-297).
-\* Update: addon exists (130), version not live (147-163), open < cap (187).
-\* Listing: no open submission claims the id (194; submission_listing_claim_uidx).
+\* createSubmission -> stageAndReserve (submissions.ts:291-308): the bundle read from the pinned blob
+\* is written to staging before the row exists. A refused claim deletes it again, which Orphan covers.
+Stage(s) ==
+    /\ status[s] = None
+    /\ staged' = [staged EXCEPT ![s] = s]
+    /\ UNCHANGED <<status, kind, recordedSha, StoreVars, ReviewerVars>>
+
+\* reserve(), one immediate transaction (submissions.ts:226-287), inserting the row as pending_review
+\* with the sha256 of the bytes read at the pin. Update: addon exists (checkClaim 123), version not
+\* live, open < cap (187). Listing: no open submission claims the id (194; submission_listing_claim_uidx).
 Create(s) ==
     /\ status[s] = None
     /\ IF addonExists
@@ -75,53 +81,37 @@ Create(s) ==
                /\ kind' = [kind EXCEPT ![s] = "update"]
           ELSE /\ OpenSubs = {}
                /\ kind' = [kind EXCEPT ![s] = "listing"]
-    /\ status' = [status EXCEPT ![s] = "awaiting_upload"]
-    /\ UNCHANGED <<staged, recordedSha, StoreVars, ReviewerVars>>
+    /\ status' = [status EXCEPT ![s] = "pending_review"]
+    /\ recordedSha' = [recordedSha EXCEPT ![s] = s]
+    /\ UNCHANGED <<staged, StoreVars, ReviewerVars>>
 
-\* PUT to the presigned URL (storage.ts:65). It stays reusable until expiry, so the author may
-\* overwrite the object at any time, also after finalize or after a delete.
-Put(s, b) ==
+\* No app path writes a staged object after create; this is a write outside the app (leaked bucket
+\* credentials, an operator), at any time, which the approval re-hash must catch.
+Tamper(s) ==
     /\ status[s] # None
-    /\ b \in {s, Evil}
-    /\ staged' = [staged EXCEPT ![s] = b]
+    /\ staged' = [staged EXCEPT ![s] = Evil]
     /\ UNCHANGED <<status, kind, recordedSha, StoreVars, ReviewerVars>>
 
-\* finalizeSubmission (submissions.ts:335-393): object exists (354), hash (380), CAS on awaiting_upload (385).
-\* Hash read and CAS are separate awaits; a Put or Expire between them is equivalent to one
-\* before or after this step, because publish re-checks the hash and the CAS re-checks status.
-Finalize(s) ==
-    /\ status[s] = "awaiting_upload"
-    /\ staged[s] # None
-    /\ status' = [status EXCEPT ![s] = "pending_review"]
-    /\ recordedSha' = [recordedSha EXCEPT ![s] = staged[s]]
-    /\ UNCHANGED <<kind, staged, StoreVars, ReviewerVars>>
-
-\* sweepStaging -> expireReservations (staging.ts:25-44).
-Expire(s) ==
-    /\ status[s] = "awaiting_upload"
-    /\ status' = [status EXCEPT ![s] = "expired"]
-    /\ staged' = [staged EXCEPT ![s] = None]
-    /\ UNCHANGED <<kind, recordedSha, StoreVars, ReviewerVars>>
-
-\* purgeUserSubmissions on ban (staging.ts:126-145, auth.ts:100): cancels any open submission,
-\* pending_review too. reserve()'s supersede (submissions.ts:223-228, 300) moves the author's own
-\* awaiting_upload/changes_requested row out of Open and deletes its bundle: Purge then Create.
+\* purgeUserSubmissions on ban (staging.ts:105-124, auth.ts:100): cancels any open submission,
+\* pending_review too. reserve()'s supersede (submissions.ts:239-243, 337) moves the author's own
+\* changes_requested row out of Open and deletes its bundle: Purge then Create.
 Purge(s) ==
     /\ status[s] \in Open
     /\ status' = [status EXCEPT ![s] = "cancelled"]
     /\ staged' = [staged EXCEPT ![s] = None]
     /\ UNCHANGED <<kind, recordedSha, StoreVars, ReviewerVars>>
 
-\* sweepStaging -> deleteOrphans (staging.ts:46-81): deletes a staged object no open submission owns.
+\* sweepStaging -> deleteOrphans (staging.ts:23-62): deletes a staged object no open submission owns.
+\* Status None over-approximates a create slower than STAGING_ORPHAN_GRACE_SECONDS; approval refetches.
 Orphan(s) ==
     /\ status[s] \notin Open
     /\ staged[s] # None
     /\ staged' = [staged EXCEPT ![s] = None]
     /\ UNCHANGED <<status, kind, recordedSha, StoreVars, ReviewerVars>>
 
-(* ---------------- reviewSubmission (review.ts:309-331) ---------------- *)
+(* ---------------- reviewSubmission (review.ts:328-350) ---------------- *)
 
-\* requirePendingReview (review.ts:147-178): reads the row (156), status check at 164.
+\* requirePendingReview (review.ts:154-185): reads the row (163), status check at 171.
 Start(r, s, d) ==
     /\ pc[r] = "idle"
     /\ status[s] = "pending_review"
@@ -138,21 +128,28 @@ Done(r) ==
     /\ pc' = [pc EXCEPT ![r] = "idle"]
     /\ UNCHANGED <<target, dec, rowSha, bytes, wroteB, wroteM>>
 
-\* publishArtifact read (review.ts:182-201): exists + bytes + re-hash. A missing or changed
-\* object throws artifact_mismatch and the request ends.
+Got(r, b) ==
+    /\ bytes' = [bytes EXCEPT ![r] = b]
+    /\ pc' = [pc EXCEPT ![r] = IF PublishAfterCommit THEN "decide" ELSE "write"]
+    /\ UNCHANGED <<target, dec, rowSha, wroteB, wroteM>>
+
+\* publishArtifact read (review.ts:206-221): the staged bytes, or, when the object is gone, the pinned
+\* blob read again (refetchBundle 189-202). The blob is content-addressed and readBlob checks its
+\* SHA-1, so a refetch yields the honest bytes or fails with github_unavailable. Then the re-hash; a
+\* mismatch throws artifact_mismatch and the request ends.
 ReadStaged(r) ==
     LET s == target[r] IN
     /\ pc[r] = "read"
-    /\ IF staged[s] = None \/ (HashCheck /\ staged[s] # rowSha[r])
-          THEN Done(r)
-          ELSE /\ bytes' = [bytes EXCEPT ![r] = staged[s]]
-               /\ pc' = [pc EXCEPT ![r] = IF PublishAfterCommit THEN "decide" ELSE "write"]
-               /\ UNCHANGED <<target, dec, rowSha, wroteB, wroteM>>
+    /\ IF staged[s] = None
+          THEN Got(r, s) \/ Done(r)
+          ELSE IF HashCheck /\ staged[s] # rowSha[r]
+                  THEN Done(r)
+                  ELSE Got(r, staged[s])
     /\ UNCHANGED <<status, kind, staged, recordedSha, StoreVars>>
 
 AfterWrite == IF PublishAfterCommit THEN "cleanup" ELSE "decide"
 
-\* publishArtifact writes (review.ts:205-210): bundle and manifest, two independent PUTs.
+\* publishArtifact writes (review.ts:224-229): bundle and manifest, two independent PUTs.
 WriteBundle(r) ==
     LET s == target[r] IN
     /\ pc[r] = "write" /\ ~wroteB[r]
@@ -171,8 +168,8 @@ WriteManifest(r) ==
     /\ UNCHANGED <<status, kind, staged, recordedSha, addonExists, versionRow, publicBundle,
                    decisions, target, dec, rowSha, bytes, wroteB>>
 
-\* decide (review.ts:219-294): one immediate transaction. CAS at 236, throw at 240-245.
-\* Approval inserts addon (252, PK id) for a listing and addon_version (282, PK addonId+version);
+\* decide (review.ts:238-313): one immediate transaction. CAS at 255, throw at 259-264.
+\* Approval inserts addon (271, PK id) for a listing and addon_version (301, PK addonId+version);
 \* a conflict throws and rolls the whole transaction back.
 Decide(r) ==
     LET s == target[r]
@@ -196,7 +193,7 @@ Decide(r) ==
                /\ UNCHANGED <<publicBundle, publicManifest, target, dec, rowSha, bytes, wroteB, wroteM>>
     /\ UNCHANGED <<kind, staged, recordedSha>>
 
-\* review.ts:326-328: approve and reject delete the staged bundle; changes_requested keeps it.
+\* review.ts:345-347: approve and reject delete the staged bundle; changes_requested keeps it.
 Cleanup(r) ==
     LET s == target[r] IN
     /\ pc[r] = "cleanup"
@@ -205,8 +202,7 @@ Cleanup(r) ==
     /\ UNCHANGED <<status, kind, recordedSha, StoreVars>>
 
 Next ==
-    \/ \E s \in Subs : Create(s) \/ Finalize(s) \/ Expire(s) \/ Purge(s) \/ Orphan(s)
-    \/ \E s \in Subs, b \in Bytes : Put(s, b)
+    \/ \E s \in Subs : Stage(s) \/ Create(s) \/ Tamper(s) \/ Purge(s) \/ Orphan(s)
     \/ \E r \in Reviewers, s \in Subs, d \in Decisions : Start(r, s, d)
     \/ \E r \in Reviewers : ReadStaged(r) \/ WriteBundle(r) \/ WriteManifest(r) \/ Decide(r) \/ Cleanup(r)
 
@@ -233,7 +229,7 @@ PublicMatchesLive ==
         /\ publicBundle[v] # None => publicBundle[v].bytes = versionRow[v].sha
         /\ publicManifest[v] # None => publicManifest[v] = versionRow[v].sub
 
-\* A live version's sha256 is the one finalize recorded, i.e. the bytes reviewers were shown.
+\* A live version's sha256 is the one create recorded from the pin, i.e. the bytes reviewers were shown.
 LiveIsReviewed ==
     \A v \in Versions : versionRow[v] # None =>
         versionRow[v].sha = recordedSha[versionRow[v].sub]

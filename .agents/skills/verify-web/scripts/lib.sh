@@ -26,7 +26,8 @@ parse_name() {
 	MINIO="verify-web-minio-$INSTANCE"
 }
 
-# instance.env holds PORT, URL, PANE_PID, MINIO_ADDR (empty when S3 is off).
+# instance.env holds PORT, URL, PANE_PID, GITHUB_PID, GITHUB_URL, GITHUB_TOKEN, MINIO_ADDR (empty
+# when S3 is off).
 load_instance() {
 	[ -f "$DIR/instance.env" ] || return 1
 	# shellcheck disable=SC1091

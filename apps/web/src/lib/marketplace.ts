@@ -48,7 +48,6 @@ export type MarketplaceVersion = Omit<AddonVersion, 'manifest'>;
 export type MarketplaceSource = {
 	pin: SourcePin;
 	details: RepositoryDetails;
-	/** The version's ADDON.md, or `null` when it has none. */
 	addonMd: string | null;
 	/** When the version was approved, which dates the `details` snapshot. */
 	approvedAt: string;

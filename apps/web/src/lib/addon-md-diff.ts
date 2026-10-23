@@ -19,10 +19,8 @@ export type AddonMdDiff =
 	| { state: 'removed'; lines: AddonMdLine[] }
 	| { state: 'changed'; lines: AddonMdLine[] };
 
-/** Unchanged lines kept on each side of a change; longer unchanged runs collapse into one row. */
 const CONTEXT_LINES = 3;
 
-// Line endings and a missing final newline are not content, so neither shows as a change.
 function normalize(text: string): string {
 	const lf = text.replaceAll('\r\n', '\n');
 

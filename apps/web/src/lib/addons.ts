@@ -554,6 +554,7 @@ export async function listMyAddons(ctx: AppContext, caller: Caller): Promise<MyA
 			status: { in: OPEN_SUBMISSION_STATUSES },
 			OR: [{ addonId: { in: ids } }, { authorId: userId, kind: 'listing' }],
 		},
+		with: { source: true },
 		orderBy: { createdAt: 'asc' },
 	});
 

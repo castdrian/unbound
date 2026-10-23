@@ -1,4 +1,4 @@
-import { submitFromRepositoryRequestSchema } from '@unbound-app/contracts/publish';
+import { createSubmissionRequestSchema } from '@unbound-app/contracts/publish';
 import { submissionPreviewResponseSchema } from '@unbound-app/contracts/review';
 import { z } from 'zod';
 
@@ -8,7 +8,7 @@ import endpoint from '~/lib/api/endpoint';
 
 const previewSubmissionEndpoint = endpoint(
 	{
-		body: submitFromRepositoryRequestSchema,
+		body: createSubmissionRequestSchema,
 		query: z.undefined(),
 		response: submissionPreviewResponseSchema,
 	},

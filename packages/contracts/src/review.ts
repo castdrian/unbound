@@ -1,8 +1,8 @@
 import type { reviewDecisionSchema } from './publish';
 
+import { repositoryDetailsSchema, sourcePinSchema } from './source';
 import { submissionKindSchema, submissionSchema } from './publish';
 import { addonVersionSchema, sha256Schema } from './addons';
-import { repositoryDetailsSchema, sourcePinSchema } from './source';
 import { addonManifestSchema } from './manifest';
 import { userSummarySchema } from './account';
 import { changelogSchema } from './changelog';

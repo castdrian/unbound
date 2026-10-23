@@ -1,16 +1,3 @@
-import type {
-	ListRepositoryAddonsQuery,
-	ListRepositoryAddonsResponse,
-	RepositoryAddon,
-	RepositoryDetails,
-	SourcePin,
-} from '@unbound-app/contracts/source';
-import type { SubmitFromRepositoryRequest } from '@unbound-app/contracts/publish';
-import type { WorkspaceAddon, WorkspaceConfig } from '@unbound-app/contracts/workspace';
-import { formatChangelogIssues, parseChangelog } from '@unbound-app/contracts/changelog';
-import type { PublishedManifest } from '@unbound-app/contracts/manifest';
-import type { Changelog } from '@unbound-app/contracts/changelog';
-import { addonManifestSchema } from '@unbound-app/contracts/manifest';
 import {
 	CONFIG_FILENAME,
 	findWorkspaceRoot,
@@ -20,6 +7,19 @@ import {
 	readAddon,
 	workspaceConfigSchema,
 } from '@unbound-app/contracts/workspace';
+import type {
+	ListRepositoryAddonsQuery,
+	ListRepositoryAddonsResponse,
+	RepositoryAddon,
+	RepositoryDetails,
+	SourcePin,
+} from '@unbound-app/contracts/source';
+import { formatChangelogIssues, parseChangelog } from '@unbound-app/contracts/changelog';
+import type { WorkspaceAddon, WorkspaceConfig } from '@unbound-app/contracts/workspace';
+import type { SubmitFromRepositoryRequest } from '@unbound-app/contracts/publish';
+import type { PublishedManifest } from '@unbound-app/contracts/manifest';
+import { addonManifestSchema } from '@unbound-app/contracts/manifest';
+import type { Changelog } from '@unbound-app/contracts/changelog';
 import { z } from 'zod';
 
 import type { GitHubClient, GitHubRepository, GitTree, RepositoryExtras } from '~/lib/github';

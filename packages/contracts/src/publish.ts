@@ -1,4 +1,3 @@
-import { addonIdSchema, addonManifestSchema } from './manifest';
 import {
 	addonPathSchema,
 	commitShaSchema,
@@ -7,6 +6,7 @@ import {
 	repositoryInputSchema,
 	repositorySchema,
 } from './source';
+import { addonIdSchema, addonManifestSchema } from './manifest';
 import { z } from './zod';
 
 /** `listing` claims a new addon id; `update` publishes a new version of an addon the caller maintains. */

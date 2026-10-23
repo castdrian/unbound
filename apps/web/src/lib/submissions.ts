@@ -8,19 +8,19 @@ import type {
 	SubmitFromRepositoryRequest,
 } from '@unbound-app/contracts/publish';
 import type { SubmissionPreviewResponse } from '@unbound-app/contracts/review';
-import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import { openSubmissionStatusSchema } from '@unbound-app/contracts/publish';
+import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import { and, count, eq, gte, inArray, ne } from 'drizzle-orm';
 
 import { addon, addonMaintainer, addonVersion, submission } from '~/db/schema';
+import { connectGitHub, hasPushAccess } from '~/lib/github';
+import { readAddonSource } from '~/lib/addon-source';
 import { requirePermission } from '~/lib/api/caller';
 import { presignStagingUpload } from '~/lib/storage';
 import type { Transaction } from '~/db/database';
 import { getSnowflakeDate } from '~/lib/discord';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
-import { connectGitHub, hasPushAccess } from '~/lib/github';
-import { readAddonSource } from '~/lib/addon-source';
 import { ApiError } from '~/lib/api/errors';
 
 export type SubmissionRow = typeof submission.$inferSelect;

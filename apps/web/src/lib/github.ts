@@ -1,5 +1,8 @@
-import type { RepositoryContributor, RepositoryRelease } from '@unbound-app/contracts/source';
-import type { PushableRepository } from '@unbound-app/contracts/source';
+import type {
+	PushableRepository,
+	RepositoryContributor,
+	RepositoryRelease,
+} from '@unbound-app/contracts/source';
 import { commitShaSchema } from '@unbound-app/contracts/source';
 import { z } from 'zod';
 

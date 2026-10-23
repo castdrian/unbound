@@ -1,7 +1,9 @@
 // Usage: bun seed.ts <sessions.json>, run by launch.sh with apps/web as cwd and the instance env loaded.
-// Seeds one user per role with a live session, an approved addon and a pending submission.
+// Seeds one user per role with a live session and a linked GitHub account, an approved addon and a
+// pending submission.
 import {
 	browserSessionHeaders,
+	linkGitHub,
 	manifest,
 	seedSubmission,
 	seedVersion,
@@ -37,6 +39,8 @@ if (!output) {
 const env = parseEnv();
 const ctx = createAppContext(env, createDatabase(env.DATABASE_PATH));
 const s3 = process.env.VERIFY_WEB_S3 === '1';
+// The fake GitHub launch.sh starts accepts this token and lets it push to verify/addons.
+const githubToken = process.env.VERIFY_WEB_GITHUB_TOKEN;
 const sessions: Record<string, SeededSession> = {};
 
 for (const [index, role] of ROLES.entries()) {
@@ -49,6 +53,10 @@ for (const [index, role] of ROLES.entries()) {
 	const { internalAdapter } = await ctx.auth.$context;
 
 	await internalAdapter.updateUser(signedIn.userId, { role });
+
+	if (githubToken) {
+		await linkGitHub(ctx, signedIn.userId, githubToken);
+	}
 
 	const cookie = (await browserSessionHeaders(ctx, signedIn.token)).get('cookie') ?? '';
 
@@ -82,6 +90,7 @@ const pending = await seedSubmission(
 		type: 'plugin',
 	}),
 	{ sha256: SHA256 },
+	{ repository: 'verify/addons', path: 'plugins/verify.pending' },
 );
 
 if (s3) {

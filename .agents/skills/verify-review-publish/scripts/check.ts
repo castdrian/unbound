@@ -75,14 +75,13 @@ const EXPECTED: Record<string, string[]> = {
 };
 
 const LABELS: Record<string, string> = {
-	Create: 'createSubmission -> reserve() opens a submission',
-	Put: 'author PUTs to the presigned upload URL',
-	Finalize: 'finalizeSubmission records sha256, status pending_review',
-	Expire: 'sweepStaging expires the reservation',
+	Stage: 'createSubmission stages the bundle read at the pin',
+	Create: 'createSubmission -> reserve() records it pending_review with its sha256',
+	Tamper: 'a write to the staging bucket outside the app',
 	Purge: 'purgeUserSubmissions (ban) cancels',
 	Orphan: 'sweepStaging deletes an orphaned staged object',
 	Start: 'reviewSubmission -> requirePendingReview passes',
-	ReadStaged: 'publishArtifact reads and re-hashes the staged bundle',
+	ReadStaged: 'publishArtifact reads (or refetches from the pin) and re-hashes the bundle',
 	WriteBundle: 'publishArtifact writes the public bundle',
 	WriteManifest: 'publishArtifact writes the public manifest.json',
 	Decide: 'decide() transaction',

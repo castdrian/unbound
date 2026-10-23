@@ -1,6 +1,6 @@
 ---
 name: verify-review-publish
-description: "Model-check addon review publishing in apps/web (TLA+/TLC plus a replay on the real code). Use when a change touches reviewSubmission, publishArtifact, decide, createSubmission/reserve, finalizeSubmission, the staging sweeper or ban purge, the submission/addon_version schema, or anything that writes addons/{id}/{version}/ in the public bucket; or for 'verify review publish', 'can a rejected addon end up on the CDN', 'is approve/reject race-safe'."
+description: "Model-check addon review publishing in apps/web (TLA+/TLC plus a replay on the real code). Use when a change touches reviewSubmission, publishArtifact or its refetch from GitHub, decide, createSubmission/stageAndReserve/reserve, the staging sweeper or ban purge, the submission/addon_version schema, or anything that writes addons/{id}/{version}/ in the public bucket; or for 'verify review publish', 'can a rejected addon end up on the CDN', 'is approve/reject race-safe'."
 ---
 
 # Verify review publishing
@@ -12,24 +12,24 @@ description: "Model-check addon review publishing in apps/web (TLA+/TLC plus a r
 ## 1. Does your change touch the verified code?
 
 ```sh
-git diff c20ab332841f8a84d30d16523180e73de1602db4 -- apps/web/src/lib/review.ts apps/web/src/lib/submissions.ts apps/web/src/lib/staging.ts apps/web/src/lib/storage.ts apps/web/src/lib/auth/auth.ts apps/web/src/db/schema/addons.ts apps/web/src/lib/artifacts.ts
+git diff 6577e20c280073bdd9b7b3d3c18f7b7323072aae -- apps/web/src/lib/review.ts apps/web/src/lib/submissions.ts apps/web/src/lib/staging.ts apps/web/src/lib/github.ts apps/web/src/lib/auth/auth.ts apps/web/src/db/schema/addons.ts apps/web/src/lib/artifacts.ts
 ```
 
 Empty output: the verification still describes the code. Otherwise map each hunk to the coverage table below and go on.
 
-| Code (at the sync commit)                                              | Model action in `spec/ReviewPublish.tla`     |
-| ---------------------------------------------------------------------- | -------------------------------------------- |
-| `submissions.ts` `reserve` 121-252, `createSubmission` 294-301         | `Create`; supersede is `Purge` then `Create` |
-| presigned PUT, `storage.ts` `presignStagingUpload` 65                  | `Put` (honest or `Evil` bytes, any time)     |
-| `submissions.ts` `finalizeSubmission` 335-393                          | `Finalize`                                   |
-| `staging.ts` `expireReservations` 25-44, `deleteOrphans` 46-81         | `Expire`, `Orphan`                           |
-| `staging.ts` `purgeUserSubmissions` 126-145 (ban hook `auth.ts` 100)   | `Purge`                                      |
-| `review.ts` `requirePendingReview` 147-178                             | `Start` (row snapshot incl. `sha256`)        |
-| `review.ts` `publishArtifact` 182-213                                  | `ReadStaged`, `WriteBundle`, `WriteManifest` |
-| `review.ts` `decide` 219-294 (CAS 236, PKs from `db/schema/addons.ts`) | `Decide`                                     |
-| `review.ts` `reviewSubmission` 309-331 (order, staged delete 326-328)  | `pc` sequence, `Cleanup`                     |
+| Code (at the sync commit)                                                        | Model action in `spec/ReviewPublish.tla`     |
+| -------------------------------------------------------------------------------- | -------------------------------------------- |
+| `submissions.ts` `stageAndReserve` 291-308 (staging write before the row)        | `Stage`                                      |
+| `submissions.ts` `reserve` 226-287, `createSubmission` 322-341                   | `Create`; supersede is `Purge` then `Create` |
+| a staging write outside the app (no app path writes after create)                | `Tamper` (`Evil` bytes, any time)            |
+| `staging.ts` `deleteOrphans` 23-62 (grace window `STAGING_ORPHAN_GRACE_SECONDS`) | `Orphan`                                     |
+| `staging.ts` `purgeUserSubmissions` 105-124 (ban hook `auth.ts` 100)             | `Purge`                                      |
+| `review.ts` `requirePendingReview` 154-185                                       | `Start` (row snapshot incl. `sha256`)        |
+| `review.ts` `publishArtifact` 206-232, `refetchBundle` 189-202                   | `ReadStaged`, `WriteBundle`, `WriteManifest` |
+| `review.ts` `decide` 238-313 (CAS 255, PKs from `db/schema/addons.ts`)           | `Decide`                                     |
+| `review.ts` `reviewSubmission` 328-350 (order, staged delete 345-347)            | `pc` sequence, `Cleanup`                     |
 
-Sync commit: `c20ab332841f8a84d30d16523180e73de1602db4`. Move it forward only after you confirm, hunk by hunk, that every row above still describes the code at the new commit, and update the line numbers in the table and in the spec comments.
+Sync commit: `6577e20c280073bdd9b7b3d3c18f7b7323072aae`. Move it forward only after you confirm, hunk by hunk, that every row above still describes the code at the new commit, and update the line numbers in the table and in the spec comments.
 
 ## 2. Run the check
 
@@ -60,7 +60,7 @@ Exit 0 means every outcome matches the `EXPECTED` table in `scripts/check.ts` an
 
 ## Known findings at the sync commit
 
-1. **Approve racing reject leaves rejected bytes public.** Reviewer A approves: `requirePendingReview` passes and `publishArtifact` starts. Reviewer B rejects; `decide` commits `rejected` and deletes the staged bundle. A's `ctx.storage.public.write` of the bundle and `manifest.json` lands. A's `decide` fails the CAS (`submission_not_pending`). The files stay at `addons/{id}/{version}/` with no `addon_version` row. A ban (`purgeUserSubmissions`) in place of B does the same. Invariants `PublicOnlyIfLiveAtRest`, `RejectedNeverPublic`; replay `approve races reject`.
+1. **Approve racing reject leaves rejected bytes public.** Reviewer A approves: `requirePendingReview` passes and `publishArtifact` starts. Reviewer B rejects; `decide` commits `rejected` and deletes the staged bundle. A's `ctx.storage.public.write` of the bundle and `manifest.json` lands. A's `decide` fails the CAS (`submission_not_pending`). The files stay at `addons/{id}/{version}/` with no `addon_version` row. A ban (`purgeUserSubmissions`) in place of B does the same. Since approval refetches a missing bundle from its pin, A no longer stops when B's cleanup deleted the staged object before A read it: the window now spans A's whole read. Invariants `PublicOnlyIfLiveAtRest`, `RejectedNeverPublic`; replay `approve races reject`.
 2. **A stale approval overwrites a live version's bytes.** A has read listing s1's bundle and is about to write it. s1's author is banned (TLC's shortest trace; a rejection also frees the id). A new listing s2 for the same id and version is approved by B and goes live with s2's sha256. A's write then lands, so the CDN serves s1's bytes under s2's row. Invariant `PublicMatchesLive` in `current.cfg`.
 3. **Two pending updates for one version (`SUBMISSION_MAX_PENDING_UPDATES` >= 2).** Approving the first makes it live. Approving the second rewrites the public bundle and manifest, then `decide` throws on the `addon_version` primary key. The CDN serves the second bundle under the first's sha256. Invariant `PublicMatchesLive` in `current-pending-updates.cfg`; replay `second pending update overwrites`.
 
@@ -80,4 +80,6 @@ One addon id, versions `v1`/`v2`, bytes are the honest bundle or `Evil`.
 
 Reviewers are symmetric (`SYMMETRY ReviewerSymmetry`). `reordered-pending-updates` with 2 reviewers took 126 s and 9.8 M states, so it runs with 1. Keep every job under 2 minutes: shrink bounds before raising heap.
 
-Not modelled: S3 write failures and partial writes, user deletion cascades, delist/relist, `listReviewQueue`, author's listing caps, the per-request permission checks, and liveness (a live version having its files). Put after expiry is allowed in the model (an over-approximation).
+The refetch is modelled as content-addressed: it yields the pinned bytes or fails, because `readBlob` checks the git blob SHA-1 (replay `approval refetches a lost bundle` runs both outcomes on the real code). `Orphan` may delete an object whose row is not inserted yet, over-approximating a create slower than the grace window.
+
+Not modelled: S3 write failures and partial writes, GitHub outages beyond a failed refetch, user deletion cascades, delist/relist, `listReviewQueue`, author's listing caps, the per-request permission checks, and liveness (a live version having its files).

@@ -4,7 +4,7 @@ A moderator or admin sees pending listings and updates at `/review`, inspects th
 
 ## Sub-features
 
-- `review-list` shows each pending submission with its manifest table, changelog and a `Download staged bundle` link.
+- `review-list` shows each pending submission with its source line (`owner/repo@sha · path · ref`, linked to the tree), its manifest table, its changelog lists, a `Download staged bundle` link and a `Bundle at <sha>` link to the file on GitHub.
 - `review-filter` uses the `All`, `New listings` and `Updates` links (`/review?kind=listing|update`).
 - `review-approve` approves the submission. The queue empties, the row becomes `approved`, the CDN serves `addons/<id>/<version>/manifest.json`, and the author becomes `developer`.
 - `review-reject` and `review-changes` open a dialog that needs a reason and moves the row out of the queue.
@@ -27,4 +27,4 @@ Preconditions: a fresh seed, so `verify.pending` 0.1.0 is pending and its bundle
 
 - Snapshot after `scrollTo(0,0)`. The page keeps its scroll position after the action, so a saved screenshot can show only the footer.
 - Each decision consumes the only pending submission. Relaunch before driving the next decision.
-- Under `--no-s3`, Approve fails, because publishing reads the staged bundle from MinIO.
+- Under `--no-s3`, Approve fails: with no staged object, approval reads the pinned blob from the fake GitHub, and the seeded `verify.pending` pin names no real blob there. A submission made through `/submit` refetches fine, but publishing still writes to MinIO.

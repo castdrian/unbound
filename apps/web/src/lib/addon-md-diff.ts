@@ -21,7 +21,7 @@ export type AddonMdDiff =
 
 const CONTEXT_LINES = 3;
 
-function normalize(text: string): string {
+function normalizeLineEndings(text: string): string {
 	const lf = text.replaceAll('\r\n', '\n');
 
 	return lf.endsWith('\n') ? lf : `${lf}\n`;
@@ -96,13 +96,13 @@ export function diffAddonMd(previous: string | null, next: string | null): Addon
 		return { state: next === null ? 'none' : 'new' };
 	}
 
-	const before = normalize(previous);
+	const before = normalizeLineEndings(previous);
 
 	if (next === null) {
 		return { state: 'removed', lines: collapse(numberLines(before, '')) };
 	}
 
-	const after = normalize(next);
+	const after = normalizeLineEndings(next);
 
 	if (before === after) {
 		return { state: 'unchanged' };

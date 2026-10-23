@@ -1,5 +1,5 @@
-import type { SubmitFromRepositoryRequest } from '@unbound-app/contracts/publish';
 import { submissionPreviewResponseSchema } from '@unbound-app/contracts/review';
+import type { CreateSubmissionRequest } from '@unbound-app/contracts/publish';
 import { afterAll, describe, expect, test } from 'bun:test';
 import { count } from 'drizzle-orm';
 
@@ -116,7 +116,7 @@ async function signIn(target = main, token: string | null = 'owner', accountAgeD
 	return { userId, headers };
 }
 
-function preview(headers: Headers, body: SubmitFromRepositoryRequest, target = main) {
+function preview(headers: Headers, body: CreateSubmissionRequest, target = main) {
 	return target.client('POST /api/v1/submissions/preview', {
 		headers,
 		body,

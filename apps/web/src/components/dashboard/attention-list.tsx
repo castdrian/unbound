@@ -57,6 +57,7 @@ function AttentionList({ addons, githubLinked }: AttentionListProps) {
 						addonId={id}
 						intent='republish'
 						githubLinked={githubLinked}
+						source={pending.source}
 						variant='outline'
 					/>
 				</div>

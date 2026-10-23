@@ -16,30 +16,6 @@ export const reviewQueueQuerySchema = z.optional(
 	}),
 );
 
-export const reviewQueueItemSchema = z.object({
-	submission: submissionSchema,
-	manifest: addonManifestSchema,
-	changelog: z.nullable(z.string()),
-	bundleSize: z.int().check(z.positive()),
-	sha256: sha256Schema,
-	submittedAt: z.iso.datetime(),
-	submitter: userSummarySchema,
-	/** The viewer authored it or maintains the addon, so the server refuses their review with `self_review`. */
-	selfReview: z.boolean(),
-	/** The addon's newest approved version, for updates. */
-	previousVersion: z.nullable(addonVersionSchema),
-	/** A short-lived presigned download of the staged bundle. */
-	artifact: z.object({
-		url: z.url(),
-		expiresAt: z.iso.datetime(),
-	}),
-});
-
-/** Submissions pending review, oldest first. */
-export const reviewQueueResponseSchema = z.object({
-	submissions: z.array(reviewQueueItemSchema),
-});
-
 /** What a submission read from its source: what the reviewer sees and approval publishes. */
 export const submissionContentSchema = z.object({
 	/** `main` names the published bundle. */
@@ -50,6 +26,29 @@ export const submissionContentSchema = z.object({
 	/** The entry for `manifest.version`, or `null` when the addon has no CHANGELOG.md. */
 	changelog: z.nullable(changelogSchema),
 	details: repositoryDetailsSchema,
+});
+
+export const reviewQueueItemSchema = z.extend(submissionContentSchema, {
+	submission: submissionSchema,
+	source: sourcePinSchema,
+	submittedAt: z.iso.datetime(),
+	submitter: userSummarySchema,
+	/** The viewer authored it or maintains the addon, so the server refuses their review with `self_review`. */
+	selfReview: z.boolean(),
+	/** The addon's newest approved version, for updates. */
+	previousVersion: z.nullable(addonVersionSchema),
+	/** The previous version's ADDON.md; `null` for new listings and versions without one. */
+	previousAddonMd: z.nullable(z.string()),
+	/** A short-lived presigned download of the staged bundle. */
+	artifact: z.object({
+		url: z.url(),
+		expiresAt: z.iso.datetime(),
+	}),
+});
+
+/** Submissions pending review, oldest first. */
+export const reviewQueueResponseSchema = z.object({
+	submissions: z.array(reviewQueueItemSchema),
 });
 
 /** What submitting the same request would create, without creating it. */
@@ -81,9 +80,9 @@ export const reviewSubmissionResponseSchema = z.object({
 });
 
 export type ReviewQueueQuery = z.infer<typeof reviewQueueQuerySchema>;
+export type SubmissionContent = z.infer<typeof submissionContentSchema>;
 export type ReviewQueueItem = z.infer<typeof reviewQueueItemSchema>;
 export type ReviewQueueResponse = z.infer<typeof reviewQueueResponseSchema>;
-export type SubmissionContent = z.infer<typeof submissionContentSchema>;
 export type SubmissionPreview = z.infer<typeof submissionPreviewSchema>;
 export type SubmissionPreviewResponse = z.infer<typeof submissionPreviewResponseSchema>;
 export type ReviewSubmissionRequest = z.infer<typeof reviewSubmissionRequestSchema>;
@@ -91,9 +90,9 @@ export type ReviewSubmissionResponse = z.infer<typeof reviewSubmissionResponseSc
 
 export default {
 	reviewQueueQuerySchema,
+	submissionContentSchema,
 	reviewQueueItemSchema,
 	reviewQueueResponseSchema,
-	submissionContentSchema,
 	submissionPreviewSchema,
 	submissionPreviewResponseSchema,
 	reviewSubmissionRequestSchema,

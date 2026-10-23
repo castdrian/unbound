@@ -108,7 +108,7 @@ export const transferAddonRequestSchema = z.object({
 export const maintainedAddonSchema = z.extend(addonSchema, {
 	role: maintainerRoleSchema,
 	latestVersion: z.nullable(addonVersionSchema),
-	/** Updates awaiting upload, review or the author's changes. */
+	/** Updates awaiting review or the author's changes. */
 	openSubmissions: z.array(submissionSchema),
 });
 

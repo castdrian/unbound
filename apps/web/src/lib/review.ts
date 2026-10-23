@@ -17,7 +17,7 @@ import { requirePermission } from '~/lib/api/caller';
 import type { Permissions } from '~/lib/auth/access';
 import { hasPermission } from '~/lib/auth/access';
 import { createGitHubClient } from '~/lib/github';
-import { toSubmission } from '~/lib/submissions';
+import { requireSourced, toSubmission } from '~/lib/submissions';
 import { toVersionKey } from '~/lib/version-key';
 import type { AppContext } from '~/lib/context';
 import type { Caller } from '~/lib/api/caller';
@@ -118,12 +118,13 @@ export async function listReviewQueue(
 	const expiresIn = ctx.env.REVIEW_ARTIFACT_URL_TTL_SECONDS;
 	const expiresAt = new Date(ctx.now().getTime() + expiresIn * 1000).toISOString();
 
-	const submissions = rows.map((row): ReviewQueueItem => {
+	const submissions = rows.map((loaded): ReviewQueueItem => {
+		const row = requireSourced(loaded);
 		const { author, source, sha256, submittedAt } = row;
 		const version = previous.get(row.addonId);
 
-		if (!author || !source || !sha256 || !submittedAt) {
-			throw new Error(`Submission ${row.id} is pending review without an author or source.`);
+		if (!author || !submittedAt) {
+			throw new Error(`Submission ${row.id} is pending review without an author.`);
 		}
 
 		const submission = toSubmission(row);
@@ -182,14 +183,12 @@ async function requirePendingReview(
 		throw new ApiError('self_review', `You cannot review ${row.addonId}: you maintain it.`);
 	}
 
-	return row;
+	return requireSourced(row);
 }
 
+// b2/staging-lifecycle.json hides staged objects after 14 days, so re-read the pinned blob
+// instead of failing.
 async function refetchBundle(ctx: AppContext, row: SourcedSubmissionRow): Promise<Uint8Array> {
-	if (!row.repository || !row.source) {
-		throw new ApiError('artifact_mismatch', `The staged bundle of ${row.id} is missing.`);
-	}
-
 	const linked = await ctx.db.query.account.findFirst({
 		where: { userId: row.authorId, providerId: 'github' },
 		columns: { accessToken: true },
@@ -346,7 +345,14 @@ export async function reviewSubmission(
 		await ctx.storage.staging.delete(row.stagingKey);
 	}
 
-	return { submission: toSubmission({ ...reviewed, source: row.source }) };
+	return {
+		submission: toSubmission({
+			...reviewed,
+			repository: row.repository,
+			sha256: row.sha256,
+			source: row.source,
+		}),
+	};
 }
 
 export default { toVersionRow, listReviewQueue, reviewSubmission };

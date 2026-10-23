@@ -58,8 +58,8 @@ function numberLines(previous: string, next: string): NumberedLine[] {
 function collapse(lines: NumberedLine[]): AddonMdLine[] {
 	const near = new Set<number>();
 
-	for (let i = 0, len = lines.length; i < len; i++) {
-		if (lines[i].type === 'context') {
+	for (const [i, line] of lines.entries()) {
+		if (line.type === 'context') {
 			continue;
 		}
 

@@ -24,6 +24,12 @@ export class Themes extends Addons<ThemeEntity> {
 			this.load(bundle, manifest);
 		}
 
+		const appliedId = this.settings.get('applied', null);
+		const applied = appliedId ? this.getEntity(appliedId) : undefined;
+		if (applied?.started) {
+			ThemeStore.getState().setApplied(applied.id, applied.instance);
+		}
+
 		this.initialized = true;
 	}
 
@@ -32,8 +38,8 @@ export class Themes extends Addons<ThemeEntity> {
 	 * @param bundle The raw theme bundle to parse.
 	 * @returns The parsed theme.
 	 */
-	protected handleBundle(bundle: string): Theme {
-		return JSON.parse(bundle);
+	protected handleBundle(bundle: string | Theme): Theme {
+		return typeof bundle === 'string' ? JSON.parse(bundle) : bundle;
 	}
 
 	protected get entityType() {

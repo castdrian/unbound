@@ -6,6 +6,7 @@ import type {
 	NativePlatformBridge,
 	NativeFabricBridge,
 	NativeFFIBridge,
+	NativeSerializableObject,
 	NativeObjCBridge,
 	NativeUIHandle,
 	NativeViewSnapshotNode,
@@ -20,6 +21,41 @@ type NativePluginGlobal = typeof globalThis & {
 mock.module('react-native', () => ({
 	NativeModules: {},
 	TurboModuleRegistry: { get: () => undefined },
+}));
+
+type FluxTestMessage = {
+	author?: { bot?: boolean; id?: string; username?: string };
+	channel_id?: string;
+	content?: string;
+	id?: string;
+	nonce?: string;
+};
+
+type FluxTestEvent = { message?: FluxTestMessage };
+
+type FluxTestListener = (event: FluxTestEvent) => void;
+
+const fluxSubscriptions = new Map<string, Set<FluxTestListener>>();
+const fluxDispatcher = {
+	subscribe(event: string, listener: FluxTestListener) {
+		const listeners = fluxSubscriptions.get(event) ?? new Set<FluxTestListener>();
+
+		listeners.add(listener);
+		fluxSubscriptions.set(event, listeners);
+	},
+	unsubscribe(event: string, listener: FluxTestListener) {
+		const listeners = fluxSubscriptions.get(event);
+
+		listeners?.delete(listener);
+
+		if (listeners?.size === 0) {
+			fluxSubscriptions.delete(event);
+		}
+	},
+};
+
+mock.module('~/api/metro/wrappers', () => ({
+	findByPropsLazy: () => fluxDispatcher,
 }));
 
 const removed: string[] = [];
@@ -220,6 +256,7 @@ afterEach(() => {
 	sizeHeightFloors.length = 0;
 	removedSubscriptions.length = 0;
 	uiUnmounted.length = 0;
+	fluxSubscriptions.clear();
 });
 
 describe('native platform metadata', () => {
@@ -396,6 +433,64 @@ describe('native plugin capability scopes', () => {
 		expect(token.active).toBe(true);
 		context.dispose();
 		expect(removedSubscriptions).toEqual(['message.created']);
+	});
+
+	test('uses the Flux dispatcher for bounded runtime events when the loader has no event adapter', () => {
+		Object.assign(nativePlatformBridge.device, { platform: 'android' });
+		Object.assign(bridge, {
+			capabilities: ['native.runtime.events'],
+			runtime: {
+				subscribe: () => {
+					throw new Error('unexpected host runtime adapter');
+				},
+			},
+		});
+		const context = createPluginContext({
+			...manifest,
+			capabilities: ['native.runtime.events'],
+		});
+		const received: NativeSerializableObject[] = [];
+		const token = context.native.runtime.subscribe('message.created', (payload) =>
+			received.push(payload),
+		);
+		const listeners = fluxSubscriptions.get('MESSAGE_CREATE');
+		const [listener] = listeners ? [...listeners] : [];
+
+		listener?.({
+			message: {
+				author: { bot: false, id: 'user-1', username: 'User' },
+				channel_id: 'channel-1',
+				content: 'not exposed',
+				id: 'message-1',
+				nonce: 'nonce-1',
+			},
+		});
+
+		expect(received).toEqual([
+			{
+				action: 'MESSAGE_CREATE',
+				event: 'message.created',
+				channelId: 'channel-1',
+				guildId: null,
+				messageId: 'message-1',
+				userId: null,
+				hasDraft: null,
+				emoji: null,
+				message: {
+					id: 'message-1',
+					channelId: 'channel-1',
+					nonce: 'nonce-1',
+					author: { id: 'user-1', username: 'User', bot: false },
+				},
+			},
+		]);
+		expect(received[0]).not.toHaveProperty('content');
+		expect(token.active).toBe(true);
+		token.remove();
+		token.remove();
+		expect(token.active).toBe(false);
+		expect(fluxSubscriptions.has('MESSAGE_CREATE')).toBe(false);
+		context.dispose();
 	});
 
 	test('gates semantic UI and media operations by capability', () => {

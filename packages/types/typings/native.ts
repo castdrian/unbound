@@ -323,7 +323,7 @@ export type NativeUIHandle = NativeHandle;
 
 export type NativeUIQuery = {
 	role: string;
-	root: NativeUIHandle;
+	root?: NativeUIHandle;
 	attributes?: NativeSerializableObject;
 	maxDepth?: number;
 	maxNodes?: number;

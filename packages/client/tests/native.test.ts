@@ -9,6 +9,7 @@ import type {
 	NativeSerializableObject,
 	NativeObjCBridge,
 	NativeUIHandle,
+	NativeUIQuery,
 	NativeViewSnapshotNode,
 } from '@unbound-app/types';
 import { afterEach, describe, expect, mock, test } from 'bun:test';
@@ -706,6 +707,61 @@ describe('native plugin negotiation', () => {
 			NativePluginCapabilityError,
 		);
 		context.dispose();
+	});
+
+	test('allows rootless bounded UI queries on Android and keeps roots mandatory on iOS', async () => {
+		const androidQueries: NativeUIQuery[] = [];
+
+		Object.assign(nativePlatformBridge.device, { platform: 'android' });
+		Object.assign(nativePlatformBridge, { platform: 'android' });
+		Object.assign(bridge, {
+			capabilities: ['native.ui.lookup'],
+			ui: {
+				...genericBridges.ui,
+				lookup: (query: NativeUIQuery) => {
+					androidQueries.push(query);
+
+					return cancellable(Promise.resolve([nativeHandle]), 'ui-lookup');
+				},
+				snapshot: (query: NativeUIQuery) => {
+					androidQueries.push(query);
+
+					return cancellable(
+						Promise.resolve({ generation: 9, nodes: [] }),
+						'ui-snapshot',
+					);
+				},
+			},
+		});
+
+		const androidContext = createPluginContext({
+			...manifest,
+			platformCapabilities: { android: ['native.ui.lookup'] },
+		});
+
+		expect(await androidContext.native.ui.lookup({ role: 'text' })).toEqual([nativeHandle]);
+		expect(await androidContext.native.ui.snapshot({ role: 'text' })).toEqual({
+			generation: 9,
+			nodes: [],
+		});
+		expect(androidQueries).toEqual([{ role: 'text' }, { role: 'text' }]);
+		androidContext.dispose();
+
+		Object.assign(nativePlatformBridge.device, { platform: 'ios' });
+		Object.assign(nativePlatformBridge, { platform: 'ios' });
+		Object.assign(bridge, {
+			capabilities: ['native.objc.snapshot'],
+		});
+
+		const iosContext = createPluginContext({
+			...manifest,
+			capabilities: ['native.objc.snapshot'],
+		});
+
+		expect(() => iosContext.native.ui.lookup({ role: 'text' })).toThrow(
+			'iOS native UI queries require a root handle.',
+		);
+		iosContext.dispose();
 	});
 
 	test('selects capabilities for the current platform', () => {

@@ -6,6 +6,8 @@ import type {
 	NativeFFIBridge,
 	NativeJavaBridge,
 	NativeJavaHandle,
+	NativeJavaHooksBridge,
+	NativeJavaHookToken,
 	NativeMediaBridge,
 	NativeHookHandlers,
 	NativeHookOptions,
@@ -284,6 +286,17 @@ const nativeJavaCapabilityRequirements: Record<keyof NativeJavaBridge, NativePlu
 	release: 'native.java.classes',
 };
 
+const nativeHooksCapabilityRequirements: Record<
+	keyof NativeJavaHooksBridge,
+	NativePluginCapability
+> = {
+	hook: 'native.java.hooks',
+	setReturnValue: 'native.java.hooks',
+	removeReturnValue: 'native.java.hooks',
+	clearReturnValues: 'native.java.hooks',
+	remove: 'native.java.hooks',
+};
+
 const iosNativeUICapabilityRequirements: Record<keyof NativeUIBridge, NativePluginCapability> = {
 	lookup: 'native.objc.snapshot',
 	snapshot: 'native.objc.snapshot',
@@ -449,6 +462,10 @@ function unavailableNativePlugin() {
 	) as NativeRuntimeBridge;
 	const unavailableUI = new Proxy({}, { get: () => unavailableMethod }) as NativeUIBridge;
 	const unavailableJava = new Proxy({}, { get: () => unavailableMethod }) as NativeJavaBridge;
+	const unavailableHooks = new Proxy(
+		{},
+		{ get: () => unavailableMethod },
+	) as NativeJavaHooksBridge;
 	const unavailableMedia = new Proxy({}, { get: () => unavailableMethod }) as NativeMediaBridge;
 
 	return {
@@ -461,6 +478,7 @@ function unavailableNativePlugin() {
 		runtime: unavailableRuntime,
 		ui: unavailableUI,
 		java: unavailableJava,
+		hooks: unavailableHooks,
 		media: unavailableMedia,
 	};
 }
@@ -787,11 +805,13 @@ function createScopedNativePlugin(
 	const uiCapabilities =
 		platform === 'ios' ? iosNativeUICapabilityRequirements : nativeUICapabilityRequirements;
 	const javaBridge = bridge.java ?? fallbackBridge.java;
+	const hooksBridge = bridge.hooks ?? fallbackBridge.hooks;
 	const mediaBridge = bridge.media ?? fallbackBridge.media;
 	const tokens = new Set<NativeHookToken>();
 	const surfaces = new Set<NativeFabricSurface>();
 	const uiSurfaces = new Set<NativeUIHandle>();
 	const javaHandles = new Set<NativeJavaHandle>();
+	const javaHookTokens = new Set<NativeJavaHookToken>();
 	const runtimeTokens = new Set<NativeRuntimeEventToken>();
 	const pendingInvocations = new Set<NativeCancelablePromise<unknown>>();
 	const associations: AssociationBinding[] = [];
@@ -1211,6 +1231,51 @@ function createScopedNativePlugin(
 		},
 	};
 
+	const hooks: NativeJavaHooksBridge = {
+		hook: (className, methodName, parameterTypes, options, listener) => {
+			const token = unwrapJava(
+				scopeMethod(
+					hooksBridge.hook.bind(hooksBridge),
+					nativeHooksCapabilityRequirements.hook,
+				)(className, methodName, parameterTypes, options, listener),
+			);
+
+			javaHookTokens.add(token);
+
+			return token;
+		},
+		setReturnValue: (token, self, args, value) =>
+			unwrapJava(
+				scopeMethod(
+					hooksBridge.setReturnValue.bind(hooksBridge),
+					nativeHooksCapabilityRequirements.setReturnValue,
+				)(token, self, args, value),
+			),
+		removeReturnValue: (token, self, args) =>
+			unwrapJava(
+				scopeMethod(
+					hooksBridge.removeReturnValue.bind(hooksBridge),
+					nativeHooksCapabilityRequirements.removeReturnValue,
+				)(token, self, args),
+			),
+		clearReturnValues: (token) =>
+			unwrapJava(
+				scopeMethod(
+					hooksBridge.clearReturnValues.bind(hooksBridge),
+					nativeHooksCapabilityRequirements.clearReturnValues,
+				)(token),
+			),
+		remove: (token) => {
+			javaHookTokens.delete(token);
+			unwrapJava(
+				scopeMethod(
+					hooksBridge.remove.bind(hooksBridge),
+					nativeHooksCapabilityRequirements.remove,
+				)(token),
+			);
+		},
+	};
+
 	const ui: NativeUIBridge = {
 		lookup: scopeAsyncMethod(
 			uiBridge.lookup?.bind(uiBridge),
@@ -1311,6 +1376,7 @@ function createScopedNativePlugin(
 			runtime,
 			ui,
 			java,
+			hooks,
 			media,
 		},
 		dispose: () => {
@@ -1351,6 +1417,16 @@ function createScopedNativePlugin(
 			}
 
 			javaHandles.clear();
+
+			for (const token of javaHookTokens) {
+				try {
+					hooksBridge.remove(token);
+				} catch {
+					continue;
+				}
+			}
+
+			javaHookTokens.clear();
 
 			for (const binding of associations) {
 				objcBridge.setAssociatedObject(binding.handle, binding.key, null, 'assign');

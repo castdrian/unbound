@@ -1,16 +1,12 @@
-import type { ChangeType } from '@unbound-app/contracts/changelog';
-import { CHANGE_LABELS } from '@unbound-app/contracts/changelog';
 import { IconGitCommit } from '@tabler/icons-react';
 
 import { commitUrl, formatDate, shortSha } from '~/components/addon/format';
 import { ExternalLink } from '~/components/addon/sidebar-card';
 import type { MarketplaceVersion } from '~/lib/marketplace';
-import type { Tone } from '~/components/dashboard/status';
-import { TONES } from '~/components/dashboard/status';
+import ChangelogSections from '~/components/changelog-sections';
 import Separator from '~/components/ui/separator';
 import Text from '~/components/ui/text';
 import Tag from '~/components/tag';
-import cn from '~/lib/cn';
 
 type VersionHistoryProps = {
 	versions: MarketplaceVersion[];
@@ -23,44 +19,9 @@ type VersionEntryProps = {
 
 type VersionChangelogProps = Pick<MarketplaceVersion, 'changelog' | 'changes'>;
 
-const CHANGE_TONES: Record<ChangeType, Tone> = {
-	added: 'success',
-	changed: 'info',
-	fixed: 'warning',
-	removed: 'danger',
-};
-
 function VersionChangelog({ changelog, changes }: VersionChangelogProps) {
 	if (changes && changes.sections.length > 0) {
-		return (
-			<div className='flex flex-col gap-3'>
-				{changes.sections.map((section) => (
-					<div key={section.type} className='flex flex-col gap-1.5'>
-						<div className='flex items-center gap-2'>
-							<span
-								className={cn(
-									'rounded-full size-1.5 shrink-0',
-									TONES[CHANGE_TONES[section.type]].dot,
-								)}
-							/>
-							<Text variant='text-xs' className='font-medium uppercase tracking-wide'>
-								{CHANGE_LABELS[section.type]}
-							</Text>
-						</div>
-						<Text
-							as='ul'
-							variant='text-sm'
-							color='muted'
-							className='flex flex-col gap-1 pl-5 marker:text-muted-foreground/50 list-disc'
-						>
-							{section.items.map((item, index) => (
-								<li key={index}>{item}</li>
-							))}
-						</Text>
-					</div>
-				))}
-			</div>
-		);
+		return <ChangelogSections changelog={changes} />;
 	}
 
 	return (

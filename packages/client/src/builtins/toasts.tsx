@@ -27,7 +27,11 @@ function patchToastContainer() {
 		return;
 	}
 
-	Patcher.after(Components.ToastContainer, 'type', ({ result }) => {
+	const isMemo = typeof Components.ToastContainer.type === 'function';
+	const target = isMemo ? Components.ToastContainer : Components;
+	const key = isMemo ? 'type' : 'ToastContainer';
+
+	Patcher.after(target, key, ({ result }) => {
 		const settings = Settings.useSettingsStore(({ key }) => key?.startsWith('toasts'));
 
 		if (settings.get('toasts.enabled', true)) {

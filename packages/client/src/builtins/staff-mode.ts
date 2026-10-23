@@ -14,6 +14,11 @@ let unsubscribe: (() => void) | null = null;
 export function start() {
 	const Store = findStore('DeveloperExperiment');
 	if (!Store) return Logger.error('Failed to find DeveloperExperimentStore.');
+	if (Object.isFrozen(Store)) {
+		return Logger.warn(
+			'DeveloperExperimentStore is frozen on this platform; staff mode is unavailable.',
+		);
+	}
 
 	Patcher.instead(Store, 'initialize', ({ this: self }) => {
 		self.waitFor(Users, Guilds);

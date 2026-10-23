@@ -22,10 +22,7 @@ export const moderationEvent = sqliteTable(
 	(table) => [index('moderation_event_subject_idx').on(table.subjectType, table.subjectId)],
 );
 
-/**
- * A private staff note on exactly one user or addon, deleted with its subject; write it only
- * through `~/lib/staff-notes`. No public endpoint reads it.
- */
+/** A private staff note on exactly one user or addon, deleted with its subject. */
 export const staffNote = sqliteTable(
 	'staff_note',
 	{

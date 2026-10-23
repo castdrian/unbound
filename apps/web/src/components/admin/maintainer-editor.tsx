@@ -17,7 +17,6 @@ import Text from '~/components/ui/text';
 type MaintainerEditorProps = {
 	id: string;
 	members: MaintainerEntry[];
-	/** Names and avatars of every user the list may show, by id. */
 	users: Record<string, UserSummary>;
 	onChange: (members: MaintainerEntry[]) => void;
 	/** Called with a user picked from search, before they are added. */

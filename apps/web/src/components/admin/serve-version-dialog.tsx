@@ -27,7 +27,6 @@ type ServeVersionDialogProps = {
 	addonId: string;
 	/** Every version of the addon, newest first. */
 	versions: AdminVersion[];
-	/** The version the dialog serves. */
 	version: string;
 };
 

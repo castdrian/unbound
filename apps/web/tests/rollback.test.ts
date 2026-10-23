@@ -24,7 +24,6 @@ type PlanStep = {
 };
 
 const s3 = serveMemoryS3();
-// Seeded versions count against the owner's submission limit, and one page holds every addon.
 const base = createTestContext({
 	S3_ENDPOINT: s3.url.href,
 	SUBMISSION_RATE_LIMIT_MAX: '1000',
@@ -50,11 +49,10 @@ async function signUp(role: Role = 'user') {
 
 	await ctx.db.update(user).set({ role }).where(eq(user.id, userId));
 
-	return { userId, caller: await callerOf(userId) };
+	return { userId, caller: await currentCaller(userId) };
 }
 
-// Reads the role as it is now: approval upgrades an owner to `developer`.
-async function callerOf(userId: string): Promise<Caller> {
+async function currentCaller(userId: string): Promise<Caller> {
 	const row = await ctx.db.query.user.findFirst({ where: { id: userId } });
 
 	if (!row) {
@@ -68,7 +66,6 @@ const owner = await signUp();
 const admin = await signUp('admin');
 const moderator = await signUp('moderator');
 
-// Each version carries its own name so the refreshed addon row shows which one is served.
 function release(id: string, version: string) {
 	return manifest(id, version, { name: `Hello ${version}` });
 }
@@ -218,7 +215,7 @@ describe('serveVersion', () => {
 		serveVersion(ctx, admin.caller, 'rb.approval', { version: '1.0.0', reason: 'Broken' });
 
 		const bundle = 'export default 1;';
-		const developer = await callerOf(owner.userId);
+		const developer = await currentCaller(owner.userId);
 		const { submission, upload } = await createSubmission(ctx, developer, {
 			manifest: manifest('rb.approval', '1.3.0', {
 				name: 'Hello 1.3.0',
@@ -238,7 +235,6 @@ describe('serveVersion', () => {
 			name: 'Hello 1.3.0',
 		});
 		expect(await offered('rb.approval', '1.0.0')).toEqual([['1.3.0', ['1.3.0']]]);
-		// A client too old for 1.3.0 falls back to 1.0.0, never to a withdrawn version.
 		expect(await offered('rb.approval', '1.2.0', '4.0.0')).toEqual([['1.0.0', []]]);
 		expect(await offered('rb.approval', '1.0.0', '4.0.0')).toEqual([]);
 	});

@@ -38,11 +38,8 @@ function setWithdrawnBy(
 }
 
 /**
- * @description Makes `version` the one the addon serves to the catalog, listings, its public page and
- * update checks. Every live version above it is withdrawn and tagged with this rollback. A withdrawn
- * target comes back with every lower version its rollback withdrew, so serving the pre-rollback version
- * undoes it. Serving the served version writes nothing. No version or artifact is ever deleted.
- * Requires `addon:rollback`.
+ * @description Makes `version` the one the addon serves, withdrawing and restoring versions as
+ * {@link planServe} says. Requires `addon:rollback`.
  * @param ctx The application context.
  * @param caller The administrator.
  * @param addonId The addon id.

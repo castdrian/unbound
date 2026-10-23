@@ -1,9 +1,9 @@
 import { IconGitCommit } from '@tabler/icons-react';
 
 import { commitUrl, formatDate, shortSha } from '~/components/addon/format';
+import ChangelogSections from '~/components/changelog-sections';
 import { ExternalLink } from '~/components/addon/sidebar-card';
 import type { MarketplaceVersion } from '~/lib/marketplace';
-import ChangelogSections from '~/components/changelog-sections';
 import Separator from '~/components/ui/separator';
 import Text from '~/components/ui/text';
 import Tag from '~/components/tag';

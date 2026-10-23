@@ -15,7 +15,7 @@ const ROW_STYLES = {
 	removed: { sign: '-', className: TONES.danger.pill },
 } as const;
 
-const NUMBER_CLASS = 'px-2 w-0 text-muted-foreground/60 text-right select-none';
+const NUMBER_CLASS = 'px-2 w-0 text-muted-foreground/60 text-right align-top select-none';
 
 function LineRow({ line }: LineRowProps) {
 	if (line.type === 'skipped') {
@@ -34,7 +34,7 @@ function LineRow({ line }: LineRowProps) {
 		<tr className={style.className}>
 			<td className={NUMBER_CLASS}>{line.before}</td>
 			<td className={NUMBER_CLASS}>{line.after}</td>
-			<td className='pl-1 w-0 select-none'>{style.sign}</td>
+			<td className='px-2 w-0 whitespace-pre align-top select-none'>{style.sign}</td>
 			<td className='pr-3 break-all whitespace-pre-wrap'>{line.text}</td>
 		</tr>
 	);

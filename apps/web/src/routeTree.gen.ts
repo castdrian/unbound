@@ -35,8 +35,6 @@ import { Route as ApiV1SyncRouteImport } from './routes/api/v1/sync'
 import { Route as ApiV1UpdatesRouteImport } from './routes/api/v1/updates'
 import { Route as ApiWebhooksGithubSponsorsRouteImport } from './routes/api/webhooks/github-sponsors'
 import { Route as SiteStaffAdminIndexRouteImport } from './routes/_site/_staff/admin/index'
-import { Route as SiteStaffAdminAddonsRouteImport } from './routes/_site/_staff/admin/addons'
-import { Route as SiteStaffAdminUsersRouteImport } from './routes/_site/_staff/admin/users'
 import { Route as ApiV1GithubAddonsRouteImport } from './routes/api/v1/github/addons'
 import { Route as ApiV1GithubRepositoriesRouteImport } from './routes/api/v1/github/repositories'
 import { Route as ApiV1LoaderReleasesRouteImport } from './routes/api/v1/loader/releases'
@@ -46,6 +44,10 @@ import { Route as ApiV1MeBadgeRouteImport } from './routes/api/v1/me/badge'
 import { Route as ApiV1ReviewQueueRouteImport } from './routes/api/v1/review/queue'
 import { Route as ApiV1SubmissionsPreviewRouteImport } from './routes/api/v1/submissions/preview'
 import { Route as ApiV1SyncOauthRouteImport } from './routes/api/v1/sync/oauth'
+import { Route as SiteStaffAdminAddonsIndexRouteImport } from './routes/_site/_staff/admin/addons/index'
+import { Route as SiteStaffAdminAddonsIdRouteImport } from './routes/_site/_staff/admin/addons/$id'
+import { Route as SiteStaffAdminUsersIndexRouteImport } from './routes/_site/_staff/admin/users/index'
+import { Route as SiteStaffAdminUsersIdRouteImport } from './routes/_site/_staff/admin/users/$id'
 import { Route as ApiV1AddonsIdDelistRouteImport } from './routes/api/v1/addons/$id/delist'
 import { Route as ApiV1AddonsIdMaintainersRouteImport } from './routes/api/v1/addons/$id/maintainers'
 import { Route as ApiV1AddonsIdRelistRouteImport } from './routes/api/v1/addons/$id/relist'
@@ -186,16 +188,6 @@ const SiteStaffAdminIndexRoute = SiteStaffAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => SiteStaffRouteRoute,
 } as any)
-const SiteStaffAdminAddonsRoute = SiteStaffAdminAddonsRouteImport.update({
-  id: '/admin/addons',
-  path: '/admin/addons',
-  getParentRoute: () => SiteStaffRouteRoute,
-} as any)
-const SiteStaffAdminUsersRoute = SiteStaffAdminUsersRouteImport.update({
-  id: '/admin/users',
-  path: '/admin/users',
-  getParentRoute: () => SiteStaffRouteRoute,
-} as any)
 const ApiV1GithubAddonsRoute = ApiV1GithubAddonsRouteImport.update({
   id: '/api/v1/github/addons',
   path: '/api/v1/github/addons',
@@ -240,6 +232,28 @@ const ApiV1SyncOauthRoute = ApiV1SyncOauthRouteImport.update({
   id: '/oauth',
   path: '/oauth',
   getParentRoute: () => ApiV1SyncRoute,
+} as any)
+const SiteStaffAdminAddonsIndexRoute =
+  SiteStaffAdminAddonsIndexRouteImport.update({
+    id: '/admin/addons/',
+    path: '/admin/addons/',
+    getParentRoute: () => SiteStaffRouteRoute,
+  } as any)
+const SiteStaffAdminAddonsIdRoute = SiteStaffAdminAddonsIdRouteImport.update({
+  id: '/admin/addons/$id',
+  path: '/admin/addons/$id',
+  getParentRoute: () => SiteStaffRouteRoute,
+} as any)
+const SiteStaffAdminUsersIndexRoute =
+  SiteStaffAdminUsersIndexRouteImport.update({
+    id: '/admin/users/',
+    path: '/admin/users/',
+    getParentRoute: () => SiteStaffRouteRoute,
+  } as any)
+const SiteStaffAdminUsersIdRoute = SiteStaffAdminUsersIdRouteImport.update({
+  id: '/admin/users/$id',
+  path: '/admin/users/$id',
+  getParentRoute: () => SiteStaffRouteRoute,
 } as any)
 const ApiV1AddonsIdDelistRoute = ApiV1AddonsIdDelistRouteImport.update({
   id: '/$id/delist',
@@ -321,8 +335,6 @@ export interface FileRoutesByFullPath {
   '/api/v1/sync': typeof ApiV1SyncRouteWithChildren
   '/api/v1/updates': typeof ApiV1UpdatesRoute
   '/api/webhooks/github-sponsors': typeof ApiWebhooksGithubSponsorsRoute
-  '/admin/addons': typeof SiteStaffAdminAddonsRoute
-  '/admin/users': typeof SiteStaffAdminUsersRoute
   '/api/v1/github/addons': typeof ApiV1GithubAddonsRoute
   '/api/v1/github/repositories': typeof ApiV1GithubRepositoriesRoute
   '/api/v1/loader/releases': typeof ApiV1LoaderReleasesRouteWithChildren
@@ -333,6 +345,8 @@ export interface FileRoutesByFullPath {
   '/api/v1/submissions/preview': typeof ApiV1SubmissionsPreviewRoute
   '/api/v1/sync/oauth': typeof ApiV1SyncOauthRoute
   '/admin/': typeof SiteStaffAdminIndexRoute
+  '/admin/addons/$id': typeof SiteStaffAdminAddonsIdRoute
+  '/admin/users/$id': typeof SiteStaffAdminUsersIdRoute
   '/api/v1/addons/$id/delist': typeof ApiV1AddonsIdDelistRoute
   '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
   '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
@@ -340,6 +354,8 @@ export interface FileRoutesByFullPath {
   '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
   '/api/v1/submissions/$id/review': typeof ApiV1SubmissionsIdReviewRoute
   '/api/v1/users/$id/badges': typeof ApiV1UsersIdBadgesRoute
+  '/admin/addons/': typeof SiteStaffAdminAddonsIndexRoute
+  '/admin/users/': typeof SiteStaffAdminUsersIndexRoute
   '/api/v1/addons/$id/maintainers/$userId': typeof ApiV1AddonsIdMaintainersUserIdRoute
   '/api/v1/loader/releases/$platform/$version': typeof ApiV1LoaderReleasesPlatformVersionRoute
   '/api/v1/users/$id/badge/revoke': typeof ApiV1UsersIdBadgeRevokeRoute
@@ -368,8 +384,6 @@ export interface FileRoutesByTo {
   '/api/v1/sync': typeof ApiV1SyncRouteWithChildren
   '/api/v1/updates': typeof ApiV1UpdatesRoute
   '/api/webhooks/github-sponsors': typeof ApiWebhooksGithubSponsorsRoute
-  '/admin/addons': typeof SiteStaffAdminAddonsRoute
-  '/admin/users': typeof SiteStaffAdminUsersRoute
   '/api/v1/github/addons': typeof ApiV1GithubAddonsRoute
   '/api/v1/github/repositories': typeof ApiV1GithubRepositoriesRoute
   '/api/v1/loader/releases': typeof ApiV1LoaderReleasesRouteWithChildren
@@ -380,6 +394,8 @@ export interface FileRoutesByTo {
   '/api/v1/submissions/preview': typeof ApiV1SubmissionsPreviewRoute
   '/api/v1/sync/oauth': typeof ApiV1SyncOauthRoute
   '/admin': typeof SiteStaffAdminIndexRoute
+  '/admin/addons/$id': typeof SiteStaffAdminAddonsIdRoute
+  '/admin/users/$id': typeof SiteStaffAdminUsersIdRoute
   '/api/v1/addons/$id/delist': typeof ApiV1AddonsIdDelistRoute
   '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
   '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
@@ -387,6 +403,8 @@ export interface FileRoutesByTo {
   '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
   '/api/v1/submissions/$id/review': typeof ApiV1SubmissionsIdReviewRoute
   '/api/v1/users/$id/badges': typeof ApiV1UsersIdBadgesRoute
+  '/admin/addons': typeof SiteStaffAdminAddonsIndexRoute
+  '/admin/users': typeof SiteStaffAdminUsersIndexRoute
   '/api/v1/addons/$id/maintainers/$userId': typeof ApiV1AddonsIdMaintainersUserIdRoute
   '/api/v1/loader/releases/$platform/$version': typeof ApiV1LoaderReleasesPlatformVersionRoute
   '/api/v1/users/$id/badge/revoke': typeof ApiV1UsersIdBadgeRevokeRoute
@@ -418,8 +436,6 @@ export interface FileRoutesById {
   '/api/v1/sync': typeof ApiV1SyncRouteWithChildren
   '/api/v1/updates': typeof ApiV1UpdatesRoute
   '/api/webhooks/github-sponsors': typeof ApiWebhooksGithubSponsorsRoute
-  '/_site/_staff/admin/addons': typeof SiteStaffAdminAddonsRoute
-  '/_site/_staff/admin/users': typeof SiteStaffAdminUsersRoute
   '/api/v1/github/addons': typeof ApiV1GithubAddonsRoute
   '/api/v1/github/repositories': typeof ApiV1GithubRepositoriesRoute
   '/api/v1/loader/releases': typeof ApiV1LoaderReleasesRouteWithChildren
@@ -430,6 +446,8 @@ export interface FileRoutesById {
   '/api/v1/submissions/preview': typeof ApiV1SubmissionsPreviewRoute
   '/api/v1/sync/oauth': typeof ApiV1SyncOauthRoute
   '/_site/_staff/admin/': typeof SiteStaffAdminIndexRoute
+  '/_site/_staff/admin/addons/$id': typeof SiteStaffAdminAddonsIdRoute
+  '/_site/_staff/admin/users/$id': typeof SiteStaffAdminUsersIdRoute
   '/api/v1/addons/$id/delist': typeof ApiV1AddonsIdDelistRoute
   '/api/v1/addons/$id/maintainers': typeof ApiV1AddonsIdMaintainersRouteWithChildren
   '/api/v1/addons/$id/relist': typeof ApiV1AddonsIdRelistRoute
@@ -437,6 +455,8 @@ export interface FileRoutesById {
   '/api/v1/submissions/$id/finalize': typeof ApiV1SubmissionsIdFinalizeRoute
   '/api/v1/submissions/$id/review': typeof ApiV1SubmissionsIdReviewRoute
   '/api/v1/users/$id/badges': typeof ApiV1UsersIdBadgesRoute
+  '/_site/_staff/admin/addons/': typeof SiteStaffAdminAddonsIndexRoute
+  '/_site/_staff/admin/users/': typeof SiteStaffAdminUsersIndexRoute
   '/api/v1/addons/$id/maintainers/$userId': typeof ApiV1AddonsIdMaintainersUserIdRoute
   '/api/v1/loader/releases/$platform/$version': typeof ApiV1LoaderReleasesPlatformVersionRoute
   '/api/v1/users/$id/badge/revoke': typeof ApiV1UsersIdBadgeRevokeRoute
@@ -467,8 +487,6 @@ export interface FileRouteTypes {
     | '/api/v1/sync'
     | '/api/v1/updates'
     | '/api/webhooks/github-sponsors'
-    | '/admin/addons'
-    | '/admin/users'
     | '/api/v1/github/addons'
     | '/api/v1/github/repositories'
     | '/api/v1/loader/releases'
@@ -479,6 +497,8 @@ export interface FileRouteTypes {
     | '/api/v1/submissions/preview'
     | '/api/v1/sync/oauth'
     | '/admin/'
+    | '/admin/addons/$id'
+    | '/admin/users/$id'
     | '/api/v1/addons/$id/delist'
     | '/api/v1/addons/$id/maintainers'
     | '/api/v1/addons/$id/relist'
@@ -486,6 +506,8 @@ export interface FileRouteTypes {
     | '/api/v1/submissions/$id/finalize'
     | '/api/v1/submissions/$id/review'
     | '/api/v1/users/$id/badges'
+    | '/admin/addons/'
+    | '/admin/users/'
     | '/api/v1/addons/$id/maintainers/$userId'
     | '/api/v1/loader/releases/$platform/$version'
     | '/api/v1/users/$id/badge/revoke'
@@ -514,8 +536,6 @@ export interface FileRouteTypes {
     | '/api/v1/sync'
     | '/api/v1/updates'
     | '/api/webhooks/github-sponsors'
-    | '/admin/addons'
-    | '/admin/users'
     | '/api/v1/github/addons'
     | '/api/v1/github/repositories'
     | '/api/v1/loader/releases'
@@ -526,6 +546,8 @@ export interface FileRouteTypes {
     | '/api/v1/submissions/preview'
     | '/api/v1/sync/oauth'
     | '/admin'
+    | '/admin/addons/$id'
+    | '/admin/users/$id'
     | '/api/v1/addons/$id/delist'
     | '/api/v1/addons/$id/maintainers'
     | '/api/v1/addons/$id/relist'
@@ -533,6 +555,8 @@ export interface FileRouteTypes {
     | '/api/v1/submissions/$id/finalize'
     | '/api/v1/submissions/$id/review'
     | '/api/v1/users/$id/badges'
+    | '/admin/addons'
+    | '/admin/users'
     | '/api/v1/addons/$id/maintainers/$userId'
     | '/api/v1/loader/releases/$platform/$version'
     | '/api/v1/users/$id/badge/revoke'
@@ -563,8 +587,6 @@ export interface FileRouteTypes {
     | '/api/v1/sync'
     | '/api/v1/updates'
     | '/api/webhooks/github-sponsors'
-    | '/_site/_staff/admin/addons'
-    | '/_site/_staff/admin/users'
     | '/api/v1/github/addons'
     | '/api/v1/github/repositories'
     | '/api/v1/loader/releases'
@@ -575,6 +597,8 @@ export interface FileRouteTypes {
     | '/api/v1/submissions/preview'
     | '/api/v1/sync/oauth'
     | '/_site/_staff/admin/'
+    | '/_site/_staff/admin/addons/$id'
+    | '/_site/_staff/admin/users/$id'
     | '/api/v1/addons/$id/delist'
     | '/api/v1/addons/$id/maintainers'
     | '/api/v1/addons/$id/relist'
@@ -582,6 +606,8 @@ export interface FileRouteTypes {
     | '/api/v1/submissions/$id/finalize'
     | '/api/v1/submissions/$id/review'
     | '/api/v1/users/$id/badges'
+    | '/_site/_staff/admin/addons/'
+    | '/_site/_staff/admin/users/'
     | '/api/v1/addons/$id/maintainers/$userId'
     | '/api/v1/loader/releases/$platform/$version'
     | '/api/v1/users/$id/badge/revoke'
@@ -792,20 +818,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SiteStaffAdminIndexRouteImport
       parentRoute: typeof SiteStaffRouteRoute
     }
-    '/_site/_staff/admin/addons': {
-      id: '/_site/_staff/admin/addons'
-      path: '/admin/addons'
-      fullPath: '/admin/addons'
-      preLoaderRoute: typeof SiteStaffAdminAddonsRouteImport
-      parentRoute: typeof SiteStaffRouteRoute
-    }
-    '/_site/_staff/admin/users': {
-      id: '/_site/_staff/admin/users'
-      path: '/admin/users'
-      fullPath: '/admin/users'
-      preLoaderRoute: typeof SiteStaffAdminUsersRouteImport
-      parentRoute: typeof SiteStaffRouteRoute
-    }
     '/api/v1/github/addons': {
       id: '/api/v1/github/addons'
       path: '/api/v1/github/addons'
@@ -868,6 +880,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/v1/sync/oauth'
       preLoaderRoute: typeof ApiV1SyncOauthRouteImport
       parentRoute: typeof ApiV1SyncRoute
+    }
+    '/_site/_staff/admin/addons/': {
+      id: '/_site/_staff/admin/addons/'
+      path: '/admin/addons'
+      fullPath: '/admin/addons/'
+      preLoaderRoute: typeof SiteStaffAdminAddonsIndexRouteImport
+      parentRoute: typeof SiteStaffRouteRoute
+    }
+    '/_site/_staff/admin/addons/$id': {
+      id: '/_site/_staff/admin/addons/$id'
+      path: '/admin/addons/$id'
+      fullPath: '/admin/addons/$id'
+      preLoaderRoute: typeof SiteStaffAdminAddonsIdRouteImport
+      parentRoute: typeof SiteStaffRouteRoute
+    }
+    '/_site/_staff/admin/users/': {
+      id: '/_site/_staff/admin/users/'
+      path: '/admin/users'
+      fullPath: '/admin/users/'
+      preLoaderRoute: typeof SiteStaffAdminUsersIndexRouteImport
+      parentRoute: typeof SiteStaffRouteRoute
+    }
+    '/_site/_staff/admin/users/$id': {
+      id: '/_site/_staff/admin/users/$id'
+      path: '/admin/users/$id'
+      fullPath: '/admin/users/$id'
+      preLoaderRoute: typeof SiteStaffAdminUsersIdRouteImport
+      parentRoute: typeof SiteStaffRouteRoute
     }
     '/api/v1/addons/$id/delist': {
       id: '/api/v1/addons/$id/delist'
@@ -944,16 +984,20 @@ declare module '@tanstack/react-router' {
 
 interface SiteStaffRouteRouteChildren {
   SiteStaffReviewRoute: typeof SiteStaffReviewRoute
-  SiteStaffAdminAddonsRoute: typeof SiteStaffAdminAddonsRoute
-  SiteStaffAdminUsersRoute: typeof SiteStaffAdminUsersRoute
   SiteStaffAdminIndexRoute: typeof SiteStaffAdminIndexRoute
+  SiteStaffAdminAddonsIdRoute: typeof SiteStaffAdminAddonsIdRoute
+  SiteStaffAdminUsersIdRoute: typeof SiteStaffAdminUsersIdRoute
+  SiteStaffAdminAddonsIndexRoute: typeof SiteStaffAdminAddonsIndexRoute
+  SiteStaffAdminUsersIndexRoute: typeof SiteStaffAdminUsersIndexRoute
 }
 
 const SiteStaffRouteRouteChildren: SiteStaffRouteRouteChildren = {
   SiteStaffReviewRoute: SiteStaffReviewRoute,
-  SiteStaffAdminAddonsRoute: SiteStaffAdminAddonsRoute,
-  SiteStaffAdminUsersRoute: SiteStaffAdminUsersRoute,
   SiteStaffAdminIndexRoute: SiteStaffAdminIndexRoute,
+  SiteStaffAdminAddonsIdRoute: SiteStaffAdminAddonsIdRoute,
+  SiteStaffAdminUsersIdRoute: SiteStaffAdminUsersIdRoute,
+  SiteStaffAdminAddonsIndexRoute: SiteStaffAdminAddonsIndexRoute,
+  SiteStaffAdminUsersIndexRoute: SiteStaffAdminUsersIndexRoute,
 }
 
 const SiteStaffRouteRouteWithChildren = SiteStaffRouteRoute._addFileChildren(

@@ -4,6 +4,7 @@ import type { Changelog } from '@unbound-app/contracts/changelog';
 import { defineRelationsPart } from 'drizzle-orm';
 
 import { addon, addonVersion, submission } from './addons';
+import { moderationEvent } from './admin';
 import { user } from './auth';
 
 /** Where a GitHub-sourced submission was read from. Written once with the submission, never updated. */
@@ -34,7 +35,7 @@ export const submissionSource = sqliteTable('submission_source', {
 // Drizzle keeps one relations entry per table across parts, so add `submission` and `addon_version`
 // relations here, not in `addonRelations`, or this part silently replaces them.
 export const sourceRelations = defineRelationsPart(
-	{ user, addon, submission, addonVersion, submissionSource },
+	{ user, addon, submission, addonVersion, moderationEvent, submissionSource },
 	(r) => ({
 		submission: {
 			author: r.one.user({
@@ -58,6 +59,10 @@ export const sourceRelations = defineRelationsPart(
 			source: r.one.submissionSource({
 				from: r.addonVersion.submissionId,
 				to: r.submissionSource.submissionId,
+			}),
+			withdrawal: r.one.moderationEvent({
+				from: r.addonVersion.withdrawnBy,
+				to: r.moderationEvent.id,
 			}),
 		},
 		submissionSource: {},

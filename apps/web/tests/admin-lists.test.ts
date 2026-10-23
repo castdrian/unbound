@@ -56,7 +56,6 @@ const WALKERS = [
 	{ name: 'Walker Five', day: 4 },
 ];
 
-// Approved at noon UTC on 1970-01-02 (day 1) through 1970-01-05 (day 4).
 const ADDONS = [
 	{ id: 'walk.alpha', name: 'Night Owl', day: 1, type: 'plugin' },
 	{ id: 'walk.bravo', name: 'Day Lark', day: 2, type: 'plugin' },
@@ -129,11 +128,9 @@ beforeAll(async () => {
 		...update,
 		status: 'changes_requested',
 	});
-	// A first listing still in review has no addon row, so no status filter lists it.
 	await seedSubmission(ctx, owner, manifest('walk.foxtrot'));
 });
 
-// Newest first, ties broken by the higher id: the order the admin lists promise.
 function newestFirst(rows: SeededUser[]): string[] {
 	return rows
 		.toSorted((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1))
@@ -148,7 +145,6 @@ function addonOrder(order: SortOrder): string[] {
 	return order === 'asc' ? ascending : ascending.toReversed();
 }
 
-// Follows `next` to the last page, then `prev` back to the first, returning each page's ids.
 async function walk<T extends { id: string }>(list: Lister<T>): Promise<Walk> {
 	let page = await list({});
 	const forward = [page.items.map((item) => item.id)];
@@ -182,7 +178,6 @@ async function addonsMatching(search: AdminAddonsSearch): Promise<string[]> {
 	return forward.flat();
 }
 
-// The steps of the outer statement; correlated subqueries (owners, newest version) sort on their own.
 function plan(statement: Statement): PlanStep[] {
 	const { sql, params } = statement.toSQL();
 
@@ -490,7 +485,6 @@ describe('admin addon filters', () => {
 });
 
 describe('admin addon filter plans', () => {
-	// A row in the middle of the list, so both directions have rows past it.
 	const middle = encodeCursor([2 * DAY + DAY / 2, 'walk.bravo']);
 	const pages: AdminAddonsSearch[] = [{}, { cursor: middle }, { cursor: middle, dir: 'prev' }];
 

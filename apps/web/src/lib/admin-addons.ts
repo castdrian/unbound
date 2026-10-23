@@ -43,8 +43,6 @@ function withOpenUpdate(db: Database, table: typeof addon, status: OpenUpdateSta
 	return inArray(table.id, open);
 }
 
-// `listed` and `delisted` each read a partial `(created_at, id)` index; the open-update statuses read
-// `submission_status_submittedAt_idx` and sort only the addons it matches.
 const STATUS_FILTERS = {
 	listed: (_db, table) => isNull(table.delistedAt),
 	delisted: (_db, table) => isNotNull(table.delistedAt),
@@ -52,7 +50,6 @@ const STATUS_FILTERS = {
 	changes_requested: (db, table) => withOpenUpdate(db, table, 'changes_requested'),
 } satisfies Record<AdminAddonStatus, StatusFilter>;
 
-// UTC midnight of an ISO date, so a range covers the same whole days for every staff member.
 function startOfDay(date: string): Date {
 	return new Date(`${date}T00:00:00.000Z`);
 }
@@ -70,7 +67,6 @@ function publishedRange(
 		? startOfDay(search.publishedTo).getTime() + DAY_MS
 		: undefined;
 	const position = after ? Number(after[0]) : undefined;
-	// Read ascending, the cursor is the lower bound; read descending, the upper one.
 	const lowerByCursor = read === 'asc' && position !== undefined && from !== undefined;
 	const upperByCursor = read === 'desc' && position !== undefined && until !== undefined;
 	const lower = lowerByCursor && position >= from ? undefined : from;

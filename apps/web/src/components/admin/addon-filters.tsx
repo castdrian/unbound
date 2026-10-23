@@ -272,7 +272,6 @@ function AddonFilters({ filters, maintainer, onChange }: AddonFiltersProps) {
 			<Button
 				variant='outline'
 				onClick={() =>
-					// `desc` is the default, so it stays out of the URL.
 					onChange({ ...filters, order: order === 'desc' ? 'asc' : undefined })
 				}
 			>

@@ -22,7 +22,6 @@ export const user = sqliteTable(
 		banReason: text('ban_reason'),
 		banExpires: integer('ban_expires', { mode: 'timestamp_ms' }),
 	},
-	// The admin users list, newest first.
 	(table) => [index('user_createdAt_idx').on(table.createdAt, table.id)],
 );
 

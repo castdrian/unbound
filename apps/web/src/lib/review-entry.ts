@@ -1,6 +1,9 @@
 import type { PublishedManifest } from '@unbound-app/contracts/manifest';
 import type { ReviewQueueItem } from '@unbound-app/contracts/review';
 
+import type { AddonMdDiff } from '~/lib/addon-md-diff';
+import { diffAddonMd } from '~/lib/addon-md-diff';
+
 export type FieldDiff = {
 	field: string;
 	/** Null when the field is unset, or when there is no previous version. */
@@ -16,6 +19,8 @@ export type ReviewEntry = Omit<ReviewQueueItem, 'manifest' | 'previousVersion'> 
 	previousVersion: string | null;
 	/** The manifest fields, then the bundle size and SHA-256, against the previous version. */
 	fields: FieldDiff[];
+	/** The submitted ADDON.md against the previous version's copy. */
+	addonMdDiff: AddonMdDiff;
 };
 
 // UNKNOWN: manifests pass unknown keys through, so a field can hold any JSON value.
@@ -62,7 +67,7 @@ export function diffManifests(
 /**
  * @description Flattens a review queue item for the review page.
  * @param item The queue item.
- * @returns The entry, with the manifest, bundle size and SHA-256 diffed against the previous version.
+ * @returns The entry, with the manifest, bundle size, SHA-256 and ADDON.md diffed against the previous version.
  */
 export function toReviewEntry(item: ReviewQueueItem): ReviewEntry {
 	const { manifest, previousVersion: previous, ...rest } = item;
@@ -80,6 +85,7 @@ export function toReviewEntry(item: ReviewQueueItem): ReviewEntry {
 			),
 			compareArtifact('sha256', item.sha256, previous?.sha256 ?? null),
 		],
+		addonMdDiff: diffAddonMd(item.previousAddonMd, item.addonMd),
 	};
 }
 

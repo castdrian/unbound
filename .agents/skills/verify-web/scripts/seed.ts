@@ -1,6 +1,5 @@
-// Usage: bun seed.ts <sessions.json>, run by launch.sh with apps/web as cwd and the instance env loaded.
-// Seeds one user per role with a live session and a linked GitHub account, an approved addon and a
-// pending submission.
+// Usage: bun seed.ts <sessions.json>, run by launch.sh from apps/web with the instance env loaded.
+// Seeds a user per role (session, linked GitHub), an approved addon and a pending submission.
 import {
 	browserSessionHeaders,
 	linkGitHub,
@@ -63,7 +62,7 @@ for (const [index, role] of ROLES.entries()) {
 	sessions[role] = { userId: signedIn.userId, name, token: signedIn.token, cookie };
 }
 
-const developer = sessions.developer!;
+const developer = sessions.developer;
 const approved = manifest('verify.hello', '1.0.0', {
 	name: 'Verify Hello',
 	description: 'Seeded by verify-web.',
@@ -83,7 +82,7 @@ await seedVersion(ctx, developer.userId, approved, SHA256);
 
 const pending = await seedSubmission(
 	ctx,
-	sessions.user!.userId,
+	sessions.user.userId,
 	manifest('verify.pending', '0.1.0', {
 		name: 'Verify Pending',
 		description: 'Seeded by verify-web, waiting for review.',

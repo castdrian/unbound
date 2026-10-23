@@ -1,5 +1,5 @@
-import { CHANGE_LABELS } from '@unbound-app/contracts/changelog';
 import type { Changelog } from '@unbound-app/contracts/changelog';
+import { CHANGE_LABELS } from '@unbound-app/contracts/changelog';
 
 import Text from '~/components/ui/text';
 

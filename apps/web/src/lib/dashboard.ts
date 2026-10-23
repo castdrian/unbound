@@ -9,10 +9,10 @@ import { and, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
 
 import { LATEST_VERSION, getManifestType } from '~/lib/addons';
 import { OPEN_SUBMISSION_STATUSES } from '~/lib/submissions';
+import { submission, submissionSource } from '~/db/schema';
 import type { Caller, CallerUser } from '~/lib/api/caller';
 import { hasPermission } from '~/lib/auth/access';
 import type { AppContext } from '~/lib/context';
-import { submission, submissionSource } from '~/db/schema';
 
 export type Visibility = 'listed' | 'delisted';
 

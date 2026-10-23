@@ -13,8 +13,8 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '~/components/ui/dialog';
-import SubmitForm from '~/components/submit/submit-form';
 import type { PendingSource, SubmitIntent } from '~/lib/dashboard';
+import SubmitForm from '~/components/submit/submit-form';
 import { Button } from '~/components/ui/button';
 
 type SubmitDialogProps = {

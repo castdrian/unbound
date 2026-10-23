@@ -10,12 +10,12 @@ import { and, eq } from 'drizzle-orm';
 
 import { addon, addonMaintainer, addonVersion, submission, user } from '~/db/schema';
 import { LATEST_VERSION, refreshAddonSummary, toAddonSummary } from '~/lib/addons';
-import { getArtifactKeys, toAddonVersion } from '~/lib/artifacts';
 import type { SourcedSubmissionRow, SubmissionRow } from '~/lib/submissions';
+import { getArtifactKeys, toAddonVersion } from '~/lib/artifacts';
 import { requirePermission } from '~/lib/api/caller';
-import { createGitHubClient } from '~/lib/github';
 import type { Permissions } from '~/lib/auth/access';
 import { hasPermission } from '~/lib/auth/access';
+import { createGitHubClient } from '~/lib/github';
 import { toSubmission } from '~/lib/submissions';
 import { toVersionKey } from '~/lib/version-key';
 import type { AppContext } from '~/lib/context';

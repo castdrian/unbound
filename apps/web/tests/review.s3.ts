@@ -1,8 +1,8 @@
-import { createSubmissionResponseSchema } from '@unbound-app/contracts/publish';
 import {
 	reviewQueueResponseSchema,
 	reviewSubmissionResponseSchema,
 } from '@unbound-app/contracts/review';
+import { createSubmissionResponseSchema } from '@unbound-app/contracts/publish';
 import type { ReviewSubmissionRequest } from '@unbound-app/contracts/review';
 import type { SubmissionKind } from '@unbound-app/contracts/publish';
 import { addonResponseSchema } from '@unbound-app/contracts/addons';

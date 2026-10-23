@@ -20,8 +20,8 @@ import {
 	snowflakeAt,
 } from './helpers/context';
 import { manifest, seedApprovedAddon } from './helpers/addons';
-import { withMemoryStaging } from './helpers/storage';
 import { commitPlugin, serveGitHub } from './helpers/github';
+import { withMemoryStaging } from './helpers/storage';
 
 const NOW = new Date('2026-10-17T12:00:00.000Z');
 const DAY_MS = 86_400_000;

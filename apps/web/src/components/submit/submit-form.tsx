@@ -1,19 +1,19 @@
-import type {
-	ListRepositoryAddonsResponse,
-	PushableRepository,
-	RepositoryAddon,
-} from '@unbound-app/contracts/source';
 import {
 	listRepositoryAddonsResponseSchema,
 	pushableRepositoriesResponseSchema,
 	repositoryInputSchema,
 } from '@unbound-app/contracts/source';
+import type {
+	ListRepositoryAddonsResponse,
+	PushableRepository,
+	RepositoryAddon,
+} from '@unbound-app/contracts/source';
 import type { CreateSubmissionRequest, Submission } from '@unbound-app/contracts/publish';
 import type { SubmissionPreview as Preview } from '@unbound-app/contracts/review';
 import { createSubmissionResponseSchema } from '@unbound-app/contracts/publish';
 import { submissionPreviewResponseSchema } from '@unbound-app/contracts/review';
-import { useEffect, useState, useTransition } from 'react';
 import { IconBrandGithub, IconSend } from '@tabler/icons-react';
+import { useEffect, useState, useTransition } from 'react';
 import { Link } from '@tanstack/react-router';
 
 import type { DetailsDraft } from '~/components/submit/submission-preview';

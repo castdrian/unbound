@@ -20,7 +20,6 @@ import type { Api } from '~/api';
 
 import { S3_TEST_ENV, createTestContext, linkGitHub, signInWithDiscord } from './helpers/context';
 import { commitPlugin, serveGitHub } from './helpers/github';
-import type { FixtureFiles } from './helpers/github';
 import { failure, serveEndpoints } from './helpers/server';
 import { manifest } from './helpers/addons';
 
@@ -86,7 +85,7 @@ async function publish(
 	id: string,
 	bundle: string,
 	version: string = '1.0.0',
-	files: FixtureFiles = {},
+	files: Record<string, string> = {},
 ) {
 	const { request } = commitPlugin(fixture, REPOSITORY, id, version, {
 		'dist/index.js': bundle,

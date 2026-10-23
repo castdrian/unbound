@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
-import type { AddonMdDiff } from '~/lib/addon-md-diff';
 import AddonMdDiffView from '~/components/review/addon-md-diff-view';
+import type { AddonMdDiff } from '~/lib/addon-md-diff';
 import type { ReviewEntry } from '~/lib/review-entry';
 import Markdown from '~/components/markdown';
 import Text from '~/components/ui/text';

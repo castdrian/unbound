@@ -1,14 +1,15 @@
 import { diffLines } from 'diff';
 
-/** One row of the unified view. Line numbers are 1-based; a side the line is not on is `null`. */
-export type AddonMdLine =
-	| {
-			type: 'context' | 'added' | 'removed';
-			text: string;
-			before: number | null;
-			after: number | null;
-	  }
-	| { type: 'skipped'; count: number };
+/** A line of either copy. Line numbers are 1-based; a side the line is not on is `null`. */
+type NumberedLine = {
+	type: 'context' | 'added' | 'removed';
+	text: string;
+	before: number | null;
+	after: number | null;
+};
+
+/** One row of the unified view: a line, or a run of unchanged lines collapsed into a count. */
+export type AddonMdLine = NumberedLine | { type: 'skipped'; count: number };
 
 /** How a submission's ADDON.md compares with the newest approved version's copy. */
 export type AddonMdDiff =
@@ -17,8 +18,6 @@ export type AddonMdDiff =
 	| { state: 'unchanged' }
 	| { state: 'removed'; lines: AddonMdLine[] }
 	| { state: 'changed'; lines: AddonMdLine[] };
-
-type NumberedLine = Exclude<AddonMdLine, { type: 'skipped' }>;
 
 /** Unchanged lines kept on each side of a change; longer unchanged runs collapse into one row. */
 const CONTEXT_LINES = 3;

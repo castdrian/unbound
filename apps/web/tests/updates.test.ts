@@ -102,9 +102,11 @@ describe('POST /api/v1/updates', () => {
 				bundleUrl: `${ctx.env.CDN_URL}/addons/up.newer/1.10.0/index.js`,
 				sha256: row?.sha256 ?? '',
 				changelog: 'Changes in 1.10.0.',
+				changes: null,
 				changelogs: ['1.10.0', '1.2.0', '1.1.0'].map((version) => ({
 					version,
 					changelog: `Changes in ${version}.`,
+					changes: null,
 					publishedAt: NOW.toISOString(),
 				})),
 			},
@@ -202,7 +204,7 @@ describe('findUpdates', () => {
 		],
 	};
 
-	test('resolves the whole batch in two statements, one when nothing is newer', async () => {
+	test('resolves the whole batch in three statements, one when nothing is newer', async () => {
 		// Drizzle's bun:sqlite session prepares every statement through `query`.
 		const statements = spyOn(ctx.db.$client, 'query');
 
@@ -210,7 +212,7 @@ describe('findUpdates', () => {
 			const { updates } = await findUpdates(ctx, request);
 
 			expect(updates.map((update) => update.id)).toEqual(['up.compat', 'up.newer']);
-			expect(statements).toHaveBeenCalledTimes(2);
+			expect(statements).toHaveBeenCalledTimes(3);
 
 			statements.mockClear();
 

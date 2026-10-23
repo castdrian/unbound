@@ -1,5 +1,6 @@
 import type { AddonType, AddonVersion, Maintainer } from '@unbound-app/contracts/addons';
 import { addonIdSchema, type PublishedManifest } from '@unbound-app/contracts/manifest';
+import type { RepositoryDetails } from '@unbound-app/contracts/source';
 import { listAddonsQuerySchema } from '@unbound-app/contracts/addons';
 import type { PublicBadge } from '@unbound-app/contracts/sponsors';
 import { createServerFn } from '@tanstack/react-start';
@@ -44,6 +45,10 @@ export type MarketplaceAddonDetails = MarketplaceAddon & {
 	/** Newest first; the first is the one installs get. */
 	versions: MarketplaceVersion[];
 	maintainers: MarketplaceMaintainer[];
+	/** The newest version's ADDON.md, or `null` when it has none. */
+	addonMd: string | null;
+	/** The newest version's GitHub details, or `null` when it predates GitHub sources. */
+	details: RepositoryDetails | null;
 };
 
 export type MarketplaceMaintainer = Maintainer & {
@@ -106,6 +111,8 @@ export const fetchMarketplaceAddon = createServerFn({ method: 'GET' })
 				...maintainer,
 				badge: badges.get(maintainer.id) ?? null,
 			})),
+			addonMd: details.addonMd,
+			details: details.details,
 		};
 	});
 

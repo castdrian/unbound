@@ -17,6 +17,7 @@ interface TestPatchContext {
 	result?: { message?: TestRow };
 }
 interface TestNativeContext {
+	capabilities: string[];
 	native: {
 		objc: {
 			hook: (
@@ -26,6 +27,12 @@ interface TestNativeContext {
 				active: boolean;
 				remove: () => number;
 			};
+		};
+		runtime: {
+			subscribe: (
+				event: string,
+				listener: (payload: Record<string, unknown>) => void,
+			) => { active: boolean; remove: () => void };
 		};
 	};
 }
@@ -45,6 +52,9 @@ let moduleListener: ((module: unknown, id: string) => void) | null = null;
 let afterHandler: ((context: TestPatchContext) => unknown) | null = null;
 let subscribedEvents: string[] = [];
 let unsubscribedEvents: string[] = [];
+let runtimeSubscribedEvents: string[] = [];
+let runtimeUnsubscribedEvents: string[] = [];
+let runtimeEventListener: ((payload: Record<string, unknown>) => void) | null = null;
 let nativeHooks: Array<{ className: string; selector: string }> = [];
 
 mock.module('@unbound-app/api', () => ({
@@ -140,6 +150,9 @@ afterEach(async () => {
 	afterHandler = null;
 	subscribedEvents = [];
 	unsubscribedEvents = [];
+	runtimeSubscribedEvents = [];
+	runtimeUnsubscribedEvents = [];
+	runtimeEventListener = null;
 	nativeHooks = [];
 });
 
@@ -149,11 +162,33 @@ function snowflake(timestamp: number): string {
 
 function nativeContext(): TestNativeContext {
 	return {
+		capabilities: ['native.runtime.events'],
 		native: {
 			objc: {
 				hook: (className: string, selector: string) => {
 					nativeHooks.push({ className, selector });
 					return { active: true, remove: () => removeHookCount++ };
+				},
+			},
+			runtime: {
+				subscribe: (
+					event: string,
+					listener: (payload: Record<string, unknown>) => void,
+				) => {
+					runtimeSubscribedEvents.push(event);
+					runtimeEventListener = listener;
+					let active = true;
+
+					return {
+						get active() {
+							return active;
+						},
+						remove: () => {
+							active = false;
+							runtimeUnsubscribedEvents.push(event);
+							runtimeEventListener = null;
+						},
+					};
 				},
 			},
 		},
@@ -330,12 +365,29 @@ describe('message create events', () => {
 		expect(messageFromCreateEvent({ type: 'MESSAGE_CREATE' })).toBeNull();
 	});
 
-	test('subscribes to live messages and releases the subscription on stop', async () => {
+	test('subscribes through the scoped runtime and releases its token on stop', async () => {
 		plugin.start(nativeContext() as Parameters<typeof plugin.start>[0]);
-		expect(subscribedEvents).toContain('MESSAGE_CREATE');
+		expect(runtimeSubscribedEvents).toEqual(['message.created']);
+		expect(subscribedEvents).toEqual([]);
+		expect(runtimeEventListener).toBeFunction();
+		runtimeEventListener?.({
+			message: {
+				author: { username: 'adrián' },
+				id: snowflake(DISCORD_EPOCH + 20_000),
+				nonce: snowflake(DISCORD_EPOCH + 17_000),
+			},
+		});
 
 		await plugin.stop();
-		expect(unsubscribedEvents).toContain('MESSAGE_CREATE');
+		expect(runtimeUnsubscribedEvents).toEqual(['message.created']);
+	});
+
+	test('uses the dispatcher fallback without the scoped runtime capability', async () => {
+		plugin.start();
+		expect(subscribedEvents).toEqual(['MESSAGE_CREATE']);
+
+		await plugin.stop();
+		expect(unsubscribedEvents).toEqual(['MESSAGE_CREATE']);
 	});
 });
 

@@ -157,8 +157,6 @@ export const adminAddonsSearchSchema = z.object({
 	...keysetSearch,
 });
 
-// ---- Mutations ----
-
 /** The human "why" a staff action records with its event. */
 export const moderationReasonSchema = z
 	.string()
@@ -212,6 +210,31 @@ export const editAddonRequestSchema = z.object({
 	reason: z.optional(moderationReasonSchema),
 });
 
+export const staffNoteBodySchema = z
+	.string()
+	.check(
+		z.trim(),
+		z.minLength(1, 'Write a note.'),
+		z.maxLength(5000, 'Keep a note to 5000 characters.'),
+	);
+
+export const staffNoteIdSchema = z.int().check(z.positive());
+
+/** A new note on one user or addon. */
+export const createStaffNoteRequestSchema = z.object({
+	subject: subjectSchema,
+	body: staffNoteBodySchema,
+});
+
+/** Replaces the body of the caller's own note. */
+export const editStaffNoteRequestSchema = z.object({
+	id: staffNoteIdSchema,
+	body: staffNoteBodySchema,
+});
+
+/** Deletes the caller's own note. */
+export const deleteStaffNoteRequestSchema = z.object({ id: staffNoteIdSchema });
+
 export type SubjectType = z.infer<typeof subjectTypeSchema>;
 export type Subject = z.infer<typeof subjectSchema>;
 export type MaintainerEntry = z.infer<typeof maintainerEntrySchema>;
@@ -229,6 +252,9 @@ export type AdminAddonStatus = z.infer<typeof adminAddonStatusSchema>;
 export type AdminAddonsSearch = z.infer<typeof adminAddonsSearchSchema>;
 export type ServeVersionRequest = z.infer<typeof serveVersionRequestSchema>;
 export type EditAddonRequest = z.infer<typeof editAddonRequestSchema>;
+export type CreateStaffNoteRequest = z.infer<typeof createStaffNoteRequestSchema>;
+export type EditStaffNoteRequest = z.infer<typeof editStaffNoteRequestSchema>;
+export type DeleteStaffNoteRequest = z.infer<typeof deleteStaffNoteRequestSchema>;
 
 export default {
 	subjectTypeSchema,
@@ -251,4 +277,9 @@ export default {
 	moderationReasonSchema,
 	serveVersionRequestSchema,
 	editAddonRequestSchema,
+	staffNoteBodySchema,
+	staffNoteIdSchema,
+	createStaffNoteRequestSchema,
+	editStaffNoteRequestSchema,
+	deleteStaffNoteRequestSchema,
 };

@@ -7,6 +7,7 @@ import { messageTextViewClass } from '@unbound-plugins/shared/native/text-attach
 
 import SettingsPanel from '~/components/settings-panel';
 import { MessageStore, SelectedChannelStore } from '~/modules';
+import { createAndroidRenderer } from '~/android/renderer';
 import { startRenderer } from '~/native/renderer';
 import { PLUGIN_NAME } from '~/constants';
 
@@ -15,7 +16,20 @@ let dispose = () => {};
 function start(context: PluginContext) {
 	if (
 		!ensureCapabilities(PLUGIN_NAME, context.native, context.capabilities) ||
-		!ensureModules(PLUGIN_NAME, { MessageStore, SelectedChannelStore }) ||
+		!ensureModules(PLUGIN_NAME, { MessageStore, SelectedChannelStore })
+	) {
+		return;
+	}
+
+	if (context.platform === 'android') {
+		const android = createAndroidRenderer(context.native);
+
+		dispose = applyFeatures(PLUGIN_NAME, [() => android.dispose]);
+
+		return;
+	}
+
+	if (
 		!ensureClasses(PLUGIN_NAME, context.native.objc, [
 			messageTextViewClass(context.native.objc),
 			'DCDMessageTableViewCell',

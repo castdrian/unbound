@@ -1,12 +1,11 @@
+import type { SpanRange } from '@unbound-plugins/shared/native/android/spans';
+
 import { type Mention, selectMentionLabel } from '~/mentions';
 
 export const IMAGE_CHARACTER = '￼';
 export const IMAGE_PADDING = ' ';
 
-export type SpanRange = {
-	start: number;
-	end: number;
-};
+export type { SpanRange } from '@unbound-plugins/shared/native/android/spans';
 
 export type Placement = {
 	mention: Mention;

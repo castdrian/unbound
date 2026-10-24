@@ -9,12 +9,12 @@ import {
 	decodeBitmap,
 	inlineDrawable,
 } from '@unbound-plugins/shared/native/android/images';
+import { readViewText, spansOf } from '@unbound-plugins/shared/native/android/spans';
 import {
 	javaInt,
 	javaNumber,
 	javaReference,
 	javaString,
-	javaText,
 } from '@unbound-plugins/shared/native/android/java-values';
 
 import { planPlacements, type Placement, type SpanRange } from '~/android/placements';
@@ -59,39 +59,11 @@ export function createAndroidRenderer(
 	index: MentionIndex,
 	showAtSymbol: () => boolean,
 ) {
-	const ArrayReflection = java.getClass('java.lang.reflect.Array');
 	const images = new Map<string, ImageEntry>();
 	const views = new Map<string, NativeJavaReference>();
 	const pending = new Set<string>();
 	let imageSize = 0;
 	let disposed = false;
-
-	function spansOf(text: NativeJavaReference, length: number, className: string) {
-		const spans = javaReference(
-			java.invoke(text, 'getSpans', [javaInt(0), javaInt(length), java.getClass(className)]),
-		);
-		const count = spans
-			? (javaNumber(java.invoke(ArrayReflection, 'getLength', [spans])) ?? 0)
-			: 0;
-		const result: NativeJavaReference[] = [];
-
-		for (let position = 0; spans && position < count; position++) {
-			const span = javaReference(
-				java.invoke(ArrayReflection, 'get', [spans, javaInt(position)]),
-			);
-
-			if (span) result.push(span);
-		}
-
-		return result;
-	}
-
-	function rangeOf(text: NativeJavaReference, span: NativeJavaReference): SpanRange {
-		return {
-			start: javaNumber(java.invoke(text, 'getSpanStart', [span])) ?? -1,
-			end: javaNumber(java.invoke(text, 'getSpanEnd', [span])) ?? -1,
-		};
-	}
 
 	function sizeFor(view: NativeJavaReference, resources: NativeJavaReference): number {
 		if (imageSize > 0) return imageSize;
@@ -145,16 +117,9 @@ export function createAndroidRenderer(
 		const length = javaNumber(java.invoke(builder, 'length')) ?? 0;
 
 		return [BACKGROUND_SPAN, TAPPABLE_SPAN].flatMap((className) =>
-			spansOf(builder, length, className)
-				.filter((span) => {
-					const current = rangeOf(builder, span);
-
-					return current.start <= range.start && current.end >= range.end;
-				})
-				.map((span) => ({
-					span,
-					flags: javaNumber(java.invoke(builder, 'getSpanFlags', [span])) ?? 0,
-				})),
+			spansOf(java, builder, length, className).filter(
+				(hit) => hit.start <= range.start && hit.end >= range.end,
+			),
 		);
 	}
 
@@ -199,10 +164,11 @@ export function createAndroidRenderer(
 	}
 
 	function render(view: NativeJavaReference) {
-		const text = javaReference(java.invoke(view, 'getText'));
-		const string = text ? javaText(java.invoke(text, 'toString')) : undefined;
+		const content = readViewText(java, view);
 
-		if (!text || !string?.includes('@')) return;
+		if (!content?.string.includes('@')) return;
+
+		const { text, string } = content;
 
 		index.hydrateChannel();
 
@@ -210,9 +176,7 @@ export function createAndroidRenderer(
 
 		if (!mentions.length) return;
 
-		const tappable = spansOf(text, string.length, TAPPABLE_SPAN).map((span) =>
-			rangeOf(text, span),
-		);
+		const tappable = spansOf(java, text, string.length, TAPPABLE_SPAN);
 		const placements = planPlacements(string, tappable, mentions, showAtSymbol());
 
 		if (!placements.length) return;

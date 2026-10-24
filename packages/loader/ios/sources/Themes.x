@@ -11,7 +11,7 @@
 static NSMutableDictionary<NSString *, NSValue *> *originalRawImplementations;
 static NSMutableArray                             *themes         = nil;
 static NSString                                   *currentThemeId = nil;
-static __weak DCDTheme                            *currentDiscordTheme;
+static __weak DCDThemeModule                      *currentDiscordTheme;
 static NSString                                   *lastDiscordThemeId = nil;
 static BOOL                                        semanticColorsSwizzled = NO;
 static BOOL                                        refreshingDiscordTheme = NO;
@@ -79,7 +79,7 @@ static BOOL                                        customThemeActive = NO;
 
 + (void)refreshDiscordTheme
 {
-    DCDTheme *theme = currentDiscordTheme;
+    DCDThemeModule *theme = currentDiscordTheme;
     if (!theme || lastDiscordThemeId.length == 0)
     {
         return;
@@ -348,7 +348,7 @@ static BOOL                                        customThemeActive = NO;
 }
 @end
 
-%hook DCDTheme
+%hook DCDThemeModule
 - (void)updateTheme:(id)theme
 {
     if (![theme isKindOfClass:[NSString class]])

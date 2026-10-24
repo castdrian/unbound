@@ -1,6 +1,7 @@
 #include "LoaderPipeline.h"
 
 #include <cassert>
+#include <chrono>
 #include <filesystem>
 #include <string>
 #include <unistd.h>
@@ -74,6 +75,7 @@ int main()
 
     pipeline.prepare();
     assert(host->addonPreparations == 1);
+    assert(!pipeline.waitForPreparedBundle(std::chrono::milliseconds(1)));
 
     pipeline.prepare();
     pipeline.prepare();
@@ -82,6 +84,7 @@ int main()
     settings.set("unbound", "loader.enabled", false);
     pipeline.prepare();
     assert(host->addonPreparations == 3);
+    assert(!pipeline.waitForPreparedBundle(std::chrono::milliseconds(1)));
 
     std::filesystem::remove_all(root);
     return 0;

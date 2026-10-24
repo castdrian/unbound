@@ -86,6 +86,16 @@ static jboolean nativeInstallMetroModuleCapture(JNIEnv *, jclass, jlong runtimeP
     loader::log(installed ? loader::LogLevel::Info : loader::LogLevel::Error, "runtime",
                 installed ? "Metro module capture installed before Discord bundle."
                           : "Metro module capture could not be installed.");
+
+    bool gated = loader::installRunApplicationGate(*runtime, [](facebook::jsi::Runtime &rt) {
+        if (auto loader = currentLoader())
+        {
+            loader->executeBundleNow(rt);
+        }
+    });
+    loader::log(gated ? loader::LogLevel::Info : loader::LogLevel::Error, "runtime",
+                gated ? "Unbound will run before Discord's first surface starts."
+                      : "The run-application gate could not be installed.");
     return installed ? JNI_TRUE : JNI_FALSE;
 }
 

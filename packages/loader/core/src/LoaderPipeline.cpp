@@ -208,34 +208,79 @@ namespace loader
                 return;
             }
 
-            if (!updater_.markBundleAttempted(pending->path))
-            {
-                log(LogLevel::Error, "default", "Bundle validation marker could not be saved.");
-                return;
-            }
-
-            global.setProperty(runtime, "__loaderBundleInstalled", jsi::Value(true));
-            injectPreBundle(runtime);
-
-            log(LogLevel::Info, "default", "Attempting to execute bundle...");
-            if (evaluateScript(runtime, pending->bundle, "unbound"))
-            {
-                if (!updater_.acceptBundle(pending->path))
-                {
-                    log(LogLevel::Error, "default", "Validated bundle could not be promoted.");
-                }
-                log(LogLevel::Info, "default", "Unbound's bundle was successfully executed.");
-                if (token == prefetchToken_.load())
-                {
-                    bundleReady_.store(true);
-                    host_->onBundleExecuted();
-                }
-            }
-            else
-            {
-                global.setProperty(runtime, "__loaderBundleInstalled", jsi::Value(false));
-                updater_.rejectBundle(pending->path);
-            }
+            evaluatePending(runtime, pending, token);
         });
+    }
+
+    std::shared_ptr<LoaderPipeline::PendingBundle> LoaderPipeline::currentPending()
+    {
+        std::lock_guard<std::mutex> lock(pendingMutex_);
+        return pending_;
+    }
+
+    bool LoaderPipeline::waitForPreparedBundle(std::chrono::milliseconds wait)
+    {
+        std::shared_ptr<PendingBundle> pending = currentPending();
+        if (!pending)
+        {
+            return false;
+        }
+
+        std::unique_lock<std::mutex> lock(pending->mutex);
+        return pending->ready.wait_for(lock, wait, [&] { return pending->settled; }) &&
+               !pending->bundle.empty();
+    }
+
+    bool LoaderPipeline::executeNow(jsi::Runtime &runtime, std::chrono::milliseconds wait)
+    {
+        jsi::Value installed = runtime.global().getProperty(runtime, "__loaderBundleInstalled");
+        if (installed.isBool() && installed.getBool())
+        {
+            return true;
+        }
+
+        if (!waitForPreparedBundle(wait) || !runtimeHasRequiredModules(runtime))
+        {
+            return false;
+        }
+
+        log(LogLevel::Info, "default", "Executing Unbound's bundle before the app starts...");
+        return evaluatePending(runtime, currentPending(), prefetchToken_.load());
+    }
+
+    bool LoaderPipeline::evaluatePending(jsi::Runtime &runtime,
+                                         const std::shared_ptr<PendingBundle> &pending,
+                                         uint64_t token)
+    {
+        jsi::Object global = runtime.global();
+
+        if (!updater_.markBundleAttempted(pending->path))
+        {
+            log(LogLevel::Error, "default", "Bundle validation marker could not be saved.");
+            return false;
+        }
+
+        global.setProperty(runtime, "__loaderBundleInstalled", jsi::Value(true));
+        injectPreBundle(runtime);
+
+        log(LogLevel::Info, "default", "Attempting to execute bundle...");
+        if (!evaluateScript(runtime, pending->bundle, "unbound"))
+        {
+            global.setProperty(runtime, "__loaderBundleInstalled", jsi::Value(false));
+            updater_.rejectBundle(pending->path);
+            return false;
+        }
+
+        if (!updater_.acceptBundle(pending->path))
+        {
+            log(LogLevel::Error, "default", "Validated bundle could not be promoted.");
+        }
+        log(LogLevel::Info, "default", "Unbound's bundle was successfully executed.");
+        if (token == prefetchToken_.load())
+        {
+            bundleReady_.store(true);
+            host_->onBundleExecuted();
+        }
+        return true;
     }
 }

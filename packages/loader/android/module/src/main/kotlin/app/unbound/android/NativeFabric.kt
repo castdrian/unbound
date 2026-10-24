@@ -117,7 +117,11 @@ object NativeFabric {
             return root
         }
 
-        val container = NativeUI.viewForHandle(containerHandleJSON)
+        val container = if (NativeJava.isJavaHandle(containerHandleJSON)) {
+            NativeJava.objectForHandle(containerHandleJSON)
+        } else {
+            NativeUI.viewForHandle(containerHandleJSON)
+        }
         require(container is ViewGroup) { "A React surface container cannot contain child views" }
 
         return container

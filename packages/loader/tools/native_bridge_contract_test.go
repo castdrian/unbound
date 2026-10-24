@@ -333,10 +333,17 @@ func TestNativeBridgeSafetyGuards(t *testing.T) {
 	if strings.Contains(string(bridge), "result = invokeObject(runtime, target, selector, arguments)") {
 		t.Fatal("Objective-C invocation still creates JSI values on the main thread")
 	}
-	for _, required := range []string{"Bundle preparation timed out.", "if (!gLoaderPrepared.exchange(true))"} {
+	for _, required := range []string{"!gLoaderPrepared.exchange(true)", "pipeline().prepare()", "pipeline().enqueueBundle()"} {
 		if !strings.Contains(string(loader), required) {
 			t.Fatalf("loader lifecycle guard %q is missing", required)
 		}
+	}
+	corePipeline, err := os.ReadFile(filepath.Join(root, "core", "src", "LoaderPipeline.cpp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(corePipeline), "Bundle preparation timed out.") {
+		t.Fatal("the shared loader pipeline no longer bounds bundle preparation")
 	}
 	if strings.Contains(string(bridge), "dispatch_sync(dispatch_get_main_queue()") {
 		t.Fatal("native bridge still uses an unbounded synchronous main-thread dispatch")

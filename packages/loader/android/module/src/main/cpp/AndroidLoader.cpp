@@ -51,7 +51,7 @@ namespace unbound::android
                    const std::map<std::string, std::string> &headers) {
                 return download(url, destination, headers);
             });
-        pipeline_ = std::make_unique<loader::LoaderPipeline>(shared_from_this(), settings_, *updater_);
+        pipeline_ = std::make_unique<loader::LoaderPipeline>(shared_from_this(), loader::updaterSettings(settings_), *updater_);
     }
 
     static std::optional<loader::toolbox::AddonKind> addonKind(const std::string &name)

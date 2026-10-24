@@ -88,27 +88,6 @@ static LogLevel iosLogLevel(loader::LogLevel level)
     return mutableArrayFromJSON(loader::scanFonts(toStdString(documents), resolveName));
 }
 
-+ (NSData *)preloadScriptWithSettings:(NSString *)settings
-                              plugins:(NSString *)plugins
-                               themes:(NSString *)themes
-                                fonts:(NSString *)fonts
-                       availableFonts:(NSString *)availableFonts
-                               origin:(NSString *)origin
-                              version:(NSString *)version
-{
-    loader::PreloadPayload payload;
-    payload.settings       = toStdString(settings);
-    payload.plugins        = toStdString(plugins);
-    payload.themes         = toStdString(themes);
-    payload.fonts          = toStdString(fonts);
-    payload.availableFonts = toStdString(availableFonts);
-    payload.origin         = toStdString(origin);
-    payload.version        = toStdString(version);
-
-    std::string script = loader::buildPreloadScript(payload);
-    return [NSData dataWithBytes:script.data() length:script.size()];
-}
-
 + (BOOL)wipeAddonsNamed:(NSString *)kind in:(NSString *)documents
 {
     for (auto candidate : {loader::toolbox::AddonKind::Plugins, loader::toolbox::AddonKind::Themes,

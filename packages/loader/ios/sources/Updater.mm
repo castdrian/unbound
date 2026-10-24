@@ -3,6 +3,7 @@
 #include <streambuf>
 
 #import "Updater.h"
+#import "UpdaterCore.h"
 
 #include "LoaderUpdater.h"
 
@@ -128,6 +129,21 @@ static std::optional<std::string> optionalUpdateURL()
 {
     NSString *updateURL = [Updater resolveUpdateURL];
     return updateURL ? std::optional<std::string>(toStdString(updateURL)) : std::nullopt;
+}
+
+loader::BundleUpdater &UnboundBundleUpdater()
+{
+    return bundleUpdater();
+}
+
+loader::UpdaterSettings UnboundUpdaterSettings()
+{
+    return iosUpdaterSettings();
+}
+
+std::optional<std::string> UnboundUpdateURL()
+{
+    return optionalUpdateURL();
 }
 
 @implementation Updater

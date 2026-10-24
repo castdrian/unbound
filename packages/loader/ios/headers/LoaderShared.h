@@ -7,9 +7,3 @@
 #import "Fonts.h"
 #import "Utilities.h"
 #import "CoreBridge.h"
-
-@interface LoaderShared : NSObject
-
-+ (NSData *)buildPreloadScriptData;
-
-@end

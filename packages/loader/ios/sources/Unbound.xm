@@ -4,11 +4,13 @@
 #import "HotReload.h"
 #import "JSI.h"
 #import "LoaderJSI.h"
+#import "LoaderPipeline.h"
 #import "LoaderShared.h"
 #import "NativePluginBridge.h"
 #import "RCTHost.h"
 #import "Unbound.h"
 #import "NativePlatform.h"
+#import "UpdaterCore.h"
 
 #import <substrate.h>
 
@@ -30,7 +32,6 @@ static BOOL      gBrowserLoginIsApplying    = NO;
 static BOOL      gBundleIsReady             = NO;
 static NSUInteger gBrowserLoginFailureCount = 0;
 static std::atomic_bool gLoaderPrepared{false};
-static std::atomic_bool gBundleExecutionScheduled{false};
 
 static void applyPendingBrowserLogin(void)
 {
@@ -101,36 +102,114 @@ void CompleteBrowserLogin(NSString *token)
     applyPendingBrowserLogin();
 }
 
-static void injectPreBundle(jsi::Runtime &runtime)
+static NSString *nsString(const std::string &value)
 {
-    loader::setNativePluginRuntimeExecutor(gInstance);
-    loader::registerNativePluginBridge(runtime);
-    loader::registerNativePlatform(runtime);
+    return [NSString stringWithUTF8String:value.c_str()] ?: @"";
+}
 
-    if ([Settings getBoolean:@"unbound" key:@"loader.devtools" def:NO])
+static std::string stdString(NSString *value)
+{
+    const char *utf8 = value.UTF8String;
+    return utf8 ? std::string(utf8) : std::string();
+}
+
+class IOSLoaderHost final : public loader::LoaderHost
+{
+public:
+    void runOnRuntime(std::function<void(jsi::Runtime &)> work) override
     {
-        NSData *devtools = [Utilities getResource:@"devtools" data:true ext:@"js"];
-        if (devtools.length)
+        id instance = gInstance;
+        if (instance)
         {
-            [Logger info:LOG_CATEGORY_DEFAULT format:@"Executing DevTools bundle..."];
-            [JSI evaluate:devtools tag:@"unbound:devtools" runtime:runtime];
+            [instance callFunctionOnBufferedRuntimeExecutor:std::move(work)];
         }
     }
 
+    void runAfter(double seconds, std::function<void()> work) override
     {
-        NSData *preloadData = [LoaderShared buildPreloadScriptData];
-        [Logger info:LOG_CATEGORY_DEFAULT
-              format:@"Pre-loading settings, plugins, fonts and themes..."];
-        [JSI evaluate:preloadData tag:@"unbound:preload" runtime:runtime];
+        auto task = std::make_shared<std::function<void()>>(std::move(work));
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t) (seconds * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{ (*task)(); });
     }
+
+    void runInBackground(std::function<void()> work) override
+    {
+        auto task = std::make_shared<std::function<void()>>(std::move(work));
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ (*task)(); });
+    }
+
+    std::optional<std::string> resource(const std::string &name) override
+    {
+        NSData *data = [Utilities getResource:nsString(name) data:true ext:@"js"];
+        if (data.length == 0)
+        {
+            return std::nullopt;
+        }
+        return std::string(static_cast<const char *>(data.bytes), data.length);
+    }
+
+    std::optional<std::string> resolveUpdateURL() override
+    {
+        return UnboundUpdateURL();
+    }
+
+    uint32_t runtimeBytecodeVersion() override
+    {
+        return [Utilities getHermesBytecodeVersion];
+    }
+
+    loader::PreloadPayload preloadPayload() override
+    {
+        loader::PreloadPayload payload;
+        payload.settings       = stdString([Settings getSettings]);
+        payload.plugins        = stdString([Plugins makeJSON]);
+        payload.themes         = stdString([Themes makeJSON]);
+        payload.fonts          = stdString([Fonts makeJSON]);
+        payload.availableFonts = stdString([Fonts makeAvailableJSON]);
+        payload.origin         = stdString([Utilities getCurrentDylibName]);
+        payload.version        = stdString(PACKAGE_VERSION);
+        return payload;
+    }
+
+    void installNativeModules(jsi::Runtime &runtime) override
+    {
+        loader::setNativePluginRuntimeExecutor(gInstance);
+        loader::registerNativePluginBridge(runtime);
+        loader::registerNativePlatform(runtime);
+    }
+
+    void onAddonsPrepared() override
+    {
+        [Plugins init];
+        [Themes init];
+        [Fonts init];
+    }
+
+    void onBundleExecuted() override
+    {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            gBundleIsReady = YES;
+            applyPendingBrowserLogin();
+        });
+    }
+
+    void alert(const std::string &message) override
+    {
+        NSString *text = nsString(message);
+        dispatch_async(dispatch_get_main_queue(), ^{ [Utilities alert:text]; });
+    }
+};
+
+static loader::LoaderPipeline &pipeline(void)
+{
+    static loader::LoaderPipeline *shared = nullptr;
+    static dispatch_once_t         onceToken;
+    dispatch_once(&onceToken, ^{
+        shared = new loader::LoaderPipeline(std::make_shared<IOSLoaderHost>(), UnboundUpdaterSettings(),
+                                            UnboundBundleUpdater());
+    });
+    return *shared;
 }
-
-static NSData              *gBundle    = nil;
-static NSString            *gBundlePath = nil;
-static dispatch_semaphore_t gBundleSem = nil;
-static std::atomic_uint64_t gPrefetchToken{0};
-
-static void prefetchBundle(void);
 
 static void prepareLoading(id instance)
 {
@@ -139,200 +218,21 @@ static void prepareLoading(id instance)
         return;
     }
 
-    gInstance = instance;
+    gInstance      = instance;
     gBundleIsReady = NO;
-    gBundleExecutionScheduled.store(false);
     dispatch_async(dispatch_get_main_queue(), ^{ [DevOverlay refreshOverlay]; });
 
-    if (![Settings getBoolean:@"unbound" key:@"loader.enabled" def:YES])
-    {
-        gPrefetchToken.fetch_add(1);
-        gBundle = nil;
-        gBundlePath = nil;
-        gBundleSem = nil;
-        [Logger info:LOG_CATEGORY_DEFAULT format:@"Loader is disabled. Aborting."];
-        return;
-    }
-
-    [Plugins init];
-    [Themes init];
-    [Fonts init];
-
-    if (!gLoaderPrepared.exchange(true))
+    if ([Settings getBoolean:@"unbound" key:@"loader.enabled" def:YES] && !gLoaderPrepared.exchange(true))
     {
         [HotReload observe];
     }
-    prefetchBundle();
+    pipeline().prepare();
 }
 
-static void prefetchBundle(void)
+static void enqueueBundle(id instance)
 {
-    uint64_t token = gPrefetchToken.fetch_add(1) + 1;
-    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
-
-    gBundle    = nil;
-    gBundlePath = nil;
-    gBundleSem = sem;
-
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        BOOL signaled = NO;
-        @try
-        {
-            NSString *localBundlePath = [Updater resolveBundlePath];
-            if ([FileSystem exists:localBundlePath])
-            {
-                NSData *cachedBundle = [FileSystem readFile:localBundlePath];
-                if (cachedBundle.length && token == gPrefetchToken.load())
-                {
-                    gBundle = cachedBundle;
-                    gBundlePath = localBundlePath;
-                    dispatch_semaphore_signal(sem);
-                    signaled = YES;
-                }
-            }
-
-            NSString *downloadedPath = [Updater downloadBundle:localBundlePath];
-            if (!signaled && [FileSystem exists:downloadedPath] &&
-                token == gPrefetchToken.load())
-            {
-                NSData *downloadedBundle = [FileSystem readFile:downloadedPath];
-                if (downloadedBundle.length)
-                {
-                    gBundle = downloadedBundle;
-                    gBundlePath = downloadedPath;
-                }
-            }
-        }
-        @catch (NSException *e)
-        {
-            [Logger error:LOG_CATEGORY_DEFAULT format:@"Bundle download failed. (%@)", e];
-        }
-        if (!signaled && token == gPrefetchToken.load() && !gBundle)
-        {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [Utilities alert:@"Failed to load Unbound's bundle. Please report "
-                                 @"this to the developers."];
-            });
-        }
-        if (!signaled)
-        {
-            dispatch_semaphore_signal(sem);
-        }
-    });
-}
-
-static void executeBundle(id instance,
-                                 NSData *bundle,
-                                 NSString *bundlePath,
-                                 uint64_t token,
-                                 NSUInteger attempt)
-{
-    if (!instance || bundle.length == 0 || token != gPrefetchToken.load())
-    {
-        return;
-    }
-
-    [instance callFunctionOnBufferedRuntimeExecutor:[bundle, bundlePath, token, attempt](jsi::Runtime &runtime) {
-        jsi::Object global = runtime.global();
-        jsi::Value installed = global.getProperty(runtime, "__loaderBundleInstalled");
-        if (installed.isBool() && installed.getBool())
-        {
-            return;
-        }
-        if (!loader::runtimeHasRequiredModules(runtime))
-        {
-            if (attempt >= 200)
-            {
-                [Logger error:LOG_CATEGORY_DEFAULT
-                       format:@"React Native modules were not ready after %lu attempts.",
-                              (unsigned long)attempt];
-                return;
-            }
-
-            if (attempt == 0)
-            {
-                std::string diagnostic = loader::runtimeModuleDiagnostics(runtime);
-                [Logger info:LOG_CATEGORY_DEFAULT
-                      format:@"React Native module readiness state: %s.", diagnostic.c_str()];
-            }
-
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.1 * NSEC_PER_SEC),
-                           dispatch_get_main_queue(), ^{
-                               executeBundle(gInstance, bundle, bundlePath, token, attempt + 1);
-                           });
-            return;
-        }
-
-        if (![Updater markBundleAttempted:bundlePath])
-        {
-            [Logger error:LOG_CATEGORY_DEFAULT format:@"Bundle validation marker could not be saved."];
-            return;
-        }
-        global.setProperty(runtime, "__loaderBundleInstalled", jsi::Value(true));
-        injectPreBundle(runtime);
-        [Logger info:LOG_CATEGORY_DEFAULT format:@"Attempting to execute bundle..."];
-        BOOL didLoadBundle = [JSI evaluate:bundle tag:@"unbound" runtime:runtime];
-        if (didLoadBundle)
-        {
-            if (![Updater acceptBundle:bundlePath])
-            {
-                [Logger error:LOG_CATEGORY_DEFAULT format:@"Validated bundle could not be promoted."];
-            }
-            [Logger info:LOG_CATEGORY_DEFAULT
-                  format:@"Unbound's bundle was successfully executed."];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (token != gPrefetchToken.load())
-                {
-                    return;
-                }
-                gBundleIsReady = YES;
-                applyPendingBrowserLogin();
-            });
-        }
-        else
-        {
-            global.setProperty(runtime, "__loaderBundleInstalled", jsi::Value(false));
-            [Updater rejectBundle:bundlePath];
-        }
-    }];
-}
-
-static void enqueueBundle(id self)
-{
-    if (gBundleExecutionScheduled.exchange(true))
-    {
-        return;
-    }
-
-    dispatch_semaphore_t sem = gBundleSem;
-    uint64_t              token = gPrefetchToken.load();
-
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        if (sem)
-        {
-            if (dispatch_semaphore_wait(sem,
-                                        dispatch_time(DISPATCH_TIME_NOW, 40 * NSEC_PER_SEC)) != 0)
-            {
-                [Logger error:LOG_CATEGORY_DEFAULT format:@"Bundle preparation timed out."];
-                return;
-            }
-        }
-
-        if (token != gPrefetchToken.load())
-        {
-            return;
-        }
-
-        NSData *bundle = gBundle;
-        NSString *bundlePath = gBundlePath;
-        if (bundle.length == 0)
-        {
-            return;
-        }
-
-        [Logger info:LOG_CATEGORY_DEFAULT format:@"Scheduling Unbound's bundle for execution..."];
-        executeBundle(self, bundle, bundlePath, token, 0);
-    });
+    gInstance = instance;
+    pipeline().enqueueBundle();
 }
 
 #pragma mark - Hooks

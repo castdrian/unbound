@@ -14,9 +14,9 @@ namespace loader
     static constexpr double   kReadinessRetryDelay      = 0.1;
     static constexpr auto     kBundlePreparationTimeout = std::chrono::seconds(40);
 
-    LoaderPipeline::LoaderPipeline(std::shared_ptr<LoaderHost> host, SettingsStore &settings,
+    LoaderPipeline::LoaderPipeline(std::shared_ptr<LoaderHost> host, UpdaterSettings settings,
                                    BundleUpdater &updater)
-        : host_(std::move(host)), settings_(settings), updater_(updater)
+        : host_(std::move(host)), settings_(std::move(settings)), updater_(updater)
     {
     }
 
@@ -30,7 +30,7 @@ namespace loader
         bundleReady_.store(false);
         executionScheduled_.store(false);
 
-        if (!settings_.getBoolean("unbound", "loader.enabled", true))
+        if (!settings_.getBoolean("loader.enabled", true))
         {
             prefetchToken_.fetch_add(1);
             std::lock_guard<std::mutex> lock(pendingMutex_);
@@ -117,7 +117,7 @@ namespace loader
     {
         host_->installNativeModules(runtime);
 
-        if (settings_.getBoolean("unbound", "loader.devtools", false))
+        if (settings_.getBoolean("loader.devtools", false))
         {
             std::optional<std::string> devtools = host_->resource("devtools");
             if (devtools && !devtools->empty())

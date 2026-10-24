@@ -11,6 +11,7 @@ import {
 	createHost,
 	hostContainer,
 	layoutHostingList,
+	hostHasContent,
 	placeHost,
 	removeHost,
 	reservedPosition,
@@ -259,6 +260,16 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 			{ x: container.offset.x + position.x, y: container.offset.y + position.y },
 			{ width: embed.width * embed.density, height: embed.height * embed.density },
 		);
+
+		if (embed.mounting && !embed.disposed) {
+			const mounted = await embed.mounting.catch(() => null);
+
+			if (!hostHasContent(java, embed.host)) {
+				embed.mounting = null;
+
+				if (mounted) await fabric.unmountAsync(mounted).catch(() => undefined);
+			}
+		}
 
 		if (!embed.mounting && !embed.disposed) {
 			embed.mounting = fabric.mountAsync(embed.host, surfaceModule!, {

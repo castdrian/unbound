@@ -11,6 +11,7 @@ import {
 	createHost,
 	hostContainer,
 	layoutHostingList,
+	hostHasContent,
 	placeHost,
 	removeHost,
 	reservedTop,
@@ -246,6 +247,16 @@ export function createAndroidCards({ java, hooks, fabric }: Native) {
 			{ width: card.width * entry.density, height },
 		);
 
+		if (card.mounting && !card.disposed) {
+			const mounted = await card.mounting.catch(() => null);
+
+			if (!hostHasContent(java, card.host)) {
+				card.mounting = null;
+
+				if (mounted) await fabric.unmountAsync(mounted).catch(() => undefined);
+			}
+		}
+
 		if (!card.mounting && !card.disposed) {
 			card.mounting = fabric.mountAsync(card.host, surfaceModule!, { surfaceId: card.id });
 			await card.mounting.catch((error: unknown) => {
@@ -292,7 +303,11 @@ export function createAndroidCards({ java, hooks, fabric }: Native) {
 
 		const existing = views.get(key);
 
-		if (existing?.renderedText === content.string) return;
+		if (existing?.renderedText === content.string) {
+			settle(existing);
+
+			return;
+		}
 
 		const hits = spansOf(java, content.text, content.string.length, BLOCK_BACKGROUND_SPAN);
 		const slots = codeSlots(content.string, hits).filter(

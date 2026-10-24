@@ -54,6 +54,8 @@ class Unbound : XposedModule() {
             .onFailure { Logger.error("themes", "Failed to apply the theme", it) }
         runCatching { Recovery.install(this) }
             .onFailure { Logger.error("default", "Failed to install the Safe Mode shortcut", it) }
+        runCatching { Toolbox.install(this) }
+            .onFailure { Logger.error("default", "Failed to install the toolbox gestures", it) }
     }
 
     private fun installHookBridge() {
@@ -92,7 +94,12 @@ class Unbound : XposedModule() {
             .setExceptionMode(ExceptionMode.PROTECTIVE)
             .intercept { chain ->
                 val result = chain.proceed()
-                ActivityTracker.onActivityResumed(chain.thisObject as Activity)
+                val activity = chain.thisObject as Activity
+                ActivityTracker.onActivityResumed(activity)
+                runCatching {
+                    Toolbox.onResumed(activity)
+                    DevOverlay.onResumed(activity)
+                }.onFailure { Logger.error("default", "Failed to attach the toolbox", it) }
                 result
             }
 
@@ -101,7 +108,9 @@ class Unbound : XposedModule() {
             .setExceptionMode(ExceptionMode.PROTECTIVE)
             .intercept { chain ->
                 val result = chain.proceed()
-                ActivityTracker.onActivityPaused(chain.thisObject as Activity)
+                val activity = chain.thisObject as Activity
+                ActivityTracker.onActivityPaused(activity)
+                runCatching { Toolbox.onPaused(activity) }
                 result
             }
     }

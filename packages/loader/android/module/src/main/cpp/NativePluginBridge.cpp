@@ -1,6 +1,7 @@
 #include "NativePluginBridge.h"
 
 #include "JniEnvironment.h"
+#include "NativeFFI.h"
 #include "NativePlatformBridge.h"
 #include "NativePluginVersion.h"
 
@@ -1130,6 +1131,7 @@ namespace unbound::android
             "native.java.hooks",     "native.java.batch",     "native.java.associations",
             "native.debug.evaluations", "native.debug.environment",
             "native.fabric.mount",   "native.fabric.async",
+            "native.ffi.symbols",    "native.ffi.call",
         };
         jsi::Array capabilities(runtime, std::size(capabilityNames));
         for (size_t index = 0; index < std::size(capabilityNames); index++)
@@ -1439,6 +1441,23 @@ namespace unbound::android
                     });
                 }));
         bridge.setProperty(runtime, "java", std::move(java));
+
+        jsi::Object ffi(runtime);
+        ffi.setProperty(runtime, "symbol",
+                        loader::native::makeFunction(
+                            runtime, "symbol", 2,
+                            [](jsi::Runtime &rt, const jsi::Value &, const jsi::Value *args,
+                               size_t count) -> jsi::Value {
+                                return guardJava(rt, [&] { return loader::ffi::lookupSymbol(rt, args, count); });
+                            }));
+        ffi.setProperty(runtime, "call",
+                        loader::native::makeFunction(
+                            runtime, "call", 3,
+                            [](jsi::Runtime &rt, const jsi::Value &, const jsi::Value *args,
+                               size_t count) -> jsi::Value {
+                                return guardJava(rt, [&] { return loader::ffi::callFunction(rt, args, count); });
+                            }));
+        bridge.setProperty(runtime, "ffi", std::move(ffi));
 
         jsi::Object hooks(runtime);
         hooks.setProperty(

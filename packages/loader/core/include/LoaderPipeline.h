@@ -12,7 +12,6 @@
 #include <jsi/jsi.h>
 
 #include "LoaderPreload.h"
-#include "LoaderSettings.h"
 #include "LoaderUpdater.h"
 
 namespace loader
@@ -40,8 +39,7 @@ namespace loader
     class LoaderPipeline
     {
     public:
-        LoaderPipeline(std::shared_ptr<LoaderHost> host, SettingsStore &settings,
-                       BundleUpdater &updater);
+        LoaderPipeline(std::shared_ptr<LoaderHost> host, UpdaterSettings settings, BundleUpdater &updater);
 
         void prepare();
         void enqueueBundle();
@@ -68,7 +66,7 @@ namespace loader
         void injectPreBundle(facebook::jsi::Runtime &runtime);
 
         std::shared_ptr<LoaderHost>    host_;
-        SettingsStore                 &settings_;
+        UpdaterSettings                settings_;
         BundleUpdater                 &updater_;
         std::shared_ptr<PendingBundle> pending_;
         std::mutex                     pendingMutex_;

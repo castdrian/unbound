@@ -71,7 +71,7 @@ int main()
         });
 
     auto host = std::make_shared<CountingHost>();
-    loader::LoaderPipeline pipeline(host, settings, updater);
+    loader::LoaderPipeline pipeline(host, loader::updaterSettings(settings), updater);
 
     pipeline.prepare();
     assert(host->addonPreparations == 1);

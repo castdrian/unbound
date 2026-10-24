@@ -74,6 +74,17 @@ class NativeFabricTest {
     }
 
     @Test
+    fun mountAcceptsAJavaViewHandleAsTheContainer() {
+        val container = FrameLayout(activity)
+        val containerHandle = NativeJava.handleFor(container)
+
+        NativeFabric.mount(containerHandle, "MyComponent", "{}")
+
+        assertEquals(1, container.childCount)
+        assertEquals(host.surfaces.single().view(), container.getChildAt(0))
+    }
+
+    @Test
     fun mountStartsTheSurfaceAndAttachesItsView() {
         val handle = NativeFabric.mount("{}", "MyComponent", """{"title":"hello"}""")
 

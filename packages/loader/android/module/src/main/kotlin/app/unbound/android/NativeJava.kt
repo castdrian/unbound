@@ -458,6 +458,20 @@ object NativeJava {
         else -> tagged("handle", handle(result))
     }
 
+    fun handleFor(target: Any): String = JSONObject().put("id", handle(target)).toString()
+
+    fun isJavaHandle(handleJSON: String): Boolean = runCatching {
+        val value = JSONObject(handleJSON)
+        val id = value.optString("id").ifEmpty { value.optString("value") }
+        id.startsWith("java-")
+    }.getOrDefault(false)
+
+    fun objectForHandle(handleJSON: String): Any {
+        val value = JSONObject(handleJSON)
+        val id = value.optString("id").ifEmpty { value.optString("value") }
+        return resolve(boundedHandle(id.trim()))
+    }
+
     private fun tagged(type: String, value: Any): String =
         JSONObject().put("type", type).put("value", value).toString()
 

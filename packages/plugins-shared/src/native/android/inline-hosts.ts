@@ -319,6 +319,16 @@ export async function layoutHostingList(
 }
 
 /**
+ * @description Tells whether a host view still holds the surface mounted into it. Discord can drop that surface while recycling a message row, which leaves the host empty.
+ * @param java The plugin's Java bridge.
+ * @param host The host view.
+ * @returns Whether the host has at least one child view.
+ */
+export function hostHasContent(java: InlineHostBridge, host: NativeJavaReference): boolean {
+	return (javaNumber(java.invoke(host, 'getChildCount', [])) ?? 0) > 0;
+}
+
+/**
  * @description Takes a host view out of whatever holds it.
  * @param java The plugin's Java bridge.
  * @param host The host view.
@@ -333,6 +343,7 @@ export async function removeHost(java: InlineHostBridge, host: NativeJavaReferen
 }
 
 export default {
+	hostHasContent,
 	createHost,
 	hostContainer,
 	layoutHostingList,

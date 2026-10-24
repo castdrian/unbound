@@ -41,6 +41,8 @@ export const NATIVE_PLUGIN_PLATFORM_CAPABILITIES = {
 		'native.java.construct',
 		'native.java.fields',
 		'native.java.invoke',
+		'native.fabric.async',
+		'native.fabric.mount',
 		'native.java.associations',
 		'native.java.batch',
 		'native.java.hooks',
@@ -495,6 +497,21 @@ export type NativeJavaBridge = {
 	getField(handle: NativeJavaHandle, name: string): NativeJavaValue;
 	setField(handle: NativeJavaHandle, name: string, value: NativeJavaValue): void;
 	release(handle: NativeJavaHandle): void;
+};
+
+export type NativeAndroidSurfaceBridge = {
+	mount(
+		container: NativeUIHandle | Record<string, never>,
+		moduleName: string,
+		properties?: NativeSerializableObject,
+	): NativeCancelablePromise<NativeFabricSurface>;
+	update(
+		surface: NativeFabricSurface,
+		properties: NativeSerializableObject,
+	): NativeCancelablePromise<void>;
+	unmount(surface: NativeFabricSurface): NativeCancelablePromise<void>;
+	isRunning(surface: NativeFabricSurface): NativeJavaValue;
+	view(surface: NativeFabricSurface): NativeUIHandle;
 };
 
 export type NativeUIBridge = {

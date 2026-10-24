@@ -542,3 +542,27 @@ func TestLoaderReleasesUseTheirOwnTagNamespace(t *testing.T) {
 		t.Fatal("the release poll must look for loader-v<version> releases")
 	}
 }
+
+func TestPullRequestBuildGrantsWhatTheNestedBuildJobsDeclare(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("could not locate test source")
+	}
+	root := filepath.Dir(filepath.Dir(filename))
+	workflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-ci.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	contents := string(workflow)
+	start := strings.Index(contents, "    build:\n")
+	end := strings.Index(contents, "uses: ./.github/workflows/loader-build.yml")
+	if start < 0 || end <= start {
+		t.Fatal("the pull request build job could not be located")
+	}
+	job := contents[start:end]
+	for _, permission := range []string{"contents: write", "id-token: write", "attestations: write", "artifact-metadata: write"} {
+		if !strings.Contains(job, permission) {
+			t.Fatalf("the pull request build job must grant %q, which the nested build jobs declare", permission)
+		}
+	}
+}

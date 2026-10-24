@@ -43,6 +43,11 @@ jobs:
 
     build:
         name: Build Unbound
+        permissions:
+            contents: write
+            id-token: write
+            attestations: write
+            artifact-metadata: write
         uses: ./.github/workflows/loader-build.yml
         with:
             ipa_url: https://raw.githubusercontent.com/Tulugaak/Discord-205.0-IPA/4eec98e61e20d0720c091d42c4a762710b32e8c5/com.hammerandchisel.discord_861573261.ipa

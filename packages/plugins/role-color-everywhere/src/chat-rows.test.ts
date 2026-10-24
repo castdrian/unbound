@@ -9,6 +9,7 @@ const members = {
 
 		return {
 			userId,
+			colorRoleId: 'role',
 			colorString: '#112233',
 			colorStrings: {
 				primaryColor: '#112233',
@@ -98,6 +99,26 @@ describe('applyChatRoleColors', () => {
 				tertiaryColor: 0x778899,
 			},
 		});
+	});
+
+	test('marks colored mentions with their color role only when asked', () => {
+		const plain = { type: 'mention', userId: 'user' };
+		const marked = { type: 'mention', userId: 'user' };
+		const owned = { type: 'mention', userId: 'user', roleId: 'kept' };
+
+		applyChatRoleColors({ message: { guildId: 'guild', content: [plain] } }, members, {
+			...tinted,
+			chatMentions: true,
+		});
+		applyChatRoleColors({ message: { guildId: 'guild', content: [marked, owned] } }, members, {
+			...tinted,
+			chatMentions: true,
+			roleMentionColors: true,
+		});
+
+		expect(plain).not.toHaveProperty('roleId');
+		expect(marked).toMatchObject({ roleId: 'role', userId: 'user' });
+		expect(owned.roleId).toBe('kept');
 	});
 
 	test('leaves mentions alone when mention coloring is off', () => {

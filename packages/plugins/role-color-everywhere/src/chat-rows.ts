@@ -7,6 +7,7 @@ type Members = Pick<MemberStore, 'getMember'>;
 
 export type ChatColorOptions = {
 	chatMentions: boolean;
+	roleMentionColors?: boolean;
 	colorChatMessages: boolean;
 	messageSaturation: number;
 };
@@ -20,6 +21,7 @@ export type MentionNode = {
 	color?: number;
 	roleColor?: number;
 	roleColors?: Record<string, number>;
+	roleId?: string;
 	colorString?: string;
 };
 
@@ -59,7 +61,12 @@ function memberArgbColors(member: Member | null | undefined): number[] {
 		.filter((value) => value !== null);
 }
 
-function colorMentions(content: unknown, members: Members, defaultGuildId?: string): void {
+function colorMentions(
+	content: unknown,
+	members: Members,
+	defaultGuildId: string | undefined,
+	asRoleMention: boolean,
+): void {
 	if (!Array.isArray(content)) return;
 
 	const pending: unknown[] = [...content];
@@ -78,9 +85,13 @@ function colorMentions(content: unknown, members: Members, defaultGuildId?: stri
 		const guildId = node.guildId ?? defaultGuildId;
 
 		if (node.type === 'mention' && node.userId && guildId) {
-			const [primary, secondary, tertiary] = memberRgbColors(
-				members.getMember(guildId, node.userId),
-			);
+			const member = members.getMember(guildId, node.userId);
+			const [primary, secondary, tertiary] = memberRgbColors(member);
+			const roleId = member?.colorRoleId ?? member?.hoistRoleId;
+
+			if (primary !== undefined && asRoleMention && roleId && !node.roleId) {
+				node.roleId = roleId;
+			}
 
 			if (primary !== undefined) {
 				node.roleColor = primary;
@@ -151,15 +162,19 @@ export function applyChatRoleColors(
 	if (!message) return;
 
 	if (options.chatMentions) {
-		colorMentions(message.content, members, message.guildId);
+		const asRoleMention = options.roleMentionColors ?? false;
+
+		colorMentions(message.content, members, message.guildId, asRoleMention);
 
 		for (const embed of message.embeds ?? []) {
-			colorMentions(embed.description, members, message.guildId);
+			colorMentions(embed.description, members, message.guildId, asRoleMention);
 		}
 
 		const referenced = message.referencedMessage?.message;
 
-		if (referenced) colorMentions(referenced.content, members, referenced.guildId);
+		if (referenced) {
+			colorMentions(referenced.content, members, referenced.guildId, asRoleMention);
+		}
 	}
 
 	tintMessage(message, members, options);

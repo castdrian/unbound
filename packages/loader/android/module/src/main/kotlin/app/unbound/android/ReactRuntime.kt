@@ -2,8 +2,12 @@ package app.unbound.android
 
 import java.lang.ref.WeakReference
 import java.lang.reflect.Method
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 object ReactRuntime {
+    private const val BEFORE_BUNDLE_TIMEOUT_SECONDS = 5L
+
     private val lock = Any()
     private var instance: WeakReference<Any>? = null
     private val pending = ArrayList<(Long) -> Unit>()
@@ -74,9 +78,23 @@ object ReactRuntime {
             return
         }
 
-        runCatching {
-            queueThread.javaClass.findMethod("runOnQueue", Runnable::class.java)!!.invoke(queueThread, runnable)
-        }.onFailure { Logger.error("runtime", "Failed to schedule module capture", it) }
+        val finished = CountDownLatch(1)
+        val scheduled = runCatching {
+            queueThread.javaClass.findMethod("runOnQueue", Runnable::class.java)!!.invoke(
+                queueThread,
+                Runnable {
+                    try {
+                        runnable.run()
+                    } finally {
+                        finished.countDown()
+                    }
+                },
+            )
+        }.onFailure { Logger.error("runtime", "Failed to schedule module capture", it) }.isSuccess
+
+        if (scheduled && !finished.await(BEFORE_BUNDLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            Logger.error("runtime", "Module capture did not run before the bundle within ${BEFORE_BUNDLE_TIMEOUT_SECONDS}s")
+        }
     }
 
     private fun Class<*>.findMethod(name: String, vararg parameters: Class<*>): Method? {

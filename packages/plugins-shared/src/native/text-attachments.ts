@@ -11,6 +11,18 @@ export const ATTACHMENT_CHARACTER = '￼';
 
 export const MESSAGE_TEXT_VIEW_CLASSES = ['DCDAttributedTextView', 'DCDReusableYYLabel'] as const;
 
+/**
+ * @description Picks the message text view class this Discord build draws message text with.
+ * @param objc The Objective-C bridge.
+ * @returns The first class from `MESSAGE_TEXT_VIEW_CLASSES` that exists, or the newest one when none does.
+ */
+export function messageTextViewClass(objc: Pick<NativeObjCBridge, 'getClass'>): string {
+	return (
+		MESSAGE_TEXT_VIEW_CLASSES.find((name) => objc.getClass(name)) ??
+		MESSAGE_TEXT_VIEW_CLASSES[0]
+	);
+}
+
 export const CODE_BLOCK_ATTRIBUTE = 'ContentNodeAttribute:DrawingDataLayers';
 
 export type TextAttachmentValue =
@@ -462,7 +474,7 @@ function readInset(value: TextAttachmentValue): Inset {
 }
 
 /**
- * @description Positions views over the attachments that reserve their room in a TextKit text view.
+ * @description Positions views over the attachments that reserve their room in a TextKit text view, skipping any not laid out yet.
  * @param bridge The attachment bridge.
  * @param textView The message text view.
  * @param views Each view with the index of the attachment character that reserves its room.
@@ -492,6 +504,10 @@ export async function placeAttachedViews(
 				textContainer,
 			),
 		);
+
+		if (rect.width <= 0 || rect.height <= 0) {
+			continue;
+		}
 
 		await bridge.callAsync(
 			view,
@@ -529,6 +545,7 @@ export default {
 	MESSAGE_TEXT_VIEW_CLASSES,
 	attributeRun,
 	imageAttachment,
+	messageTextViewClass,
 	placeAttachedViews,
 	removeAttachedViews,
 	viewAttachment,

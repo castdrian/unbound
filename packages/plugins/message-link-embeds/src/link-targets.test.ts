@@ -49,6 +49,17 @@ describe('rendered message link ranges', () => {
 		});
 	});
 
+	test("covers the word joiners and thin space in Discord's current channel chip", () => {
+		const prefix = 'Parity fixture: message link embed ';
+		const chip =
+			'\u2068\uFFFC\u2060development\u2060\uFFFC\u2060\uFFFC\u2060\u2060\u2009\u2069';
+
+		expect(findRenderedLinkRange(`${prefix}${chip} after`, 'development')).toEqual({
+			location: prefix.length,
+			length: chip.length,
+		});
+	});
+
 	test('ignores plain text that shares a channel name', () => {
 		expect(findRenderedLinkRange('development and more', 'development')).toBeUndefined();
 	});

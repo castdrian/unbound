@@ -74,6 +74,9 @@ export function linkedTargets(message: MessageLike): LinkTarget[] {
 	return [...targets.values()];
 }
 
+const CHIP_OPENING = '\uFFFC\u2068\u2060';
+const CHIP_CLOSING = '\uFFFC\u2068\u2069\u2060\u2009';
+
 /**
  * @description Locates the rendered channel mention of a message link inside a label's text.
  * @param text The label's plain text.
@@ -93,8 +96,8 @@ export function findRenderedLinkRange(text: string, channelName: string): TextRa
 		let start = location;
 		let end = location + channelName.length;
 
-		while (start > 0 && '\uFFFC\u2068'.includes(text[start - 1])) start--;
-		while (end < text.length && '\uFFFC\u2068\u2069'.includes(text[end])) end++;
+		while (start > 0 && CHIP_OPENING.includes(text[start - 1])) start--;
+		while (end < text.length && CHIP_CLOSING.includes(text[end])) end++;
 
 		if (
 			text.slice(start, end).includes('\uFFFC') &&

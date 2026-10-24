@@ -25,7 +25,7 @@ import { patchFastImage } from '~/patches/fast-image';
 import { hookMessageCells } from '~/native/cells';
 import { createSession } from '~/native/session';
 
-let dispose = () => {};
+let dispose: () => Promise<void> | undefined = () => undefined;
 
 function start(context: PluginContext) {
 	const { objc, fabric } = context.native;
@@ -97,8 +97,11 @@ function start(context: PluginContext) {
 }
 
 function stop() {
-	dispose();
-	dispose = () => {};
+	const finished = dispose();
+
+	dispose = () => undefined;
+
+	return finished;
 }
 
 export default { start, stop };

@@ -7,11 +7,11 @@ import { messageTextViewClass } from '@unbound-plugins/shared/native/text-attach
 
 import SettingsPanel from '~/components/settings-panel';
 import { MessageStore, SelectedChannelStore } from '~/modules';
-import { createAndroidRenderer } from '~/android/renderer';
+import { createAndroidCards } from '~/android/cards';
 import { startRenderer } from '~/native/renderer';
 import { PLUGIN_NAME } from '~/constants';
 
-let dispose = () => {};
+let dispose: () => Promise<void> | undefined = () => undefined;
 
 function start(context: PluginContext) {
 	if (
@@ -22,9 +22,9 @@ function start(context: PluginContext) {
 	}
 
 	if (context.platform === 'android') {
-		const android = createAndroidRenderer(context.native);
+		const cards = createAndroidCards(context.native);
 
-		dispose = applyFeatures(PLUGIN_NAME, [() => android.dispose]);
+		if (cards) dispose = applyFeatures(PLUGIN_NAME, [() => cards.dispose]);
 
 		return;
 	}
@@ -42,8 +42,11 @@ function start(context: PluginContext) {
 }
 
 function stop() {
-	dispose();
-	dispose = () => {};
+	const finished = dispose();
+
+	dispose = () => undefined;
+
+	return finished;
 }
 
 export default {

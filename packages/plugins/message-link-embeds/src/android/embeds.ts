@@ -27,7 +27,6 @@ import {
 import { readViewText } from '@unbound-plugins/shared/native/android/spans';
 import {
 	currentDecorView,
-	fieldOfType,
 	findViewsOfClass,
 	STARTUP_SCAN_DELAYS,
 } from '@unbound-plugins/shared/native/android/views';
@@ -41,6 +40,7 @@ import { currentChannelId, linkedChannelName } from '~/channels';
 import { Surface } from '~/constants';
 
 const MESSAGE_VIEW = 'com.discord.chat.presentation.message.MessageView';
+const MESSAGE_ID_FIELD = 'messageId';
 const MESSAGE_CONTENT_VIEW = 'com.discord.chat.presentation.message.view.MessageContentView';
 const SET_MESSAGE_PARAMETERS = [
 	'com.discord.chat.bridge.Message',
@@ -79,6 +79,7 @@ type Embed = SurfaceContent & {
 	height: number;
 	placeholder: number;
 	renderedText: string | null;
+	original: NativeJavaReference | null;
 	revision: number;
 	disposed: boolean;
 };
@@ -91,7 +92,7 @@ function viewKey(view: NativeJavaValue): string | undefined {
  * @description Embeds the message each Android message links to as a real chat row, the way the iOS client shows it.
  * @param native The plugin's Java, hook and Fabric bridges.
  * @param renderers Discord's message renderers, shared with the iOS embeds.
- * @returns `dispose`, which removes the hook and every embed, or `undefined` when the surface did not register.
+ * @returns `dispose`, which removes the hook and every embed and resolves once the views are restored, or `undefined` when the surface did not register.
  */
 export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: Renderers) {
 	const embeds = new Map<string, Embed>();
@@ -159,6 +160,15 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 		await removeHost(java, embed.host).catch(() => undefined);
 	}
 
+	async function restore(embed: Embed) {
+		const current = readViewText(java, embed.textView);
+
+		if (embed.original && current?.string === embed.renderedText) {
+			await java.invokeAsync(embed.textView, 'setText', [embed.original]);
+			await relayout(embed);
+		}
+	}
+
 	async function relayout(embed: Embed) {
 		await java.invokeAsync(embed.textView, 'requestLayout', []);
 		await layoutHostingList(java, embed.messageView);
@@ -172,6 +182,8 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 		const range = findRenderedLinkRange(content.string, embed.channelName);
 
 		if (!range) return false;
+
+		if (content.string !== embed.renderedText) embed.original = content.text;
 
 		const insertAt = range.location + range.length;
 		const builder = java.construct('android.text.SpannableStringBuilder', [content.text]);
@@ -342,6 +354,7 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 						height: Surface.minHeight,
 						placeholder: 0,
 						renderedText: null,
+						original: null,
 						revision: 0,
 						disposed: false,
 						...built,
@@ -379,22 +392,13 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 		},
 	);
 
-	let messageField: string | undefined;
-
 	function scanVisible() {
 		const decor = currentDecorView(java);
 
 		if (!decor || controller.signal.aborted) return;
 
-		messageField ??= fieldOfType(java, MESSAGE_VIEW, 'com.discord.chat.bridge.Message');
-
-		if (!messageField) return;
-
 		for (const messageView of findViewsOfClass(java, decor, MESSAGE_VIEW)) {
-			const message = javaReference(java.getField(messageView, messageField));
-			const messageId = message
-				? javaText(java.invoke(message, 'getId-3Eiw7ao', []))
-				: undefined;
+			const messageId = javaText(java.getField(messageView, MESSAGE_ID_FIELD));
 
 			if (messageId) {
 				render(messageView, messageId).catch((error) => {
@@ -417,7 +421,9 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 			hooks.remove(token);
 			linked.clear();
 
-			for (const embed of [...embeds.values()]) void teardown(embed);
+			return Promise.all(
+				[...embeds.values()].flatMap((embed) => [teardown(embed), restore(embed)]),
+			).then(() => undefined);
 		},
 	};
 }

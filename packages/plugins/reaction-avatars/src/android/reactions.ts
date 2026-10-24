@@ -55,6 +55,16 @@ const HOST_HEIGHT = 20;
 const AVATAR_GAP = 4;
 const MAX_SEARCH_DEPTH = 6;
 const SIZE_PARAMETERS = ['int', 'int', 'int', 'int'];
+const UNMOUNT_WAIT_MS = 1000;
+
+function settledWithin<T>(pending: Promise<T> | null, timeout: number): Promise<T | null> {
+	if (!pending) return Promise.resolve(null);
+
+	return Promise.race([
+		pending.catch(() => null),
+		new Promise<null>((resolve) => setTimeout(() => resolve(null), timeout)),
+	]);
+}
 
 type Native = {
 	java: NativeJavaBridge;
@@ -147,7 +157,7 @@ export function createAndroidReactions({ java, hooks, fabric }: Native, surfaceN
 		pills.delete(viewKey(pill.reactionView as NativeJavaValue) ?? '');
 		surfaceStates.delete(pill.id);
 
-		const mounted = await pill.mounting?.catch(() => null);
+		const mounted = await settledWithin(pill.mounting, UNMOUNT_WAIT_MS);
 
 		if (mounted) await fabric.unmountAsync(mounted).catch(() => undefined);
 
@@ -294,6 +304,8 @@ export function createAndroidReactions({ java, hooks, fabric }: Native, surfaceN
 
 			if (existing) await removePill(existing);
 
+			if (disposed) return;
+
 			changed.push(await addPill(reactionView, context, users));
 		}
 
@@ -419,15 +431,13 @@ export function createAndroidReactions({ java, hooks, fabric }: Native, surfaceN
 				metro.common.Dispatcher.unsubscribe(action, onReactionChange);
 			}
 
-			await Promise.all([...queues.values()]);
-
 			const views = [...bound.values()];
 
 			await Promise.all([...pills.values()].map(removePill));
 
-			for (const { messageView } of views) {
-				await layoutHostingList(java, messageView).catch(() => undefined);
-			}
+			const [first] = views;
+
+			if (first) await layoutHostingList(java, first.messageView).catch(() => undefined);
 
 			bound.clear();
 		},

@@ -14,7 +14,7 @@ Unbound Loader injects [Unbound](https://github.com/unbound-app/client) into Dis
 | `ios/`         | The Theos tweak (ElleKit, rootless) and its iOS app-extension submodules                             |
 | `android/`     | The LSPosed module (modern libxposed API) and its NDK library, built with Gradle                     |
 | `bootstrap/`   | The shared optional React DevTools bundle (`devtools.js`) for both platforms                          |
-| `libffi/`      | Pinned libffi source used to build the iOS static archive                                             |
+| `vendor/`      | Third-party code: the pinned libffi submodule, nlohmann/json and the React Native JSI headers         |
 | `apt-repo/`    | Debian package and SideStore-compatible iOS distribution feeds                                       |
 | `tools/`                | Go build, test, validation and packaging commands for the monorepo                                   |
 

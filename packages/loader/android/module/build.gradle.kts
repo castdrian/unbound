@@ -1,6 +1,7 @@
+import javax.inject.Inject
+
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 val repositoryRoot: File = rootDir.parentFile
@@ -74,8 +75,6 @@ android {
         }
     }
 
-    sourceSets["main"].assets.srcDirs(layout.buildDirectory.dir("generated/unbound-assets"))
-
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
@@ -95,15 +94,33 @@ android {
     }
 }
 
-val copyBootstrapResources by tasks.registering(Copy::class) {
-    from(repositoryRoot.resolve("bootstrap")) {
-        include("*.js")
+abstract class CopyBootstrapResources : DefaultTask() {
+    @get:InputFiles
+    abstract val scripts: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val output: DirectoryProperty
+
+    @get:Inject
+    abstract val files: FileSystemOperations
+
+    @TaskAction
+    fun copy() {
+        files.sync {
+            from(scripts)
+            into(output.dir("js"))
+        }
     }
-    into(layout.buildDirectory.dir("generated/unbound-assets/js"))
 }
 
-tasks.named("preBuild") {
-    dependsOn(copyBootstrapResources)
+val copyBootstrapResources = tasks.register<CopyBootstrapResources>("copyBootstrapResources") {
+    scripts.from(fileTree(repositoryRoot.resolve("bootstrap")) { include("*.js") })
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(copyBootstrapResources, CopyBootstrapResources::output)
+    }
 }
 
 kotlin {

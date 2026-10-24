@@ -54,6 +54,7 @@ const VISIBLE = 0;
 const HOST_HEIGHT = 20;
 const AVATAR_GAP = 4;
 const MAX_SEARCH_DEPTH = 6;
+const SIZE_PARAMETERS = ['int', 'int', 'int', 'int'];
 
 type Native = {
 	java: NativeJavaBridge;
@@ -96,6 +97,7 @@ export function createAndroidReactions({ java, hooks, fabric }: Native, surfaceN
 	const pills = new Map<string, Pill>();
 	const bound = new Map<string, { messageView: NativeJavaReference; messageId: string }>();
 	const queues = new Map<string, Promise<void>>();
+	const awaitingSize = new Map<string, { messageView: NativeJavaReference; messageId: string }>();
 	let nextId = 0;
 	let disposed = false;
 
@@ -295,6 +297,14 @@ export function createAndroidReactions({ java, hooks, fabric }: Native, surfaceN
 			changed.push(await addPill(reactionView, context, users));
 		}
 
+		const messageKey = viewKey(messageView as NativeJavaValue) ?? '';
+
+		if (reactions.length && !used.size) {
+			awaitingSize.set(messageKey, { messageView, messageId });
+		} else {
+			awaitingSize.delete(messageKey);
+		}
+
 		if (!changed.length) return;
 
 		await java.invokeAsync(messageView, 'requestLayout', []);
@@ -344,6 +354,22 @@ export function createAndroidReactions({ java, hooks, fabric }: Native, surfaceN
 		},
 	);
 
+	const sizeToken = hooks.hook(
+		MESSAGE_VIEW,
+		'onSizeChanged',
+		SIZE_PARAMETERS,
+		{ notify: true },
+		({ self }) => {
+			const key = viewKey(self);
+			const pending = key ? awaitingSize.get(key) : undefined;
+
+			if (!key || !pending) return;
+
+			awaitingSize.delete(key);
+			schedule(pending.messageView, pending.messageId);
+		},
+	);
+
 	function onReactionChange(event: {
 		messageId?: string;
 		message_id?: string;
@@ -386,6 +412,8 @@ export function createAndroidReactions({ java, hooks, fabric }: Native, surfaceN
 
 			disposed = true;
 			hooks.remove(token);
+			hooks.remove(sizeToken);
+			awaitingSize.clear();
 
 			for (const action of REACTION_ACTIONS) {
 				metro.common.Dispatcher.unsubscribe(action, onReactionChange);

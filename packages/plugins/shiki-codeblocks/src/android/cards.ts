@@ -51,7 +51,7 @@ const SPAN_EXCLUSIVE_EXCLUSIVE = 33;
 const PLACEHOLDER = '￼';
 const TOP_GAP = 2;
 const MIN_WIDTH = 80;
-const WIDTH_RETRIES = 4;
+const SIZE_PARAMETERS = ['int', 'int', 'int', 'int'];
 const SETTLE_DELAYS = [0, 120, 600];
 
 type Native = {
@@ -109,6 +109,7 @@ export function createAndroidCards({ java, hooks, fabric }: Native) {
 	const byId = new Map<string, Card>();
 	const pending = new Set<string>();
 	const renders = new Map<string, Promise<void>>();
+	const awaitingSize = new Map<string, NativeJavaReference>();
 	let nextId = 0;
 	let disposed = false;
 
@@ -283,7 +284,7 @@ export function createAndroidCards({ java, hooks, fabric }: Native) {
 		});
 	}
 
-	async function render(textView: NativeJavaReference, attempt = 0) {
+	async function render(textView: NativeJavaReference) {
 		const key = viewKey(textView as NativeJavaValue);
 		const content = readViewText(java, textView);
 
@@ -312,7 +313,7 @@ export function createAndroidCards({ java, hooks, fabric }: Native) {
 		const width = textWidth(textView, density);
 
 		if (width < MIN_WIDTH) {
-			if (attempt < WIDTH_RETRIES) setTimeout(() => schedule(textView, attempt + 1), 120);
+			awaitingSize.set(key, textView);
 
 			return;
 		}
@@ -419,7 +420,7 @@ export function createAndroidCards({ java, hooks, fabric }: Native) {
 		settle(entry);
 	}
 
-	function schedule(textView: NativeJavaReference, attempt = 0) {
+	function schedule(textView: NativeJavaReference) {
 		const key = viewKey(textView as NativeJavaValue);
 
 		if (disposed || !key || pending.has(key)) return;
@@ -432,7 +433,7 @@ export function createAndroidCards({ java, hooks, fabric }: Native) {
 
 			const previous = renders.get(key) ?? Promise.resolve();
 			const next = previous
-				.then(() => render(textView, attempt))
+				.then(() => render(textView))
 				.catch((error) => {
 					console.error(`[${PLUGIN_NAME}] Failed to draw an Android code card:`, error);
 				})
@@ -453,6 +454,22 @@ export function createAndroidCards({ java, hooks, fabric }: Native) {
 			const textView = javaReference(self);
 
 			if (textView) schedule(textView);
+		},
+	);
+
+	const sizeToken = hooks.hook(
+		MESSAGE_CONTENT_VIEW,
+		'onSizeChanged',
+		SIZE_PARAMETERS,
+		{ notify: true },
+		({ self }) => {
+			const key = viewKey(self);
+			const textView = key ? awaitingSize.get(key) : undefined;
+
+			if (!key || !textView) return;
+
+			awaitingSize.delete(key);
+			schedule(textView);
 		},
 	);
 
@@ -488,6 +505,8 @@ export function createAndroidCards({ java, hooks, fabric }: Native) {
 
 			disposed = true;
 			hooks.remove(token);
+			hooks.remove(sizeToken);
+			awaitingSize.clear();
 			unsubscribe();
 
 			const pending = [...views.values()].flatMap((entry) => [

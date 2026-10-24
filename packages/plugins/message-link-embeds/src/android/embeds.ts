@@ -54,6 +54,7 @@ const SET_MESSAGE_PARAMETERS = [
 const SPAN_EXCLUSIVE_EXCLUSIVE = 33;
 const PLACEHOLDER = '￼';
 const SETTLE_DELAYS = [0, 120, 600];
+const SIZE_PARAMETERS = ['int', 'int', 'int', 'int'];
 
 type Native = {
 	java: NativeJavaBridge;
@@ -98,6 +99,7 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 	const embeds = new Map<string, Embed>();
 	const byId = new Map<string, Embed>();
 	const waiting = new Map<string, Map<string, WaitingView>>();
+	const awaitingSize = new Map<string, WaitingView>();
 	const controller = new AbortController();
 	let nextId = 0;
 
@@ -114,15 +116,38 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 		waiting.delete(key);
 	});
 
+	const listeners = new Map<string, Set<() => void>>();
 	const surfaceModule = registerMessageSurface({
 		renderers,
 		surface: (surfaceId) => byId.get(surfaceId),
 		reportLayout: (surfaceId, height) => reportLayout(surfaceId, height),
+		revision: (surfaceId) => byId.get(surfaceId)?.revision ?? -1,
+		subscribe(surfaceId, listener) {
+			const set = listeners.get(surfaceId) ?? new Set();
+
+			set.add(listener);
+			listeners.set(surfaceId, set);
+
+			return () => {
+				set.delete(listener);
+
+				if (!set.size) listeners.delete(surfaceId);
+			};
+		},
 	});
+
+	function publish(embed: Embed) {
+		embed.revision++;
+
+		for (const listener of listeners.get(embed.id) ?? []) listener();
+	}
 
 	if (!surfaceModule) return undefined;
 
-	function contentTextView(messageView: NativeJavaReference): NativeJavaReference | null {
+	function contentTextView(
+		messageView: NativeJavaReference,
+		channelName: string,
+	): NativeJavaReference | null {
 		const stack: NativeJavaReference[] = [messageView];
 		const contentClass = java.getClass(MESSAGE_CONTENT_VIEW);
 		const groupClass = java.getClass('android.view.ViewGroup');
@@ -131,7 +156,11 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 			const view = stack.pop()!;
 
 			if (javaFlag(java.invoke(contentClass, 'isInstance', [view]))) {
-				return view;
+				const text = readViewText(java, view)?.string ?? '';
+
+				if (findRenderedLinkRange(text, channelName)) return view;
+
+				continue;
 			}
 
 			if (!javaFlag(java.invoke(groupClass, 'isInstance', [view]))) continue;
@@ -296,7 +325,11 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 			await teardown(existing);
 		}
 
-		if (!target) return;
+		if (!target) {
+			awaitingSize.delete(key);
+
+			return;
+		}
 
 		const linkedMessage = linked.get(target);
 
@@ -311,10 +344,16 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 		}
 
 		const channelName = linkedChannelName(target, linkedMessage);
-		const textView = contentTextView(messageView);
+		const textView = channelName ? contentTextView(messageView, channelName) : null;
 		const built = buildEmbeddedContent(renderers, linkedMessage, target.channelId);
 
-		if (!channelName || !textView || !built) return;
+		if (!channelName || !textView || !built) {
+			if (channelName && built) awaitingSize.set(key, { messageView, messageId });
+
+			return;
+		}
+
+		awaitingSize.delete(key);
 
 		const resources = javaReference(java.invoke(textView, 'getResources', []));
 		const metrics = resources
@@ -328,7 +367,7 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 		const width = textWidth / density;
 
 		if (width < Surface.minWidth) {
-			setTimeout(() => void render(messageView, messageId), 120);
+			awaitingSize.set(key, { messageView, messageId });
 
 			return;
 		}
@@ -364,6 +403,8 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 		embeds.set(key, embed);
 		byId.set(embed.id, embed);
 
+		if (embed === existing) publish(embed);
+
 		if (await reserve(embed)) settle(embed);
 	}
 
@@ -389,6 +430,27 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 					);
 				});
 			}, 0);
+		},
+	);
+
+	const sizeToken = hooks.hook(
+		MESSAGE_VIEW,
+		'onSizeChanged',
+		SIZE_PARAMETERS,
+		{ notify: true },
+		({ self }) => {
+			const key = viewKey(self);
+			const pending = key ? awaitingSize.get(key) : undefined;
+
+			if (!key || !pending) return;
+
+			awaitingSize.delete(key);
+			render(pending.messageView, pending.messageId).catch((error) => {
+				console.error(
+					'[Message Link Embeds] Failed to embed a linked message on Android:',
+					error,
+				);
+			});
 		},
 	);
 
@@ -419,7 +481,10 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 
 			controller.abort();
 			hooks.remove(token);
+			hooks.remove(sizeToken);
+			awaitingSize.clear();
 			linked.clear();
+			listeners.clear();
 
 			return Promise.all(
 				[...embeds.values()].flatMap((embed) => [teardown(embed), restore(embed)]),

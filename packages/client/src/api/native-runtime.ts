@@ -6,6 +6,7 @@ import type {
 	NativeFFIBridge,
 	NativeJavaBridge,
 	NativeJavaHandle,
+	NativeDebugBridge,
 	NativeJavaHooksBridge,
 	NativeJavaHookToken,
 	NativeMediaBridge,
@@ -284,6 +285,15 @@ const nativeJavaCapabilityRequirements: Record<keyof NativeJavaBridge, NativePlu
 	getField: 'native.java.fields',
 	setField: 'native.java.fields',
 	release: 'native.java.classes',
+	batch: 'native.java.batch',
+	createAssociationKey: 'native.java.associations',
+	getAssociatedObject: 'native.java.associations',
+	setAssociatedObject: 'native.java.associations',
+};
+
+const nativeDebugCapabilityRequirements: Record<keyof NativeDebugBridge, NativePluginCapability> = {
+	recordEvaluation: 'native.debug.evaluations',
+	environment: 'native.debug.environment',
 };
 
 const nativeHooksCapabilityRequirements: Record<
@@ -466,6 +476,7 @@ function unavailableNativePlugin() {
 		{},
 		{ get: () => unavailableMethod },
 	) as NativeJavaHooksBridge;
+	const unavailableDebug = new Proxy({}, { get: () => unavailableMethod }) as NativeDebugBridge;
 	const unavailableMedia = new Proxy({}, { get: () => unavailableMethod }) as NativeMediaBridge;
 
 	return {
@@ -479,6 +490,7 @@ function unavailableNativePlugin() {
 		ui: unavailableUI,
 		java: unavailableJava,
 		hooks: unavailableHooks,
+		debug: unavailableDebug,
 		media: unavailableMedia,
 	};
 }
@@ -806,6 +818,7 @@ function createScopedNativePlugin(
 		platform === 'ios' ? iosNativeUICapabilityRequirements : nativeUICapabilityRequirements;
 	const javaBridge = bridge.java ?? fallbackBridge.java;
 	const hooksBridge = bridge.hooks ?? fallbackBridge.hooks;
+	const debugBridge = bridge.debug ?? fallbackBridge.debug;
 	const mediaBridge = bridge.media ?? fallbackBridge.media;
 	const tokens = new Set<NativeHookToken>();
 	const surfaces = new Set<NativeFabricSurface>();
@@ -1222,6 +1235,34 @@ function createScopedNativePlugin(
 					nativeJavaCapabilityRequirements.setField,
 				)(handle, name, value),
 			),
+		batch: (operations) =>
+			unwrapJava(
+				scopeMethod(
+					javaBridge.batch.bind(javaBridge),
+					nativeJavaCapabilityRequirements.batch,
+				)(operations),
+			),
+		createAssociationKey: () =>
+			unwrapJava(
+				scopeMethod(
+					javaBridge.createAssociationKey.bind(javaBridge),
+					nativeJavaCapabilityRequirements.createAssociationKey,
+				)(),
+			),
+		getAssociatedObject: (handle, key) =>
+			unwrapJava(
+				scopeMethod(
+					javaBridge.getAssociatedObject.bind(javaBridge),
+					nativeJavaCapabilityRequirements.getAssociatedObject,
+				)(handle, key),
+			),
+		setAssociatedObject: (handle, key, value) =>
+			unwrapJava(
+				scopeMethod(
+					javaBridge.setAssociatedObject.bind(javaBridge),
+					nativeJavaCapabilityRequirements.setAssociatedObject,
+				)(handle, key, value),
+			),
 		release: (handle) => {
 			javaHandles.delete(handle);
 			scopeMethod(
@@ -1229,6 +1270,23 @@ function createScopedNativePlugin(
 				nativeJavaCapabilityRequirements.release,
 			)(handle);
 		},
+	};
+
+	const debug: NativeDebugBridge = {
+		recordEvaluation: (record) =>
+			unwrapJava(
+				scopeMethod(
+					debugBridge.recordEvaluation.bind(debugBridge),
+					nativeDebugCapabilityRequirements.recordEvaluation,
+				)(record),
+			),
+		environment: () =>
+			unwrapJava(
+				scopeMethod(
+					debugBridge.environment.bind(debugBridge),
+					nativeDebugCapabilityRequirements.environment,
+				)(),
+			),
 	};
 
 	const hooks: NativeJavaHooksBridge = {
@@ -1377,6 +1435,7 @@ function createScopedNativePlugin(
 			ui,
 			java,
 			hooks,
+			debug,
 			media,
 		},
 		dispose: () => {

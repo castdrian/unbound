@@ -97,6 +97,10 @@ const capabilities = [
 	'native.java.invoke',
 	'native.java.invokeAsync',
 	'native.java.hooks',
+	'native.java.batch',
+	'native.java.associations',
+	'native.debug.evaluations',
+	'native.debug.environment',
 	'native.ui.lookup',
 	'native.ui.mount',
 	'native.ui.layout',
@@ -198,6 +202,10 @@ const bridge: NativePluginBridge = {
 		release: (handle: NativeJavaHandle) => {
 			javaReleased.push(handle);
 		},
+		batch: () => [{ type: 'int', value: 1 }],
+		createAssociationKey: () => javaHandle,
+		getAssociatedObject: () => ({ type: 'string', value: 'kept' }),
+		setAssociatedObject: () => undefined,
 	},
 	hooks: {
 		hook: () => javaHookToken,
@@ -207,6 +215,10 @@ const bridge: NativePluginBridge = {
 		remove: (token: NativeJavaHookToken) => {
 			hooksRemoved.push(token);
 		},
+	},
+	debug: {
+		recordEvaluation: () => true,
+		environment: () => ({ isVirtualDevice: true, hostAddress: '10.0.2.2' }),
 	},
 	media: {
 		pick: () => cancellable(Promise.resolve([]), 'media-pick'),
@@ -957,6 +969,47 @@ describe('native plugin negotiation', () => {
 		context.dispose();
 
 		expect(hooksRemoved).toEqual([javaHookToken]);
+	});
+
+	test('scopes batching, associations and debug to their capabilities', () => {
+		Object.assign(nativePlatformBridge.device, { platform: 'android' });
+		Object.assign(nativePlatformBridge, { platform: 'android' });
+
+		const denied = createPluginContext({
+			...manifest,
+			platforms: ['android'],
+			capabilities: ['native.java.classes'],
+		});
+
+		expect(() => denied.native.java.batch([])).toThrow(NativePluginCapabilityError);
+		expect(() => denied.native.java.createAssociationKey()).toThrow(
+			NativePluginCapabilityError,
+		);
+		expect(() => denied.native.debug.environment()).toThrow(NativePluginCapabilityError);
+		denied.dispose();
+
+		const context = createPluginContext({
+			...manifest,
+			platforms: ['android'],
+			capabilities: [
+				'native.java.batch',
+				'native.java.associations',
+				'native.debug.evaluations',
+				'native.debug.environment',
+			],
+		});
+
+		expect(context.native.java.batch([])).toEqual([{ type: 'int', value: 1 }]);
+		expect(context.native.java.getAssociatedObject(nativeHandle, javaHandle)).toEqual({
+			type: 'string',
+			value: 'kept',
+		});
+		expect(context.native.debug.environment()).toEqual({
+			isVirtualDevice: true,
+			hostAddress: '10.0.2.2',
+		});
+		expect(context.native.debug.recordEvaluation({ id: 'e1', code: '1', ok: true })).toBe(true);
+		context.dispose();
 	});
 
 	test('rejects a plugin that does not support the host platform', () => {

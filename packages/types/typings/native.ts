@@ -43,6 +43,8 @@ export const NATIVE_PLUGIN_PLATFORM_CAPABILITIES = {
 		'native.java.invoke',
 		'native.fabric.async',
 		'native.fabric.mount',
+		'native.ffi.call',
+		'native.ffi.symbols',
 		'native.java.associations',
 		'native.java.batch',
 		'native.java.hooks',

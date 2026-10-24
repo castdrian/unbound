@@ -9,13 +9,21 @@ set(UNBOUND_VENDOR_DIR ${CMAKE_CURRENT_LIST_DIR}/../vendor)
 
 option(UNBOUND_CORE_BUNDLE_JSI "Compile jsi.cpp into the core library" ON)
 option(UNBOUND_CORE_TESTS "Build the core host tests" OFF)
+set(UNBOUND_CORE_FFI_TARGET "" CACHE STRING "libffi target that enables ffi.symbol and ffi.call")
 
 file(GLOB UNBOUND_CORE_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/src/*.cpp)
 if(UNBOUND_CORE_BUNDLE_JSI)
     list(APPEND UNBOUND_CORE_SOURCES ${UNBOUND_VENDOR_DIR}/react/jsi/jsi.cpp)
 endif()
 
+if(UNBOUND_CORE_FFI_TARGET)
+    list(APPEND UNBOUND_CORE_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/ffi/NativeFFI.cpp)
+endif()
+
 add_library(unbound_core STATIC ${UNBOUND_CORE_SOURCES})
+if(UNBOUND_CORE_FFI_TARGET)
+    target_link_libraries(unbound_core PUBLIC ${UNBOUND_CORE_FFI_TARGET})
+endif()
 target_include_directories(unbound_core PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/include
     ${UNBOUND_VENDOR_DIR}

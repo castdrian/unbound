@@ -264,7 +264,6 @@ func TestAndroidNativeBridgeContractIsSynchronized(t *testing.T) {
 	}
 	for _, unsupported := range []string{
 		"native.objc.",
-		"native.ffi.",
 	} {
 		if strings.Contains(sourceText, unsupported) {
 			t.Fatalf("Android native bridge must not advertise platform-specific capability %q", unsupported)

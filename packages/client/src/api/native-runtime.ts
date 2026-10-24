@@ -5,9 +5,11 @@ import type {
 	NativeFabricSize,
 	NativeFabricSurface,
 	NativeFFIBridge,
+	NativeFFISignature,
 	NativeJavaBridge,
 	NativeJavaHandle,
 	NativeJavaReference,
+	NativePointer,
 	NativeAndroidSurfaceBridge,
 	NativeDebugBridge,
 	NativeJavaHooksBridge,
@@ -1097,8 +1099,15 @@ function createScopedNativePlugin(
 	};
 
 	const ffi: NativeFFIBridge = {
-		symbol: scopeMethod(ffiBridge.symbol.bind(ffiBridge), 'native.ffi.symbols'),
-		call: scopeMethod(ffiBridge.call.bind(ffiBridge), 'native.ffi.call'),
+		symbol: scopeMethod(
+			(name: string, image?: string) => unwrapJava(ffiBridge.symbol(name, image)),
+			'native.ffi.symbols',
+		),
+		call: scopeMethod(
+			(pointer: NativePointer, signature: NativeFFISignature, ...args: unknown[]) =>
+				unwrapJava(ffiBridge.call(pointer, signature, ...args)),
+			'native.ffi.call',
+		),
 	};
 
 	const fabric: NativeFabricBridge = {

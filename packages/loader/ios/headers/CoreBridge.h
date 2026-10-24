@@ -19,6 +19,12 @@ NS_ASSUME_NONNULL_BEGIN
                                origin:(NSString *)origin
                               version:(NSString *)version;
 
++ (BOOL)wipeAddonsNamed:(NSString *)kind in:(NSString *)documents;
++ (BOOL)factoryResetIn:(NSString *)documents;
++ (NSString *)issueURLForPlatform:(NSString *)platform
+                      environment:(NSArray<NSArray<NSString *> *> *)environment
+                      attachments:(NSArray<NSArray<NSString *> *> *)attachments;
+
 @end
 
 NS_ASSUME_NONNULL_END

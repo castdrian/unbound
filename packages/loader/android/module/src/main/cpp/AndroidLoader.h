@@ -87,6 +87,7 @@ namespace unbound::android
         void drainRuntimeWork(facebook::jsi::Runtime &runtime);
 
         loader::SettingsStore &settings();
+        std::string toolbox(const std::string &action, const std::string &argument);
         std::string fontsJSON();
         std::string themeColorsJSON(const std::string &themeId);
 

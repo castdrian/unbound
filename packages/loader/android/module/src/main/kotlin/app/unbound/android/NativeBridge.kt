@@ -49,6 +49,9 @@ object NativeBridge {
     external fun nativeSettingJSON(store: String, key: String): String?
 
     @JvmStatic
+    external fun nativeToolbox(action: String, argument: String?): String?
+
+    @JvmStatic
     external fun nativeFontsJSON(): String
 
     @JvmStatic

@@ -5,6 +5,7 @@
 #include "LoaderColor.h"
 #include "LoaderFiles.h"
 #include "LoaderLog.h"
+#include "LoaderToolbox.h"
 #include "NativePlatformBridge.h"
 #include "NativePluginBridge.h"
 
@@ -51,6 +52,76 @@ namespace unbound::android
                 return download(url, destination, headers);
             });
         pipeline_ = std::make_unique<loader::LoaderPipeline>(shared_from_this(), settings_, *updater_);
+    }
+
+    static std::optional<loader::toolbox::AddonKind> addonKind(const std::string &name)
+    {
+        for (auto kind : {loader::toolbox::AddonKind::Plugins, loader::toolbox::AddonKind::Themes,
+                          loader::toolbox::AddonKind::Icons, loader::toolbox::AddonKind::Fonts})
+        {
+            if (name == loader::toolbox::addonDirectoryName(kind))
+            {
+                return kind;
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::string AndroidLoader::toolbox(const std::string &action, const std::string &argument)
+    {
+        const std::string &documents = configuration_.documents;
+
+        if (action == "wipe")
+        {
+            auto kind = addonKind(argument);
+            return kind && loader::toolbox::wipeAddons(documents, *kind) ? "true" : "false";
+        }
+        if (action == "factory-reset")
+        {
+            return loader::toolbox::factoryReset(documents) ? "true" : "false";
+        }
+        if (action == "delete-bundle")
+        {
+            loader::toolbox::deleteBundle(settings_, *updater_, documents);
+            return "true";
+        }
+        if (action == "custom-bundle")
+        {
+            return loader::toolbox::useCustomBundle(settings_, argument) ? "true" : "false";
+        }
+        if (action == "toggle-recovery")
+        {
+            return loader::toolbox::toggleRecovery(settings_) ? "true" : "false";
+        }
+        if (action == "refetch-bundle")
+        {
+            std::string path = updater_->downloadBundle(updater_->resolveBundlePath(), resolveUpdateURL(),
+                                                        runtimeBytecodeVersion());
+            return loader::fileExists(path) ? "true" : "false";
+        }
+        if (action == "settings")
+        {
+            return settings_.serialize();
+        }
+        if (action == "replace-settings")
+        {
+            return settings_.replace(argument) && settings_.save() ? "true" : "false";
+        }
+        if (action == "issue-url")
+        {
+            nlohmann::json input = nlohmann::json::parse(argument, nullptr, false);
+            loader::toolbox::IssueReport report{"Android", {}, {}};
+
+            if (input.is_object())
+            {
+                for (auto &[name, value] : input.value("environment", nlohmann::json::object()).items())
+                {
+                    report.environment.emplace_back(name, value.is_string() ? value.get<std::string>() : value.dump());
+                }
+            }
+            return loader::toolbox::issueURL(report);
+        }
+        return "";
     }
 
     loader::SettingsStore &AndroidLoader::settings()

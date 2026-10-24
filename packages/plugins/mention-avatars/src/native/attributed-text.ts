@@ -8,7 +8,7 @@ import {
 
 import type { Bridge, Handle, TextAttributes } from '~/native/bridge';
 import type { Mention, MentionType } from '~/mentions';
-import { MENTION_PLACEHOLDER } from '~/constants';
+import { MENTION_PLACEHOLDER, PILL_PADDING, PILL_PADDING_ATTRIBUTE } from '~/constants';
 import { selectMentionLabel } from '~/mentions';
 
 type MentionMatch = {
@@ -18,6 +18,21 @@ type MentionMatch = {
 	index: number;
 	label: string;
 };
+
+function isInsertedPadding(bridge: Bridge, text: Handle, string: string, index: number): boolean {
+	return (
+		PILL_PADDING.includes(string[index] ?? '\uFFFF') &&
+		Boolean(bridge.attributes(text, index)?.[PILL_PADDING_ATTRIBUTE])
+	);
+}
+
+function isInsertedAvatar(bridge: Bridge, text: Handle, string: string, index: number): boolean {
+	return (
+		(string[index] === MENTION_PLACEHOLDER &&
+			isAttachmentRun(bridge.attributes(text, index))) ||
+		isInsertedPadding(bridge, text, string, index)
+	);
+}
 
 function isHighlighted(bridge: Bridge, text: Handle, from: number, to: number): boolean {
 	for (let index = from; index < to; index++) {
@@ -57,7 +72,8 @@ function nextMention(
 
 		while (
 			begin > start &&
-			string[begin - 1] === MENTION_PLACEHOLDER &&
+			(string[begin - 1] === MENTION_PLACEHOLDER ||
+				isInsertedPadding(bridge, text, string, begin - 1)) &&
 			isTappableRun(bridge.attributes(text, begin - 1))
 		) {
 			begin--;
@@ -83,31 +99,32 @@ function attributedMention(
 
 	bridge.call(mention, 'initWithString:attributes:', text, attributes);
 
-	if (engine === 'textkit' && type === 'role' && text.length > 0) {
-		bridge.call(
-			mention,
-			'addAttribute:value:range:',
-			'NSKern',
-			leading,
-			bridge.range(text.length - 1, 1),
-		);
-	}
-
 	const avatar = imageAttachment(textAttachmentBridge(bridge.objc), engine, {
 		attributes,
 		image,
 		leading,
 		size: 16,
-		trailing: type === 'role' && engine === 'textkit' ? 0 : trailing,
+		trailing: engine === 'textkit' ? 0 : trailing,
 	});
 
 	if (!avatar) return mention;
 
 	const replacement = bridge.objc.alloc('NSMutableAttributedString');
+	const parts = type === 'role' ? [mention, avatar] : [avatar, mention];
+
+	if (engine === 'textkit') {
+		const gap = bridge.objc.alloc('NSMutableAttributedString');
+
+		bridge.call(gap, 'initWithString:attributes:', PILL_PADDING, {
+			...attributes,
+			[PILL_PADDING_ATTRIBUTE]: true,
+		});
+		parts.splice(1, 0, gap);
+	}
 
 	bridge.call(replacement, 'init');
 
-	for (const part of type === 'role' ? [mention, avatar] : [avatar, mention]) {
+	for (const part of parts) {
 		bridge.call(replacement, 'appendAttributedString:', part);
 	}
 
@@ -159,18 +176,11 @@ export function insertMentionImages(
 		let from = index;
 		let to = end;
 
-		while (
-			from > begin &&
-			string[from - 1] === MENTION_PLACEHOLDER &&
-			isAttachmentRun(bridge.attributes(result, from - 1))
-		) {
+		while (from > begin && isInsertedAvatar(bridge, result, string, from - 1)) {
 			from--;
 		}
 
-		while (
-			string[to] === MENTION_PLACEHOLDER &&
-			isAttachmentRun(bridge.attributes(result, to))
-		) {
+		while (isInsertedAvatar(bridge, result, string, to)) {
 			to++;
 		}
 

@@ -1,15 +1,19 @@
-name: Auto-merge Dependabot
+name: Loader Auto-merge Dependabot
 
 on:
   workflow_run:
     workflows:
-      - Pull Request Build
+      - Loader Pull Request Build
     types:
       - completed
 
 permissions:
   contents: write
   pull-requests: write
+
+defaults:
+  run:
+    working-directory: packages/loader
 
 jobs:
   merge:

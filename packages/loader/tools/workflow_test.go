@@ -16,7 +16,7 @@ func TestBuildWorkflowInstallsAutotoolsBeforeTweakBuild(t *testing.T) {
 		t.Fatal("could not locate test source")
 	}
 	root := filepath.Dir(filepath.Dir(filename))
-	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "ios.yml"))
+	workflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-ios.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestBuildWorkflowArchivesMatchingTweakSymbols(t *testing.T) {
 		t.Fatal("could not locate test source")
 	}
 	root := filepath.Dir(filepath.Dir(filename))
-	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "ios.yml"))
+	workflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-ios.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestBuildWorkflowArchivesMatchingTweakSymbols(t *testing.T) {
 		"test \"$binary_uuid\" = \"$symbols_uuid\"",
 		"git rev-parse HEAD > symbols/commit.txt",
 		"name: tweak symbols",
-		"path: symbols/",
+		"path: packages/loader/symbols/",
 	} {
 		if !strings.Contains(contents, required) {
 			t.Fatalf("build workflow is missing symbol metadata %q", required)
@@ -85,7 +85,7 @@ func TestBuildWorkflowAllowsManualIPAInput(t *testing.T) {
 		t.Fatal("could not locate test source")
 	}
 	root := filepath.Dir(filepath.Dir(filename))
-	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "build.yml"))
+	workflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-build.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestBuildWorkflowSkipsDocumentationOnlyPushes(t *testing.T) {
 		t.Fatal("could not locate test source")
 	}
 	root := filepath.Dir(filepath.Dir(filename))
-	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "build.yml"))
+	workflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-build.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,9 +121,9 @@ func TestBuildWorkflowSkipsDocumentationOnlyPushes(t *testing.T) {
 		t.Fatal("push trigger could not be located")
 	}
 	pushTrigger := contents[pushStart:dispatchStart]
-	for _, ignoredPath := range []string{"paths-ignore:", "'**/*.md'", "'**/*.mdx'", "'.github/resources/**'"} {
-		if !strings.Contains(pushTrigger, ignoredPath) {
-			t.Fatalf("build workflow push trigger does not ignore %q", ignoredPath)
+	for _, filter := range []string{"paths:", "'packages/loader/**'", "'.github/workflows/loader-*.yml'", "'!**/*.md'", "'!**/*.mdx'"} {
+		if !strings.Contains(pushTrigger, filter) {
+			t.Fatalf("build workflow push trigger is missing path filter %q", filter)
 		}
 	}
 }
@@ -134,14 +134,14 @@ func TestBuildWorkflowCoordinatesBothPlatforms(t *testing.T) {
 		t.Fatal("could not locate test source")
 	}
 	root := filepath.Dir(filepath.Dir(filename))
-	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "build.yml"))
+	workflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-build.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	contents := string(workflow)
 	for _, required := range []string{
-		"uses: ./.github/workflows/android.yml",
-		"uses: ./.github/workflows/ios.yml",
+		"uses: ./.github/workflows/loader-android.yml",
+		"uses: ./.github/workflows/loader-ios.yml",
 		"needs: resolve-source",
 		"needs: [resolve-source, ios, android]",
 		"ios_version: ${{ needs.resolve-source.outputs.version }}",
@@ -162,7 +162,7 @@ func TestBuildWorkflowCoordinatesBothPlatforms(t *testing.T) {
 			t.Fatalf("build workflow is missing platform orchestration detail %q", required)
 		}
 	}
-	iosWorkflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "ios.yml"))
+	iosWorkflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-ios.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestBuildWorkflowCoordinatesBothPlatforms(t *testing.T) {
 	if strings.Contains(androidJob, "needs: [resolve-source, ios]") || strings.Contains(androidJob, "needs: ios") {
 		t.Fatal("Android and iOS builds must run in parallel after source resolution")
 	}
-	android, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "android.yml"))
+	android, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-android.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestBuildWorkflowCoordinatesBothPlatforms(t *testing.T) {
 			t.Fatalf("Android workflow is missing matching version or artifact detail %q", required)
 		}
 	}
-	pollWorkflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "release-poll.yml"))
+	pollWorkflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-release-poll.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestBuildWorkflowCoordinatesBothPlatforms(t *testing.T) {
 		"cron: '17 */3 * * *'",
 		"go run ./tools release-candidate --channel stable",
 		"go run ./tools release-candidate --channel testflight",
-		"uses: ./.github/workflows/build.yml",
+		"uses: ./.github/workflows/loader-build.yml",
 		"is_testflight: true",
 		"needs: [testflight-candidate, stable-release]",
 		"if: always() && needs.testflight-candidate.outputs.version != ''",
@@ -222,7 +222,7 @@ func TestBuildWorkflowCoordinatesBothPlatforms(t *testing.T) {
 			t.Fatalf("scheduled release polling is missing %q", required)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(root, ".github", "workflows", "remote-deploy.yml")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "..", "..", ".github", "workflows", "loader-remote-deploy.yml")); !os.IsNotExist(err) {
 		t.Fatal("the dkrypt repository-dispatch workflow must be removed")
 	}
 }
@@ -245,14 +245,20 @@ func TestObtainiumConfigTracksTheRootedAndroidModule(t *testing.T) {
 	if err := json.Unmarshal(configBytes, &config); err != nil {
 		t.Fatal(err)
 	}
-	if config.ID != "app.unbound.android" || config.URL != "https://github.com/unbound-app/loader" {
+	if config.ID != "app.unbound.android" || config.URL != "https://github.com/marioparaschiv/unbound" {
 		t.Fatalf("Obtainium config targets an unexpected app: %#v", config)
 	}
 	var settings struct {
-		APKFilterRegEx string `json:"apkFilterRegEx"`
+		APKFilterRegEx             string `json:"apkFilterRegEx"`
+		FilterReleaseTitlesByRegEx string `json:"filterReleaseTitlesByRegEx"`
 	}
 	if err := json.Unmarshal([]byte(config.AdditionalSettings), &settings); err != nil {
 		t.Fatal(err)
+	}
+	for title, wanted := range map[string]bool{"loader-v350.8": true, "v0.9.0": false} {
+		if matched, err := regexp.MatchString(settings.FilterReleaseTitlesByRegEx, title); err != nil || matched != wanted {
+			t.Fatalf("Obtainium release filter %q on %q matched %v, want %v", settings.FilterReleaseTitlesByRegEx, title, matched, wanted)
+		}
 	}
 	matches, err := regexp.MatchString(settings.APKFilterRegEx, "app.unbound.android.lsposed.apk")
 	if err != nil {
@@ -261,7 +267,7 @@ func TestObtainiumConfigTracksTheRootedAndroidModule(t *testing.T) {
 	if !matches {
 		t.Fatalf("Obtainium APK filter does not select the release module: %q", settings.APKFilterRegEx)
 	}
-	androidWorkflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "android.yml"))
+	androidWorkflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-android.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,7 +291,7 @@ func TestPullRequestWorkflowUsesPinnedCleanDiscordIPA(t *testing.T) {
 		t.Fatal("could not locate test source")
 	}
 	root := filepath.Dir(filepath.Dir(filename))
-	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "ci.yml"))
+	workflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-ci.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,7 +317,7 @@ func TestPullRequestWorkflowChecksPinnedSupportedDiscordFixtures(t *testing.T) {
 		t.Fatal("could not locate test source")
 	}
 	root := filepath.Dir(filepath.Dir(filename))
-	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "ci.yml"))
+	workflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-ci.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,14 +345,14 @@ func TestDependabotAutomergeWaitsForSuccessfulBuild(t *testing.T) {
 		t.Fatal("could not locate test source")
 	}
 	root := filepath.Dir(filepath.Dir(filename))
-	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "dependabot-automerge.yml"))
+	workflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-dependabot-automerge.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	contents := string(workflow)
 	for _, required := range []string{
-		"name: Auto-merge Dependabot",
-		"- Pull Request Build",
+		"name: Loader Auto-merge Dependabot",
+		"- Loader Pull Request Build",
 		"if: github.event.workflow_run.conclusion == 'success'",
 		"pull-requests: write",
 		"contents: write",
@@ -370,7 +376,7 @@ func TestStableReleasePublishesLoaderUpdateRecords(t *testing.T) {
 		t.Fatal("could not locate test source")
 	}
 	root := filepath.Dir(filepath.Dir(filename))
-	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "build.yml"))
+	workflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-build.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +419,7 @@ func TestStableReleasePublishesLoaderUpdateRecords(t *testing.T) {
 		}
 	}
 	for _, workflowName := range []string{"ios.yml", "android.yml"} {
-		workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", workflowName))
+		workflow, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "workflows", "loader-"+workflowName))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -436,7 +442,7 @@ func TestStableReleasePublishesLoaderUpdateRecords(t *testing.T) {
 			t.Fatalf("loader release semver gate is missing %q", required)
 		}
 	}
-	releaseConfig, err := os.ReadFile(filepath.Join(root, ".github", "release.yml"))
+	releaseConfig, err := os.ReadFile(filepath.Join(root, "..", "..", ".github", "release.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -460,13 +466,13 @@ func TestMetroRegistryIsCapturedBeforeBundleWithoutLegacyPatch(t *testing.T) {
 		t.Fatal("could not locate test source")
 	}
 	root := filepath.Dir(filepath.Dir(filename))
-	if _, err := os.Stat(filepath.Join(root, "packages", "bootstrap", "modules.js")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "bootstrap", "modules.js")); !os.IsNotExist(err) {
 		t.Fatal("legacy modules bootstrap shim must not be packaged")
 	}
 	for _, path := range []string{
-		filepath.Join(root, "packages", "core", "src", "LoaderPipeline.cpp"),
-		filepath.Join(root, "packages", "ios", "sources", "Unbound.xm"),
-		filepath.Join(root, "packages", "android", "module", "src", "main", "cpp", "AndroidLoader.cpp"),
+		filepath.Join(root, "core", "src", "LoaderPipeline.cpp"),
+		filepath.Join(root, "ios", "sources", "Unbound.xm"),
+		filepath.Join(root, "android", "module", "src", "main", "cpp", "AndroidLoader.cpp"),
 	} {
 		contents, err := os.ReadFile(path)
 		if err != nil {
@@ -476,14 +482,14 @@ func TestMetroRegistryIsCapturedBeforeBundleWithoutLegacyPatch(t *testing.T) {
 			t.Fatalf("legacy modules bootstrap plumbing remains in %s", path)
 		}
 	}
-	contents, err := os.ReadFile(filepath.Join(root, "packages", "core", "src", "LoaderPipeline.cpp"))
+	contents, err := os.ReadFile(filepath.Join(root, "core", "src", "LoaderPipeline.cpp"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(string(contents), "globalThis.__c?.()") {
 		t.Fatal("bundle readiness must not invoke Metro's destructive registry collector")
 	}
-	capture, err := os.ReadFile(filepath.Join(root, "packages", "core", "src", "LoaderJSI.cpp"))
+	capture, err := os.ReadFile(filepath.Join(root, "core", "src", "LoaderJSI.cpp"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -504,5 +510,35 @@ func TestLoaderReleasePublisherCannotBypassBatchSemverGate(t *testing.T) {
 	}
 	if strings.Contains(string(mainSource), "case \"publish-loader-release\":") || strings.Contains(string(mainSource), "publish-loader-release --platform") {
 		t.Fatal("loader release publishing must use the all-platform SemVer gate")
+	}
+}
+
+func TestLoaderReleasesUseTheirOwnTagNamespace(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("could not locate test source")
+	}
+	root := filepath.Dir(filepath.Dir(filename))
+	workflows := filepath.Join(root, "..", "..", ".github", "workflows")
+	build, err := os.ReadFile(filepath.Join(workflows, "loader-build.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(build), "tag_name: v") || !strings.Contains(string(build), "tag_name: loader-v") {
+		t.Fatal("loader releases must be tagged loader-v<version> so they never collide with client tags")
+	}
+	ios, err := os.ReadFile(filepath.Join(workflows, "loader-ios.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if regexp.MustCompile(`gh release download --repo`).Match(ios) {
+		t.Fatal("loader release downloads must name a loader tag instead of taking the repository's latest release")
+	}
+	poll, err := os.ReadFile(filepath.Join(root, "tools", "release_poll.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(poll), `tag := "loader-v" + version`) {
+		t.Fatal("the release poll must look for loader-v<version> releases")
 	}
 }

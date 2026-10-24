@@ -1,4 +1,4 @@
-name: Build iOS
+name: Loader Build iOS
 
 on:
   workflow_call:
@@ -59,6 +59,10 @@ concurrency:
 env:
   GH_TOKEN: ${{ github.token }}
 
+defaults:
+  run:
+    working-directory: packages/loader
+
 jobs:
   build-tweak:
     if: &only_build_check inputs.only_app_repo != true && inputs.only_apt_repo != true
@@ -85,7 +89,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: packages/loader/go.mod
 
       - name: test tools
         run: go test ./...
@@ -133,7 +137,7 @@ jobs:
           set -euo pipefail
           mkdir -p symbols
           for architecture in arm64 arm64e; do
-            binary="packages/ios/.theos/obj/${architecture}/Unbound.dylib"
+            binary="ios/.theos/obj/${architecture}/Unbound.dylib"
             bundle="${binary}.dSYM"
             test -f "$binary"
             test -d "$bundle"
@@ -151,24 +155,24 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: tweak symbols
-          path: symbols/
+          path: packages/loader/symbols/
 
       - name: upload rootless package
         id: upload-deb
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: rootless package
-          path: packages/ios/packages/*.deb
+          path: packages/loader/ios/packages/*.deb
 
       - name: attest rootless package
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
-          subject-path: packages/ios/packages/*.deb
+          subject-path: packages/loader/ios/packages/*.deb
 
       - name: set deb filename
         id: set-deb-filename
         run: |
-          DEB_FILE=$(find packages/ios/packages -maxdepth 1 -type f -name '*.deb' -print -quit)
+          DEB_FILE=$(find ios/packages -maxdepth 1 -type f -name '*.deb' -print -quit)
           DEB_FILENAME=$(basename "$DEB_FILE")
           echo "filename=$DEB_FILENAME" >> "$GITHUB_OUTPUT"
 
@@ -190,7 +194,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: packages/loader/go.mod
 
       - name: resolve and download source ipa
         id: resolve
@@ -233,7 +237,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: source ipa
-          path: discord.ipa
+          path: packages/loader/discord.ipa
 
   build-ipa:
     if: *only_build_check
@@ -273,16 +277,17 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           merge-multiple: true
+          path: packages/loader
 
       - name: setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: packages/loader/go.mod
 
       - name: extract app name
         run: |
-          NAME=$(grep '^Name:' packages/ios/control | cut -d ' ' -f 2)
+          NAME=$(grep '^Name:' ios/control | cut -d ' ' -f 2)
           echo "APP_NAME=$NAME" >> "$GITHUB_ENV"
 
       - name: build IPA
@@ -296,12 +301,12 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ipa
-          path: ${{ env.APP_NAME }}.ipa
+          path: packages/loader/${{ env.APP_NAME }}.ipa
 
       - name: attest IPA
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
-          subject-path: ${{ env.APP_NAME }}.ipa
+          subject-path: packages/loader/${{ env.APP_NAME }}.ipa
 
       - name: set ipa filename
         id: set-ipa-filename
@@ -331,16 +336,17 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: packages/loader/go.mod
 
       - name: download ipa artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: ipa
+          path: packages/loader
 
       - name: extract app name
         run: |
-          NAME=$(grep '^Name:' packages/ios/control | cut -d ' ' -f 2)
+          NAME=$(grep '^Name:' ios/control | cut -d ' ' -f 2)
           echo "APP_NAME=$NAME" >> "$GITHUB_ENV"
 
       - name: build simulator
@@ -351,12 +357,12 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: ios-simulator
-          path: unbound-ios-simulator.zip
+          path: packages/loader/unbound-ios-simulator.zip
 
       - name: attest iOS Simulator artifact
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
-          subject-path: unbound-ios-simulator.zip
+          subject-path: packages/loader/unbound-ios-simulator.zip
 
       - name: set simulator filename
         id: set-simulator-filename
@@ -373,15 +379,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [build-tweak, build-ipa, resolve-source-ipa]
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: loader-feed
+      cancel-in-progress: false
     permissions:
-      contents: read
-      pages: write
-      id-token: write
+      contents: write
     env:
       GPG_KEY: ${{ secrets.GPG_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      FEED_URL: https://builds.unbound.rip/repo
     steps:
       - name: checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -390,25 +396,26 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: packages/loader/go.mod
 
       - name: download deb artifact
         if: inputs.only_app_repo != true && inputs.only_apt_repo != true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: rootless package
-          path: packages/apt-repo/repo/debs
+          path: packages/loader/apt-repo/repo/debs
 
       - name: download latest release deb
         if: inputs.only_apt_repo == true
         run: |
-          mkdir -p packages/apt-repo/repo/debs
-          gh release download --repo "${{ github.repository }}" --pattern '*arm64.deb' --dir packages/apt-repo/repo/debs --clobber
+          mkdir -p apt-repo/repo/debs
+          LATEST_TAG=$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isPrerelease --jq '[.[] | select((.tagName | startswith("loader-v")) and (.isPrerelease | not))][0].tagName')
+          gh release download "$LATEST_TAG" --repo "${{ github.repository }}" --pattern '*arm64.deb' --dir apt-repo/repo/debs --clobber
 
       - name: capture new deb filename
         if: inputs.only_app_repo != true
         run: |
-          DEB_FILE=$(find packages/apt-repo/repo/debs -maxdepth 1 -type f -name '*.deb' -print -quit)
+          DEB_FILE=$(find apt-repo/repo/debs -maxdepth 1 -type f -name '*.deb' -print -quit)
           echo "NEW_DEB_FILENAME=$(basename "$DEB_FILE")" >> "$GITHUB_ENV"
 
       - name: download ipa artifact
@@ -416,6 +423,7 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: ipa
+          path: packages/loader
 
       - name: download latest release ipa
         if: inputs.only_app_repo == true
@@ -424,16 +432,17 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$VERSION_SELECTOR" ]; then
-            gh release download --repo "${{ github.repository }}" --pattern '*.ipa' --clobber
+            LATEST_TAG=$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isPrerelease --jq '[.[] | select((.tagName | startswith("loader-v")) and (.isPrerelease | not))][0].tagName')
+            gh release download "$LATEST_TAG" --repo "${{ github.repository }}" --pattern '*.ipa' --clobber
           else
             selector="${VERSION_SELECTOR#v}"
-            tag="v$selector"
+            tag="loader-v$selector"
             if ! gh release download "$tag" --repo "${{ github.repository }}" --pattern '*.ipa' --clobber; then
               if [[ "$selector" == *_* ]]; then
                 train="${selector%%_*}"
                 build="${selector#*_}"
                 if [[ "$train" != *.* ]]; then
-                  gh release download "v${train}.0_${build}" --repo "${{ github.repository }}" --pattern '*.ipa' --clobber
+                  gh release download "loader-v${train}.0_${build}" --repo "${{ github.repository }}" --pattern '*.ipa' --clobber
                 else
                   exit 1
                 fi
@@ -447,28 +456,23 @@ jobs:
 
       - name: restore live site state
         run: |
-          PACKAGE_ID=$(grep '^Package:' packages/ios/control | cut -d ' ' -f 2)
-          mkdir -p "packages/apt-repo/repo/depictions/web/$PACKAGE_ID" packages/apt-repo/repo/debs
-          cp packages/apt-repo/app-repo.json packages/apt-repo/repo/app-repo.json
+          PACKAGE_ID=$(grep '^Package:' ios/control | cut -d ' ' -f 2)
+          mkdir -p "apt-repo/repo/depictions/web/$PACKAGE_ID" apt-repo/repo/debs
+          cp apt-repo/app-repo.json apt-repo/repo/app-repo.json
 
-          PAGES_URL=$(gh api "repos/${{ github.repository }}/pages" --jq '.html_url // empty')
-          if [ -z "$PAGES_URL" ]; then
-            echo "GitHub Pages not deployed yet, starting fresh"
-            exit 0
-          fi
-          PAGES_URL="${PAGES_URL%/}"
+          PAGES_URL="${FEED_URL%/}"
 
-          curl -fsSL "$PAGES_URL/app-repo.json" -o packages/apt-repo/repo/app-repo.json.live \
-            && mv packages/apt-repo/repo/app-repo.json.live packages/apt-repo/repo/app-repo.json \
+          curl -fsSL "$PAGES_URL/app-repo.json" -o apt-repo/repo/app-repo.json.live \
+            && mv apt-repo/repo/app-repo.json.live apt-repo/repo/app-repo.json \
             || echo "No live app-repo.json yet, using repo template"
 
-          curl -fsSL "$PAGES_URL/depictions/web/$PACKAGE_ID/info.xml" -o "packages/apt-repo/repo/depictions/web/$PACKAGE_ID/info.xml" \
+          curl -fsSL "$PAGES_URL/depictions/web/$PACKAGE_ID/info.xml" -o "apt-repo/repo/depictions/web/$PACKAGE_ID/info.xml" \
             || echo "No live depiction yet, using repo template"
 
           if curl -fsSL "$PAGES_URL/Packages" -o previous-Packages; then
             grep '^Filename:' previous-Packages | awk '{print $2}' | sed 's|^\./||' | while read -r deb_path; do
               deb_name=$(basename "$deb_path")
-              dest="packages/apt-repo/repo/debs/$deb_name"
+              dest="apt-repo/repo/debs/$deb_name"
               if [ -f "$dest" ]; then
                 continue
               fi
@@ -508,28 +512,28 @@ jobs:
             APP_INDEX=0
           fi
 
-          NAME=$(grep '^Name:' packages/ios/control | cut -d ' ' -f 2)
+          NAME=$(grep '^Name:' ios/control | cut -d ' ' -f 2)
           DATE=$(date -u +"%Y-%m-%d")
           IPA_SIZE=$(stat -c%s "$APP_FILE")
-          DOWNLOAD_URL=https://github.com/${{ github.repository }}/releases/download/v$VERSION/$NAME.ipa
+          DOWNLOAD_URL=https://github.com/${{ github.repository }}/releases/download/loader-v$VERSION/$NAME.ipa
           NEW_ENTRY=$(jq -n --arg version "$VERSION" --arg date "$DATE" --arg size "$IPA_SIZE" --arg downloadURL "$DOWNLOAD_URL" '{version: $version, date: $date, size: ($size | tonumber), downloadURL: $downloadURL, localizedDescription: "Further improvements to overall system stability and other minor adjustments have been made to enhance the user experience."}')
 
-          VERSION_EXISTS=$(jq --arg version "$VERSION" --argjson index "$APP_INDEX" '.apps[$index].versions | map(select(.version == $version)) | length' packages/apt-repo/repo/app-repo.json)
+          VERSION_EXISTS=$(jq --arg version "$VERSION" --argjson index "$APP_INDEX" '.apps[$index].versions | map(select(.version == $version)) | length' apt-repo/repo/app-repo.json)
           if [ "$VERSION_EXISTS" -gt 0 ]; then
-            jq --argjson newEntry "$NEW_ENTRY" --argjson index "$APP_INDEX" --arg version "$VERSION" '.apps[$index].versions |= map(if .version == $version then $newEntry else . end)' packages/apt-repo/repo/app-repo.json > temp.json
+            jq --argjson newEntry "$NEW_ENTRY" --argjson index "$APP_INDEX" --arg version "$VERSION" '.apps[$index].versions |= map(if .version == $version then $newEntry else . end)' apt-repo/repo/app-repo.json > temp.json
           else
-            jq --argjson newEntry "$NEW_ENTRY" --argjson index "$APP_INDEX" '.apps[$index].versions |= [$newEntry] + .' packages/apt-repo/repo/app-repo.json > temp.json
+            jq --argjson newEntry "$NEW_ENTRY" --argjson index "$APP_INDEX" '.apps[$index].versions |= [$newEntry] + .' apt-repo/repo/app-repo.json > temp.json
           fi
-          mv temp.json packages/apt-repo/repo/app-repo.json
+          mv temp.json apt-repo/repo/app-repo.json
 
       - name: update depiction version
         if: inputs.only_app_repo != true
         run: |
-          DEB_FILE="packages/apt-repo/repo/debs/${{ env.NEW_DEB_FILENAME }}"
+          DEB_FILE="apt-repo/repo/debs/${{ env.NEW_DEB_FILENAME }}"
           VERSION=$(dpkg-deb -f "$DEB_FILE" Version)
           PACKAGE_ID=$(dpkg-deb -f "$DEB_FILE" Package)
 
-          INFO_XML="packages/apt-repo/repo/depictions/web/$PACKAGE_ID/info.xml"
+          INFO_XML="apt-repo/repo/depictions/web/$PACKAGE_ID/info.xml"
           if [ -f "$INFO_XML" ]; then
             sed -i "s|<version>.*</version>|<version>$VERSION</version>|" "$INFO_XML"
           else
@@ -547,22 +551,35 @@ jobs:
           echo "GPG_KEY_ID=$GPG_KEY_ID" >> "$GITHUB_ENV"
 
       - name: update repository
-        working-directory: packages/apt-repo
+        working-directory: packages/loader/apt-repo
         env:
           GPG_KEY_ID: ${{ env.GPG_KEY_ID }}
         run: |
           chmod +x update-repo.sh
           ./update-repo.sh
 
-      - name: setup Pages
-        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d
+      - name: publish the feed to the builds branch
+        run: |
+          set -euo pipefail
+          feed="$(pwd)/apt-repo/repo"
+          publish="$(mktemp -d)"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
-      - name: upload Pages artifact
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
-        with:
-          path: packages/apt-repo/repo
-          retention-days: 90
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-      - name: deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346
+          git fetch --depth 1 "$remote" builds:refs/remotes/publish/builds
+          git worktree add --detach "$publish" refs/remotes/publish/builds
+          cd "$publish"
+
+          rm -rf repo
+          mkdir repo
+          cp -r "$feed"/. repo/
+
+          git add -A repo
+          if git diff --cached --quiet; then
+            echo "The feed is already up to date"
+            exit 0
+          fi
+          git commit -m "build: publish the loader feed for ${GITHUB_SHA}"
+          git push "$remote" HEAD:builds

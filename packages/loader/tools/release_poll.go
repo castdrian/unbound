@@ -113,7 +113,7 @@ func runReleaseCandidate(args []string) error {
 		return err
 	}
 	if version != "" {
-		tag := "v" + version
+		tag := "loader-v" + version
 		exists, err := githubReleaseExists(context.Background(), config.httpClient, config.githubAPIURL, config.githubRepository, tag, config.githubToken)
 		if err != nil {
 			return err

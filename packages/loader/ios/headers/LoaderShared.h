@@ -1,0 +1,15 @@
+#import "Unbound.h"
+#import "FileSystem.h"
+#import "Logger.h"
+#import "Settings.h"
+#import "Plugins.h"
+#import "Themes.h"
+#import "Fonts.h"
+#import "Utilities.h"
+#import "CoreBridge.h"
+
+@interface LoaderShared : NSObject
+
++ (NSData *)buildPreloadScriptData;
+
+@end

@@ -50,6 +50,7 @@ function start(context: PluginContext) {
 				shown: renderer.schedule,
 				laidOut: renderer.schedule,
 				reused: renderer.reuse,
+				textChanged: renderer.schedule,
 			}),
 		() => subscribeSelectedChannel(renderer, scanner),
 	]);

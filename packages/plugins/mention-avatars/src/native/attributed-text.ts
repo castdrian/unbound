@@ -1,3 +1,11 @@
+import {
+	imageAttachment,
+	isAttachmentRun,
+	isTappableRun,
+	textAttachmentBridge,
+	type TextEngine,
+} from '@unbound-plugins/shared/native/text-attachments';
+
 import type { Bridge, Handle, TextAttributes } from '~/native/bridge';
 import type { Mention, MentionType } from '~/mentions';
 import { MENTION_PLACEHOLDER } from '~/constants';
@@ -13,7 +21,7 @@ type MentionMatch = {
 
 function isHighlighted(bridge: Bridge, text: Handle, from: number, to: number): boolean {
 	for (let index = from; index < to; index++) {
-		if (!bridge.attributes(text, index)?.YYTextHighlight) {
+		if (!isTappableRun(bridge.attributes(text, index))) {
 			return false;
 		}
 	}
@@ -37,7 +45,7 @@ function nextMention(
 		const label = selectMentionLabel(string.slice(index), labels);
 		const attributes = label ? bridge.attributes(text, index) : null;
 
-		if (!label || !attributes?.YYTextHighlight) {
+		if (!label || !isTappableRun(attributes)) {
 			continue;
 		}
 
@@ -50,7 +58,7 @@ function nextMention(
 		while (
 			begin > start &&
 			string[begin - 1] === MENTION_PLACEHOLDER &&
-			bridge.attributes(text, begin - 1)?.YYTextHighlight
+			isTappableRun(bridge.attributes(text, begin - 1))
 		) {
 			begin--;
 		}
@@ -61,86 +69,37 @@ function nextMention(
 	return null;
 }
 
-function imageAttachment(
-	bridge: Bridge,
-	image: Handle,
-	type: MentionType,
-	attributes: TextAttributes,
-): Handle | null {
-	const { objc } = bridge;
-	const YYTextAttachment = objc.getClass('YYTextAttachment');
-
-	if (!YYTextAttachment) return null;
-
-	const leading = type === 'role' ? 4 : 2;
-	const trailing = type === 'role' ? 2 : 4;
-	const attachment = objc.alloc(YYTextAttachment);
-
-	bridge.setValues(attachment, {
-		content: image,
-		contentMode: 1,
-		contentInsets: objc.struct('UIEdgeInsets', {
-			top: 0,
-			left: leading,
-			bottom: 0,
-			right: trailing,
-		}),
-	});
-
-	const result = objc.alloc('NSMutableAttributedString');
-
-	bridge.call(result, 'initWithString:attributes:', MENTION_PLACEHOLDER, attributes);
-	bridge.call(
-		result,
-		'addAttribute:value:range:',
-		'YYTextAttachment',
-		attachment,
-		bridge.range(0, 1),
-	);
-
-	// Without a run delegate the line keeps the placeholder's text width instead of the image's.
-	const YYTextRunDelegate = objc.getClass('YYTextRunDelegate');
-	const font = attributes.NSFont;
-
-	if (!YYTextRunDelegate || !font) return result;
-
-	const runDelegate = objc.alloc(YYTextRunDelegate);
-
-	bridge.setValues(runDelegate, {
-		ascent: bridge.number(font, 'ascender'),
-		descent: -bridge.number(font, 'descender'),
-		width: leading + 16 + trailing,
-	});
-
-	if (!objc.respondsTo(runDelegate, 'CTRunDelegate')) return result;
-
-	const coreTextRunDelegate = bridge.call(runDelegate, 'CTRunDelegate');
-
-	if (coreTextRunDelegate) {
-		bridge.call(
-			result,
-			'addAttribute:value:range:',
-			'CTRunDelegate',
-			coreTextRunDelegate,
-			bridge.range(0, 1),
-		);
-	}
-
-	return result;
-}
-
 function attributedMention(
 	bridge: Bridge,
+	engine: TextEngine,
 	text: string,
 	type: MentionType,
 	attributes: TextAttributes,
 	image: Handle,
 ): Handle {
-	const mention = bridge.objc.alloc('NSAttributedString');
+	const leading = type === 'role' ? 4 : 2;
+	const trailing = type === 'role' ? 2 : 4;
+	const mention = bridge.objc.alloc('NSMutableAttributedString');
 
 	bridge.call(mention, 'initWithString:attributes:', text, attributes);
 
-	const avatar = imageAttachment(bridge, image, type, attributes);
+	if (engine === 'textkit' && type === 'role' && text.length > 0) {
+		bridge.call(
+			mention,
+			'addAttribute:value:range:',
+			'NSKern',
+			leading,
+			bridge.range(text.length - 1, 1),
+		);
+	}
+
+	const avatar = imageAttachment(textAttachmentBridge(bridge.objc), engine, {
+		attributes,
+		image,
+		leading,
+		size: 16,
+		trailing: type === 'role' && engine === 'textkit' ? 0 : trailing,
+	});
 
 	if (!avatar) return mention;
 
@@ -166,6 +125,7 @@ function attributedMention(
  */
 export function insertMentionImages(
 	bridge: Bridge,
+	engine: TextEngine,
 	text: Handle,
 	mentions: Mention[],
 	imageFor: (mention: Mention) => Handle | null,
@@ -202,20 +162,21 @@ export function insertMentionImages(
 		while (
 			from > begin &&
 			string[from - 1] === MENTION_PLACEHOLDER &&
-			bridge.attributes(result, from - 1)?.YYTextAttachment
+			isAttachmentRun(bridge.attributes(result, from - 1))
 		) {
 			from--;
 		}
 
 		while (
 			string[to] === MENTION_PLACEHOLDER &&
-			bridge.attributes(result, to)?.YYTextAttachment
+			isAttachmentRun(bridge.attributes(result, to))
 		) {
 			to++;
 		}
 
 		const replacement = attributedMention(
 			bridge,
+			engine,
 			showAtSymbol ? `@${label}` : label,
 			mention.type,
 			attributes,

@@ -20,6 +20,7 @@ import {
 import { patchLottieAnimationView } from '~/patches/lottie-animation-view';
 import { patchNativeLottieView } from '~/patches/native-lottie-view';
 import { subscribeMessageStore } from '~/native/message-sync';
+import { patchRowEmbeds } from '~/android/row-embeds';
 import { patchFastImage } from '~/patches/fast-image';
 import { hookMessageCells } from '~/native/cells';
 import { createSession } from '~/native/session';
@@ -36,6 +37,20 @@ function start(context: PluginContext) {
 		fetchMessage: MessageActions.fetchMessage,
 		...renderers,
 	};
+
+	if (context.platform === 'android') {
+		if (
+			ensureModules('Message Link Embeds', {
+				ChannelStore,
+				MessageStore,
+				fetchMessage: MessageActions.fetchMessage,
+			})
+		) {
+			dispose = applyFeatures('Message Link Embeds', [() => patchRowEmbeds()]);
+		}
+
+		return;
+	}
 
 	if (
 		!ensureCapabilities('Message Link Embeds', context.native, context.capabilities) ||

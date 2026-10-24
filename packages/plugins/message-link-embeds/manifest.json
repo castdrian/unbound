@@ -20,17 +20,21 @@
 			"id": "224617799434108928"
 		}
 	],
-	"platforms": ["ios"],
-	"capabilities": [
-		"native.objc.classes",
-		"native.objc.invoke",
-		"native.objc.invokeAsync",
-		"native.objc.batch",
-		"native.objc.snapshot",
-		"native.objc.ivars",
-		"native.objc.hooks",
-		"native.fabric.mount"
-	],
+	"platforms": ["ios", "android"],
+	"capabilities": [],
+	"platformCapabilities": {
+		"ios": [
+			"native.objc.classes",
+			"native.objc.invoke",
+			"native.objc.invokeAsync",
+			"native.objc.batch",
+			"native.objc.snapshot",
+			"native.objc.ivars",
+			"native.objc.hooks",
+			"native.fabric.mount"
+		],
+		"android": []
+	},
 	"version": "1.0.0",
 	"minNativePluginApi": "1.0.0",
 	"icon": "LinkIcon",

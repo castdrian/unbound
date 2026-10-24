@@ -4,6 +4,7 @@ import { whenLoaded } from '@unbound-plugins/shared/metro/when-loaded';
 import ensureClasses from '@unbound-plugins/shared/native/ensure-classes';
 import ensureModules from '@unbound-plugins/shared/metro/ensure-modules';
 import type { PluginContext } from '@unbound-app/api/native';
+import { messageTextViewClass } from '@unbound-plugins/shared/native/text-attachments';
 
 import {
 	ChannelStore,
@@ -41,8 +42,7 @@ function start(context: PluginContext) {
 		!ensureModules('Message Link Embeds', modules) ||
 		!ensureClasses('Message Link Embeds', objc, [
 			'DCDMessageTableViewCell',
-			'DCDReusableYYLabel',
-			'YYTextAttachment',
+			messageTextViewClass(objc),
 		])
 	) {
 		return;

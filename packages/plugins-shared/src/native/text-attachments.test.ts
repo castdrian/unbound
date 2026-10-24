@@ -22,6 +22,7 @@ type BridgeOptions = {
 	classes?: string[];
 	runs?: boolean[];
 	superview?: NativeObjectHandle;
+	emptyRect?: boolean;
 };
 
 type Named = { name?: string };
@@ -83,7 +84,9 @@ function createBridge(options: BridgeOptions = {}) {
 			}
 
 			if (selector === 'boundingRectForGlyphRange:inTextContainer:') {
-				return { value: { origin: { x: 0, y: 29 }, size: { width: 279, height: 90 } } };
+				return options.emptyRect === true
+					? { value: { origin: { x: 0, y: 0 }, size: { width: 0, height: 0 } } }
+					: { value: { origin: { x: 0, y: 29 }, size: { width: 279, height: 90 } } };
 			}
 
 			if (selector === 'textContainerInset') {
@@ -365,6 +368,14 @@ describe('attached view placement', () => {
 		};
 
 		expect(frame.value).toEqual({ origin: { x: 2, y: 33 }, size: { width: 279, height: 90 } });
+	});
+
+	test('leaves a view alone while its attachment is not laid out', async () => {
+		const { bridge, asyncCalls } = createBridge({ emptyRect: true });
+
+		await placeAttachedViews(bridge, textView, [{ view, index: 21 }]);
+
+		expect(asyncCalls).toEqual([]);
 	});
 
 	test('only reframes a view already inside the text view', async () => {

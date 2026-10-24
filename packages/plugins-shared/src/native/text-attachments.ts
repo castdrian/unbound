@@ -1,6 +1,7 @@
 import type { NativeHandle, NativeObjCBridge, NativeObjectHandle } from '@unbound-app/api/native';
 
 import { safeInvoke } from './safe-invoke';
+import { readRect } from './rect';
 
 export type TextEngine = 'textkit' | 'yytext';
 
@@ -9,6 +10,8 @@ export type TextStructFields = Parameters<NativeObjCBridge['struct']>[1];
 export const ATTACHMENT_CHARACTER = '￼';
 
 export const MESSAGE_TEXT_VIEW_CLASSES = ['DCDAttributedTextView', 'DCDReusableYYLabel'] as const;
+
+export const CODE_BLOCK_ATTRIBUTE = 'ContentNodeAttribute:DrawingDataLayers';
 
 export type TextAttachmentValue =
 	| NativeHandle
@@ -34,6 +37,28 @@ export type TextAttachmentBridge = {
 	getClass(name: string): NativeObjectHandle | null;
 	alloc(classOrName: string | NativeObjectHandle): NativeObjectHandle;
 	struct(name: string, value: TextStructFields): NativeObjectHandle;
+	callAsync(
+		target: NativeObjectHandle,
+		selector: string,
+		...args: TextAttachmentArgument[]
+	): Promise<TextAttachmentValue>;
+};
+
+export type ViewAttachmentOptions = {
+	attributes: TextAttributes;
+	view: NativeObjectHandle;
+	width: number;
+	height: number;
+};
+
+export type AttachedView = {
+	view: NativeObjectHandle;
+	index: number;
+};
+
+export type TextRange = {
+	start: number;
+	end: number;
 };
 
 export type ImageAttachmentOptions = {
@@ -68,6 +93,15 @@ export function textAttachmentBridge(objc: NativeObjCBridge): TextAttachmentBrid
 		getClass: (name) => objc.getClass(name),
 		alloc: (classOrName) => objc.alloc(classOrName),
 		struct: (name, value) => objc.struct(name, value),
+		async callAsync(target, selector, ...args) {
+			try {
+				const result = await objc.invokeAsync(target, selector, args);
+
+				return isTextAttachmentValue(result) ? result : null;
+			} catch {
+				return null;
+			}
+		},
 	};
 }
 
@@ -261,10 +295,243 @@ export function imageAttachment(
 	return engine === 'textkit' ? textKitImage(bridge, options) : yyTextImage(bridge, options);
 }
 
+function blankImage(bridge: TextAttachmentBridge): NativeObjectHandle {
+	const image = bridge.alloc('UIImage');
+
+	bridge.call(image, 'init');
+
+	return image;
+}
+
+function textKitView(
+	bridge: TextAttachmentBridge,
+	options: ViewAttachmentOptions,
+): NativeObjectHandle | null {
+	if (!bridge.getClass('NSTextAttachment')) {
+		return null;
+	}
+
+	const { attributes, width, height } = options;
+	const attachment = bridge.alloc('NSTextAttachment');
+
+	bridge.call(attachment, 'init');
+	bridge.call(attachment, 'setImage:', blankImage(bridge));
+	bridge.call(
+		attachment,
+		'setBounds:',
+		bridge.struct('CGRect', { origin: { x: 0, y: 0 }, size: { width, height } }),
+	);
+
+	const result = bridge.alloc('NSMutableAttributedString');
+
+	bridge.call(result, 'initWithString:attributes:', ATTACHMENT_CHARACTER, attributes);
+	bridge.call(
+		result,
+		'addAttribute:value:range:',
+		'NSAttachment',
+		attachment,
+		range(bridge, 0, 1),
+	);
+
+	return result;
+}
+
+function yyTextView(
+	bridge: TextAttachmentBridge,
+	options: ViewAttachmentOptions,
+): NativeObjectHandle | null {
+	if (!bridge.getClass('YYTextAttachment')) {
+		return null;
+	}
+
+	const { attributes, view, width, height } = options;
+	const attachment = bridge.alloc('YYTextAttachment');
+
+	bridge.call(attachment, 'setValue:forKey:', view, 'content');
+	bridge.call(attachment, 'setValue:forKey:', 1, 'contentMode');
+
+	const result = bridge.alloc('NSMutableAttributedString');
+
+	bridge.call(result, 'initWithString:attributes:', ATTACHMENT_CHARACTER, attributes);
+	bridge.call(
+		result,
+		'addAttribute:value:range:',
+		'YYTextAttachment',
+		attachment,
+		range(bridge, 0, 1),
+	);
+
+	if (!bridge.getClass('YYTextRunDelegate')) {
+		return result;
+	}
+
+	const delegate = bridge.alloc('YYTextRunDelegate');
+
+	bridge.call(delegate, 'setValue:forKey:', height, 'ascent');
+	bridge.call(delegate, 'setValue:forKey:', 0, 'descent');
+	bridge.call(delegate, 'setValue:forKey:', width, 'width');
+
+	const runDelegate = bridge.call(delegate, 'CTRunDelegate');
+
+	if (runDelegate) {
+		bridge.call(
+			result,
+			'addAttribute:value:range:',
+			'CTRunDelegate',
+			runDelegate,
+			range(bridge, 0, 1),
+		);
+	}
+
+	return result;
+}
+
+/**
+ * @description Builds a one-character attributed string that reserves room for a view inside message text.
+ * @param bridge The attachment bridge.
+ * @param engine The text view's layout engine.
+ * @param options The view, the room to reserve for it, and the surrounding text's attributes.
+ * @returns The attributed string to insert, or `null` when the engine's attachment class is missing.
+ */
+export function viewAttachment(
+	bridge: TextAttachmentBridge,
+	engine: TextEngine,
+	options: ViewAttachmentOptions,
+): NativeObjectHandle | null {
+	return engine === 'textkit' ? textKitView(bridge, options) : yyTextView(bridge, options);
+}
+
+function hasAttribute(
+	bridge: TextAttachmentBridge,
+	text: NativeObjectHandle,
+	index: number,
+	key: string,
+): boolean {
+	const attributes = bridge.call(text, 'attributesAtIndex:effectiveRange:', index, null);
+
+	return isAttributes(attributes) && Boolean(attributes[key]);
+}
+
+function isAttributes(value: TextAttachmentValue): value is NativeHandle & TextAttributes {
+	return typeof value === 'object' && value !== null;
+}
+
+/**
+ * @description Widens a range to cover the whole run of text that carries an attribute.
+ * @param bridge The attachment bridge.
+ * @param text The attributed text.
+ * @param span The range to widen.
+ * @param key The attribute marking the run, such as Discord's code block layers.
+ * @returns The widened range, or the original when its start does not carry the attribute.
+ */
+export function attributeRun(
+	bridge: TextAttachmentBridge,
+	text: NativeObjectHandle,
+	span: TextRange,
+	key: string,
+): TextRange {
+	const length = numeric(bridge.call(text, 'length'));
+	let { start, end } = span;
+
+	if (start >= length || !hasAttribute(bridge, text, start, key)) {
+		return span;
+	}
+
+	while (start > 0 && hasAttribute(bridge, text, start - 1, key)) {
+		start--;
+	}
+
+	while (end < length && hasAttribute(bridge, text, end, key)) {
+		end++;
+	}
+
+	return { start, end };
+}
+
+type Inset = { top: number; left: number };
+
+function readInset(value: TextAttachmentValue): Inset {
+	if (!isAttributes(value)) {
+		return { top: 0, left: 0 };
+	}
+
+	const boxed = value.value ?? null;
+	const inset = isAttributes(boxed) ? boxed : value;
+
+	return { top: Number(inset.top ?? 0), left: Number(inset.left ?? 0) };
+}
+
+/**
+ * @description Positions views over the attachments that reserve their room in a TextKit text view.
+ * @param bridge The attachment bridge.
+ * @param textView The message text view.
+ * @param views Each view with the index of the attachment character that reserves its room.
+ * @returns Resolves once every view is placed.
+ */
+export async function placeAttachedViews(
+	bridge: TextAttachmentBridge,
+	textView: NativeObjectHandle,
+	views: AttachedView[],
+): Promise<void> {
+	const layoutManager = bridge.call(textView, 'layoutManager');
+	const textContainer = bridge.call(textView, 'textContainer');
+
+	if (!isAttributes(layoutManager) || !isAttributes(textContainer)) {
+		return;
+	}
+
+	const inset = readInset(bridge.call(textView, 'textContainerInset'));
+
+	for (const { view, index } of views) {
+		const glyph = numeric(bridge.call(layoutManager, 'glyphIndexForCharacterAtIndex:', index));
+		const rect = readRect(
+			bridge.call(
+				layoutManager,
+				'boundingRectForGlyphRange:inTextContainer:',
+				range(bridge, glyph, 1),
+				textContainer,
+			),
+		);
+
+		await bridge.callAsync(
+			view,
+			'setFrame:',
+			bridge.struct('CGRect', {
+				origin: { x: rect.x + inset.left, y: rect.y + inset.top },
+				size: { width: rect.width, height: rect.height },
+			}),
+		);
+
+		if (bridge.call(view, 'superview') !== textView) {
+			await bridge.callAsync(textView, 'addSubview:', view);
+		}
+	}
+}
+
+/**
+ * @description Takes views placed over TextKit attachments back out of their text view.
+ * @param bridge The attachment bridge.
+ * @param views The views to remove.
+ * @returns Resolves once every view is removed.
+ */
+export async function removeAttachedViews(
+	bridge: TextAttachmentBridge,
+	views: NativeObjectHandle[],
+): Promise<void> {
+	for (const view of views) {
+		await bridge.callAsync(view, 'removeFromSuperview');
+	}
+}
+
 export default {
 	ATTACHMENT_CHARACTER,
+	CODE_BLOCK_ATTRIBUTE,
 	MESSAGE_TEXT_VIEW_CLASSES,
+	attributeRun,
 	imageAttachment,
+	placeAttachedViews,
+	removeAttachedViews,
+	viewAttachment,
 	isAttachmentRun,
 	isTappableRun,
 	isTextBoundary,

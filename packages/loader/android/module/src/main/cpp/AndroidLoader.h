@@ -82,6 +82,7 @@ namespace unbound::android
         void start();
         void onLoadJSBundle();
         void onJSBundleLoaded();
+        void executeBundleNow(facebook::jsi::Runtime &runtime);
         void drainMainWork();
         void drainRuntimeWork(facebook::jsi::Runtime &runtime);
 

@@ -15,6 +15,8 @@ namespace unbound::android
 {
     namespace jsi = facebook::jsi;
 
+    static constexpr auto kRunApplicationBundleWait = std::chrono::milliseconds(1500);
+
     static std::mutex                     gLoaderMutex;
     static std::shared_ptr<AndroidLoader> gLoader;
 
@@ -118,6 +120,12 @@ namespace unbound::android
     void AndroidLoader::onJSBundleLoaded()
     {
         pipeline_->enqueueBundle();
+    }
+
+    void AndroidLoader::executeBundleNow(jsi::Runtime &runtime)
+    {
+        loader::native::registerRuntime(runtime);
+        pipeline_->executeNow(runtime, kRunApplicationBundleWait);
     }
 
     void AndroidLoader::drainRuntimeWork(jsi::Runtime &runtime)

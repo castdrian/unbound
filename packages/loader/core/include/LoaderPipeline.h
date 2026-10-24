@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <memory>
@@ -44,6 +45,8 @@ namespace loader
 
         void prepare();
         void enqueueBundle();
+        bool executeNow(facebook::jsi::Runtime &runtime, std::chrono::milliseconds wait);
+        bool waitForPreparedBundle(std::chrono::milliseconds wait);
 
         bool isBundleReady() const;
 
@@ -59,6 +62,9 @@ namespace loader
 
         void prefetchBundle();
         void executeBundle(std::shared_ptr<PendingBundle> pending, uint64_t token, unsigned attempt);
+        bool evaluatePending(facebook::jsi::Runtime &runtime, const std::shared_ptr<PendingBundle> &pending,
+                             uint64_t token);
+        std::shared_ptr<PendingBundle> currentPending();
         void injectPreBundle(facebook::jsi::Runtime &runtime);
 
         std::shared_ptr<LoaderHost>    host_;

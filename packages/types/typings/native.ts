@@ -20,6 +20,10 @@ export const NATIVE_PLUGIN_CAPABILITIES = [
 	'native.java.invoke',
 	'native.java.invokeAsync',
 	'native.java.hooks',
+	'native.java.batch',
+	'native.java.associations',
+	'native.debug.evaluations',
+	'native.debug.environment',
 	'native.ui.lookup',
 	'native.ui.mount',
 	'native.ui.layout',
@@ -37,9 +41,13 @@ export const NATIVE_PLUGIN_PLATFORM_CAPABILITIES = {
 		'native.java.construct',
 		'native.java.fields',
 		'native.java.invoke',
+		'native.java.associations',
+		'native.java.batch',
 		'native.java.hooks',
 		'native.java.invokeAsync',
 		'native.runtime.events',
+		'native.debug.environment',
+		'native.debug.evaluations',
 		'native.ui.layout',
 		'native.ui.lookup',
 		'native.ui.mount',
@@ -57,6 +65,8 @@ export const NATIVE_PLUGIN_PLATFORM_CAPABILITIES = {
 		'native.objc.invokeAsync',
 		'native.objc.ivars',
 		'native.objc.snapshot',
+		'native.debug.environment',
+		'native.debug.evaluations',
 		'native.runtime.events',
 	],
 } as const satisfies Record<NativePluginPlatform, readonly NativePluginCapability[]>;
@@ -434,8 +444,45 @@ export type NativeJavaHooksBridge = {
 	remove(token: NativeJavaHookToken): void;
 };
 
+export type NativeJavaBatchOperation = {
+	op: 'invoke' | 'getField' | 'setField' | 'respondsTo';
+	handle: NativeJavaHandle;
+	name: string;
+	args?: NativeJavaValue[];
+	value?: NativeJavaValue;
+};
+
+export type NativeJavaAssociationKey = NativeHandle;
+
+export type NativeDebugEvaluation = {
+	id: string;
+	code: string;
+	ok: boolean;
+	value?: string;
+	error?: string;
+	logs?: { level: 1 | 2 | 3; message: string }[];
+};
+
+export type NativeDebugEnvironment = {
+	isVirtualDevice: boolean;
+	hostAddress: string | null;
+};
+
+export type NativeDebugBridge = {
+	recordEvaluation(record: NativeDebugEvaluation): boolean;
+	environment(): NativeDebugEnvironment;
+};
+
 export type NativeJavaBridge = {
 	getClass(name: string): NativeJavaHandle;
+	batch(operations: NativeJavaBatchOperation[]): NativeJavaValue[];
+	createAssociationKey(): NativeJavaAssociationKey;
+	getAssociatedObject(handle: NativeJavaHandle, key: NativeJavaAssociationKey): NativeJavaValue;
+	setAssociatedObject(
+		handle: NativeJavaHandle,
+		key: NativeJavaAssociationKey,
+		value: NativeJavaValue,
+	): void;
 	className(handle: NativeJavaHandle): NativeJavaValue;
 	construct(name: string, args?: NativeJavaValue[]): NativeJavaHandle;
 	respondsTo(handle: NativeJavaHandle, name: string, args?: NativeJavaValue[]): NativeJavaValue;
@@ -527,6 +574,7 @@ export type NativePluginBridge = {
 	readonly ui: NativeUIBridge;
 	readonly java: NativeJavaBridge;
 	readonly hooks: NativeJavaHooksBridge;
+	readonly debug: NativeDebugBridge;
 	readonly media: NativeMediaBridge;
 };
 

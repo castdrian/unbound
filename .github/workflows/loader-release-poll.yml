@@ -1,4 +1,4 @@
-name: Poll Discord releases
+name: Loader Poll Discord releases
 
 on:
   schedule:
@@ -11,6 +11,10 @@ permissions:
 concurrency:
   group: discord-release-poll-${{ github.ref }}
   cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: packages/loader
 
 jobs:
   stable-candidate:
@@ -25,7 +29,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: packages/loader/go.mod
       - name: resolve stable candidate
         id: candidate
         env:
@@ -45,7 +49,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: packages/loader/go.mod
       - name: resolve TestFlight candidate
         id: candidate
         env:
@@ -63,8 +67,7 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-      pages: write
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/loader-build.yml
     with:
       version: ${{ needs.stable-candidate.outputs.version }}
       release: true
@@ -79,8 +82,7 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-      pages: write
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/loader-build.yml
     with:
       version: ${{ needs.testflight-candidate.outputs.version }}
       release: true

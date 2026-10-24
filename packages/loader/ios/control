@@ -7,6 +7,6 @@ Maintainer: eternal, acquitelol, Adrian Castro
 Author: Unbound Team
 Section: Tweaks
 Depends: ellekit
-SileoDepiction: https://repo.unbound.rip/depictions/unbound.json
+SileoDepiction: https://builds.unbound.rip/repo/depictions/unbound.json
 Icon: https://assets.unbound.rip/logo/logo.png
 Conflicts: app.enmity, mod.vendetta, app.pyoncord

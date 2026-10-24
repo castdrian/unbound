@@ -1,4 +1,4 @@
-name: Build Unbound
+name: Loader Build Unbound
 run-name: >-
   ${{
     inputs.only_app_repo == true && 'app-repo deploy' ||
@@ -8,11 +8,13 @@ run-name: >-
 
 on:
   push:
-    branches: [main, feat/monorepo]
-    paths-ignore:
-      - '**/*.md'
-      - '**/*.mdx'
-      - '.github/resources/**'
+    branches: [main]
+    paths:
+      - 'packages/loader/**'
+      - '.github/workflows/loader-*.yml'
+      - '.gitmodules'
+      - '!**/*.md'
+      - '!**/*.mdx'
   workflow_dispatch:
     inputs:
       version:
@@ -110,6 +112,10 @@ concurrency:
   group: ${{ inputs.release == true && 'loader-release' || format('build-{0}-{1}', github.workflow, github.ref) }}
   cancel-in-progress: false
 
+defaults:
+  run:
+    working-directory: packages/loader
+
 jobs:
   resolve-source:
     if: inputs.only_app_repo != true && inputs.only_apt_repo != true
@@ -127,7 +133,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: packages/loader/go.mod
 
       - name: resolve source version
         id: resolve
@@ -188,7 +194,7 @@ jobs:
     if: inputs.only_app_repo != true && inputs.only_apt_repo != true && inputs.is_testflight != true && needs.resolve-source.result == 'success'
     permissions:
       contents: read
-    uses: ./.github/workflows/android.yml
+    uses: ./.github/workflows/loader-android.yml
     with:
       ios_version: ${{ needs.resolve-source.outputs.version }}
       require_matching_version: ${{ inputs.release == true && inputs.is_testflight != true }}
@@ -203,8 +209,7 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-      pages: write
-    uses: ./.github/workflows/ios.yml
+    uses: ./.github/workflows/loader-ios.yml
     with:
       version: ${{ needs.resolve-source.outputs.version || inputs.version }}
       ipa_url: ${{ inputs.ipa_url }}
@@ -235,66 +240,88 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: packages/loader/go.mod
 
       - name: download iOS tweak
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: rootless package
-          path: release-assets
+          path: packages/loader/release-assets
 
       - name: download iOS IPA
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: ipa
-          path: release-assets
+          path: packages/loader/release-assets
 
       - name: download iOS simulator build
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: ios-simulator
-          path: release-assets
+          path: packages/loader/release-assets
 
       - name: download Android LSPosed module
         if: inputs.is_testflight != true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: android module
-          path: release-assets
+          path: packages/loader/release-assets
 
       - name: download patched Android Discord package
         if: inputs.is_testflight != true
-        uses: actions/download-artifact@9000827ccba6bd643e8b6fd33ac0654aef8333
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: patched discord
-          path: release-assets
+          path: packages/loader/release-assets
 
       - name: publish stable release
         if: needs.resolve-source.outputs.is_testflight != 'true'
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:
-          tag_name: v${{ needs.resolve-source.outputs.release_version }}
+          tag_name: loader-v${{ needs.resolve-source.outputs.release_version }}
           files: |
-            release-assets/${{ needs.ios.outputs.deb_filename }}
-            release-assets/${{ needs.ios.outputs.ipa_filename }}
-            release-assets/${{ needs.ios.outputs.simulator_filename }}
-            release-assets/${{ needs.android.outputs.module_filename }}
-            release-assets/${{ needs.android.outputs.patched_filename }}
+            packages/loader/release-assets/${{ needs.ios.outputs.deb_filename }}
+            packages/loader/release-assets/${{ needs.ios.outputs.ipa_filename }}
+            packages/loader/release-assets/${{ needs.ios.outputs.simulator_filename }}
+            packages/loader/release-assets/${{ needs.android.outputs.module_filename }}
+            packages/loader/release-assets/${{ needs.android.outputs.patched_filename }}
           generate_release_notes: true
+          make_latest: false
           fail_on_unmatched_files: true
           token: ${{ github.token }}
+
+      - name: refresh the rolling loader-latest release
+        if: needs.resolve-source.outputs.is_testflight != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.resolve-source.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          gh release delete loader-latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          gh release create loader-latest \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Unbound loader (latest)" \
+            --notes "The most recent stable loader, currently loader-v$RELEASE_VERSION." \
+            --latest=false \
+            "release-assets/${{ needs.ios.outputs.deb_filename }}" \
+            "release-assets/${{ needs.ios.outputs.ipa_filename }}" \
+            "release-assets/${{ needs.ios.outputs.simulator_filename }}" \
+            "release-assets/${{ needs.android.outputs.module_filename }}" \
+            "release-assets/${{ needs.android.outputs.patched_filename }}"
 
       - name: publish TestFlight prerelease
         if: needs.resolve-source.outputs.is_testflight == 'true'
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:
-          tag_name: v${{ needs.resolve-source.outputs.release_version }}
+          tag_name: loader-v${{ needs.resolve-source.outputs.release_version }}
           files: |
-            release-assets/${{ needs.ios.outputs.deb_filename }}
-            release-assets/${{ needs.ios.outputs.ipa_filename }}
-            release-assets/${{ needs.ios.outputs.simulator_filename }}
+            packages/loader/release-assets/${{ needs.ios.outputs.deb_filename }}
+            packages/loader/release-assets/${{ needs.ios.outputs.ipa_filename }}
+            packages/loader/release-assets/${{ needs.ios.outputs.simulator_filename }}
           generate_release_notes: true
           prerelease: true
+          make_latest: false
           fail_on_unmatched_files: true
           token: ${{ github.token }}
 
@@ -313,7 +340,7 @@ jobs:
           api_url="${UNBOUND_API_URL%/}/api/v1/loader/releases"
           deb_path="release-assets/$IOS_DEB_FILENAME"
           loader_version=$(dpkg-deb -f "$deb_path" Version)
-          release_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/v$RELEASE_VERSION"
+          release_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/loader-v$RELEASE_VERSION"
           go run ./tools generate-loader-changelog \
             --version "$loader_version" \
             --output release-assets/loader-changelog.md
@@ -332,8 +359,7 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-      pages: write
-    uses: ./.github/workflows/ios.yml
+    uses: ./.github/workflows/loader-ios.yml
     with:
       version: ${{ needs.resolve-source.outputs.release_version }}
       only_app_repo: true

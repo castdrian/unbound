@@ -35,6 +35,7 @@ object NativeHooks {
     private class Registration(
         val token: String,
         val method: Executable,
+        val receiver: Class<*>?,
         val replaces: Boolean,
         val notifies: Boolean,
         var removable: Removable?,
@@ -64,11 +65,13 @@ object NativeHooks {
         }
 
         val options = JSONObject(optionsJSON)
+        val owner = NativeJava.loadHostClass(className)
         val method = resolveMethod(className, methodName, parametersJSON)
         val token = synchronized(this) { "hook-${nextToken++}" }
         val registration = Registration(
             token,
             method,
+            owner.takeIf { method.declaringClass != it },
             options.optBoolean("replace", false),
             options.optBoolean("notify", true),
             null,
@@ -125,6 +128,8 @@ object NativeHooks {
     private fun interceptor(registration: Registration): Hook = object : Hook {
         override fun intercept(chain: Chain): Any? {
             val self = chain.target()
+            if (registration.receiver?.isInstance(self) == false) return chain.proceed()
+
             val arguments = (0 until chain.argumentCount()).map { chain.argument(it) }
             val selfJSON = NativeJava.describe(self)
             val argumentsJSON = NativeJava.describeAll(arguments)

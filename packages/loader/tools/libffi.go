@@ -48,6 +48,15 @@ func runLibFFIBuild(args []string) error {
 	if _, err := os.Stat(filepath.Join(sourcePath, ".git")); err != nil {
 		return fmt.Errorf("libffi submodule is unavailable: %w", err)
 	}
+	revision, err := commandOutput(rootPath, "git", "-C", sourcePath, "rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	buildKey := libFFIBuildKey(strings.TrimSpace(string(revision)))
+	if libFFIUpToDate(archivePath, includePath, buildKey) {
+		fmt.Println("libffi is up to date")
+		return nil
+	}
 	buildPath, err := os.MkdirTemp("", "unbound-libffi-")
 	if err != nil {
 		return err
@@ -86,7 +95,7 @@ func runLibFFIBuild(args []string) error {
 	if err := runCommand(buildPath, nil, os.Stdout, os.Stderr, "xcrun", "lipo", "-create", arm64Archive, arm64eArchive, "-output", archivePath); err != nil {
 		return err
 	}
-	for _, name := range []string{"ffi.h", "ffitarget.h", "fficonfig.h"} {
+	for _, name := range libFFIHeaders {
 		source := filepath.Join(buildPath, "build_iphoneos-arm64", "include", name)
 		if name == "fficonfig.h" {
 			source = filepath.Join(buildPath, "build_iphoneos-arm64", name)
@@ -95,7 +104,38 @@ func runLibFFIBuild(args []string) error {
 			return err
 		}
 	}
-	return nil
+	return os.WriteFile(libFFIStampPath(archivePath), []byte(buildKey), 0o644)
+}
+
+var libFFIHeaders = []string{"ffi.h", "ffitarget.h", "fficonfig.h"}
+
+func libFFIBuildKey(revision string) string {
+	return strings.Join(append([]string{revision, "arm64,arm64e"}, libFFIConfigureArgs("build")...), "\n")
+}
+
+func libFFIStampPath(archivePath string) string {
+	return archivePath + ".stamp"
+}
+
+func libFFIUpToDate(archivePath, includePath, buildKey string) bool {
+	stamp, err := os.ReadFile(libFFIStampPath(archivePath))
+	if err != nil || string(stamp) != buildKey {
+		return false
+	}
+	for _, path := range append([]string{archivePath}, prefixPaths(includePath, libFFIHeaders)...) {
+		if info, err := os.Stat(path); err != nil || info.Size() == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func prefixPaths(directory string, names []string) []string {
+	paths := make([]string, 0, len(names))
+	for _, name := range names {
+		paths = append(paths, filepath.Join(directory, name))
+	}
+	return paths
 }
 
 func acquireLibFFIBuildLock(lockPath string) (func(), error) {

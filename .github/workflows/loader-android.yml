@@ -94,6 +94,9 @@ jobs:
                   distribution: temurin
                   java-version: "17"
 
+            - name: Setup Gradle
+              uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
+
             - name: Install NDK and CMake
               run: |
                   set -eu
@@ -118,7 +121,7 @@ jobs:
 
             - name: Build module
               working-directory: packages/loader/android
-              run: ./gradlew :module:assembleRelease --no-daemon --console=plain -PunboundBuildNumber="${GITHUB_RUN_NUMBER}"
+              run: ./gradlew :module:assembleRelease --build-cache --console=plain -PunboundBuildNumber="${GITHUB_RUN_NUMBER}"
 
             - name: Collect module
               id: collect

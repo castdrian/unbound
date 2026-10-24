@@ -78,6 +78,8 @@ jobs:
       deb_filename: ${{ steps.set-deb-filename.outputs.filename }}
     env:
       ATTESTATION_PK: ${{ secrets.ATTESTATION_PK }}
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
 
     steps:
       - name: checkout code
@@ -90,6 +92,16 @@ jobs:
         with:
           cache: false
           go-version-file: packages/loader/go.mod
+
+      - name: cache Go builds
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            ~/go/pkg/mod
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/loader/go.mod', 'packages/loader/tools/**/*.go') }}
+          restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
 
       - name: test tools
         run: go test ./...
@@ -113,7 +125,19 @@ jobs:
       - name: prepare Theos
         uses: Randomblock1/theos-action@4e23d15886bca77b5f7c462a82567e0de33ebe0b
 
+      - name: read the libffi revision
+        id: libffi
+        run: echo "revision=$(git -C libffi rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: restore the libffi build
+        id: libffi-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: packages/loader/ios/.theos/libffi
+          key: libffi-${{ runner.os }}-${{ steps.libffi.outputs.revision }}-${{ hashFiles('packages/loader/tools/libffi.go') }}
+
       - name: install Autotools
+        if: steps.libffi-cache.outputs.cache-hit != 'true'
         run: |
           brew install autoconf automake libtool
           {
@@ -123,6 +147,7 @@ jobs:
           } >> "$GITHUB_PATH"
 
       - name: verify Autotools
+        if: steps.libffi-cache.outputs.cache-hit != 'true'
         run: |
           command -v autoreconf
           command -v automake
@@ -196,6 +221,16 @@ jobs:
         with:
           cache: false
           go-version-file: packages/loader/go.mod
+
+      - name: cache Go builds
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            ~/go/pkg/mod
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/loader/go.mod', 'packages/loader/tools/**/*.go') }}
+          restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
 
       - name: resolve and download source ipa
         id: resolve
@@ -274,17 +309,40 @@ jobs:
           sudo xcode-select --switch "$selected_developer_dir"
           xcodebuild -version
 
-      - name: download build artifacts
+      - name: download the tweak package
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          merge-multiple: true
+          name: rootless package
           path: packages/loader
+
+      - name: download the source IPA
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: source ipa
+          path: packages/loader
+
+      - name: restore the packaging tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: packages/loader/.tools-cache
+          key: tools-${{ runner.os }}-${{ env.ImageOS }}-${{ env.ImageVersion }}-${{ hashFiles('packages/loader/tools/build.go') }}
+          restore-keys: tools-${{ runner.os }}-${{ env.ImageOS }}-${{ env.ImageVersion }}-
 
       - name: setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
           go-version-file: packages/loader/go.mod
+
+      - name: cache Go builds
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            ~/go/pkg/mod
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/loader/go.mod', 'packages/loader/tools/**/*.go') }}
+          restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
 
       - name: extract app name
         run: |
@@ -340,6 +398,16 @@ jobs:
           cache: false
           go-version-file: packages/loader/go.mod
 
+      - name: cache Go builds
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            ~/go/pkg/mod
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/loader/go.mod', 'packages/loader/tools/**/*.go') }}
+          restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
+
       - name: download ipa artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
@@ -350,6 +418,13 @@ jobs:
         run: |
           NAME=$(grep '^Name:' ios/control | cut -d ' ' -f 2)
           echo "APP_NAME=$NAME" >> "$GITHUB_ENV"
+
+      - name: restore the packaging tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: packages/loader/.tools-cache
+          key: tools-${{ runner.os }}-${{ env.ImageOS }}-${{ env.ImageVersion }}-${{ hashFiles('packages/loader/tools/build.go') }}
+          restore-keys: tools-${{ runner.os }}-${{ env.ImageOS }}-${{ env.ImageVersion }}-
 
       - name: build simulator
         run: go run ./tools build simulator --ipa "${APP_NAME}.ipa" --output unbound-ios-simulator.zip --configuration release --non-interactive
@@ -400,6 +475,16 @@ jobs:
         with:
           cache: false
           go-version-file: packages/loader/go.mod
+
+      - name: cache Go builds
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            ~/go/pkg/mod
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/loader/go.mod', 'packages/loader/tools/**/*.go') }}
+          restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
 
       - name: download deb artifact
         if: inputs.only_app_repo != true && inputs.only_apt_repo != true

@@ -566,3 +566,43 @@ func TestPullRequestBuildGrantsWhatTheNestedBuildJobsDeclare(t *testing.T) {
 		}
 	}
 }
+
+func TestLoaderWorkflowsCacheTheirSlowestInputs(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("could not locate test source")
+	}
+	workflows := filepath.Join(filepath.Dir(filepath.Dir(filename)), "..", "..", ".github", "workflows")
+	read := func(name string) string {
+		contents, err := os.ReadFile(filepath.Join(workflows, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(contents)
+	}
+	for _, name := range []string{"loader-build.yml", "loader-ci.yml", "loader-ios.yml", "loader-release-poll.yml"} {
+		contents := read(name)
+		setups := strings.Count(contents, "uses: actions/setup-go@")
+		caches := strings.Count(contents, "name: cache Go builds")
+		if caches == 0 || caches < setups-1 {
+			t.Fatalf("%s sets up Go %d times but caches Go builds %d times", name, setups, caches)
+		}
+	}
+	ios := read("loader-ios.yml")
+	for _, required := range []string{
+		"path: packages/loader/ios/.theos/libffi",
+		"if: steps.libffi-cache.outputs.cache-hit != 'true'",
+		"path: packages/loader/.tools-cache",
+		"HOMEBREW_NO_AUTO_UPDATE: 1",
+	} {
+		if !strings.Contains(ios, required) {
+			t.Fatalf("the iOS workflow is missing %q", required)
+		}
+	}
+	if strings.Contains(ios, "merge-multiple: true") {
+		t.Fatal("the IPA build must download only the artifacts it packages")
+	}
+	if android := read("loader-android.yml"); !strings.Contains(android, "uses: gradle/actions/setup-gradle@") || !strings.Contains(android, "--build-cache") {
+		t.Fatal("the Android module build must use the Gradle cache")
+	}
+}

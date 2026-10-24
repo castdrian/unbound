@@ -5,8 +5,10 @@ import type {
 	NativePluginRuntimeBridge,
 	NativePlatformBridge,
 	NativeSerializableObject,
+	NativeJavaArgument,
 	NativeJavaHandle,
 	NativeJavaHookToken,
+	NativeJavaReference,
 	NativeJavaValue,
 	NativeUIHandle,
 	NativeUIQuery,
@@ -67,6 +69,7 @@ const cancelled: string[] = [];
 const sizeHeightFloors: unknown[][] = [];
 const removedSubscriptions: string[] = [];
 const uiUnmounted: NativeUIHandle[] = [];
+const javaInvokeArguments: (NativeJavaArgument[] | undefined)[] = [];
 const javaReleased: NativeJavaHandle[] = [];
 const javaHandle: NativeJavaHandle = Object.create(null);
 const javaHookToken: NativeJavaHookToken = { id: 'hook-1' };
@@ -197,7 +200,11 @@ const bridge: NativePluginBridge = {
 		className: () => ({ type: 'string', value: 'java.lang.Class' }),
 		construct: () => javaHandle,
 		respondsTo: () => ({ type: 'boolean', value: true }),
-		invoke: () => javaInvokeOutcome as NativeJavaValue,
+		invoke: (_handle: NativeJavaReference, _name: string, args?: NativeJavaArgument[]) => {
+			javaInvokeArguments.push(args);
+
+			return javaInvokeOutcome as NativeJavaValue;
+		},
 		invokeAsync: () => cancellable(Promise.resolve(javaInvokeResult), 'java-invoke'),
 		getField: () => ({ type: 'int', value: 7 }),
 		setField: () => undefined,
@@ -888,6 +895,23 @@ describe('native plugin negotiation', () => {
 		expect(() => context.native.java.construct('java.lang.StringBuilder')).toThrow(
 			NativePluginCapabilityError,
 		);
+		context.dispose();
+	});
+
+	test('passes an empty argument list when a Java call omits one', () => {
+		Object.assign(nativePlatformBridge.device, { platform: 'android' });
+		Object.assign(nativePlatformBridge, { platform: 'android' });
+		javaInvokeArguments.length = 0;
+
+		const context = createPluginContext({
+			...manifest,
+			platforms: ['android'],
+			capabilities: ['native.java.classes', 'native.java.invoke'],
+		});
+
+		context.native.java.invoke(nativeHandle, 'toString');
+
+		expect(javaInvokeArguments).toEqual([[]]);
 		context.dispose();
 	});
 

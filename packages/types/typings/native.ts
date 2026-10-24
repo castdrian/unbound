@@ -395,7 +395,7 @@ export type NativeJavaHandle = NativeHandle;
 
 export type NativeJavaValue =
 	| { type: 'null'; class?: string }
-	| { type: 'handle'; value: string }
+	| NativeJavaHandleValue
 	| { type: 'string'; value: string }
 	| { type: 'boolean'; value: boolean }
 	| { type: 'byte' | 'short' | 'int' | 'long'; value: number }
@@ -406,6 +406,12 @@ export type NativeJavaValue =
 			componentType: string;
 			value: (NativeJavaValue | string | number | boolean)[];
 	  };
+
+export type NativeJavaHandleValue = { type: 'handle'; value: string };
+
+export type NativeJavaReference = NativeJavaHandle | NativeJavaHandleValue;
+
+export type NativeJavaArgument = NativeJavaValue | NativeJavaHandle;
 
 export type NativeJavaHookEvent = {
 	self: NativeJavaValue;
@@ -446,10 +452,10 @@ export type NativeJavaHooksBridge = {
 
 export type NativeJavaBatchOperation = {
 	op: 'invoke' | 'getField' | 'setField' | 'respondsTo';
-	handle: NativeJavaHandle;
+	handle: NativeJavaReference;
 	name: string;
-	args?: NativeJavaValue[];
-	value?: NativeJavaValue;
+	args?: NativeJavaArgument[];
+	value?: NativeJavaArgument;
 };
 
 export type NativeJavaAssociationKey = NativeHandle;
@@ -477,24 +483,31 @@ export type NativeJavaBridge = {
 	getClass(name: string): NativeJavaHandle;
 	batch(operations: NativeJavaBatchOperation[]): NativeJavaValue[];
 	createAssociationKey(): NativeJavaAssociationKey;
-	getAssociatedObject(handle: NativeJavaHandle, key: NativeJavaAssociationKey): NativeJavaValue;
-	setAssociatedObject(
-		handle: NativeJavaHandle,
+	getAssociatedObject(
+		handle: NativeJavaReference,
 		key: NativeJavaAssociationKey,
-		value: NativeJavaValue,
+	): NativeJavaValue;
+	setAssociatedObject(
+		handle: NativeJavaReference,
+		key: NativeJavaAssociationKey,
+		value: NativeJavaArgument,
 	): void;
-	className(handle: NativeJavaHandle): NativeJavaValue;
-	construct(name: string, args?: NativeJavaValue[]): NativeJavaHandle;
-	respondsTo(handle: NativeJavaHandle, name: string, args?: NativeJavaValue[]): NativeJavaValue;
-	invoke(handle: NativeJavaHandle, name: string, args?: NativeJavaValue[]): NativeJavaValue;
-	invokeAsync(
-		handle: NativeJavaHandle,
+	className(handle: NativeJavaReference): NativeJavaValue;
+	construct(name: string, args?: NativeJavaArgument[]): NativeJavaHandle;
+	respondsTo(
+		handle: NativeJavaReference,
 		name: string,
-		args?: NativeJavaValue[],
+		args?: NativeJavaArgument[],
+	): NativeJavaValue;
+	invoke(handle: NativeJavaReference, name: string, args?: NativeJavaArgument[]): NativeJavaValue;
+	invokeAsync(
+		handle: NativeJavaReference,
+		name: string,
+		args?: NativeJavaArgument[],
 	): NativeCancelablePromise<NativeJavaValue>;
-	getField(handle: NativeJavaHandle, name: string): NativeJavaValue;
-	setField(handle: NativeJavaHandle, name: string, value: NativeJavaValue): void;
-	release(handle: NativeJavaHandle): void;
+	getField(handle: NativeJavaReference, name: string): NativeJavaValue;
+	setField(handle: NativeJavaReference, name: string, value: NativeJavaArgument): void;
+	release(handle: NativeJavaReference): void;
 };
 
 export type NativeAndroidSurfaceBridge = {

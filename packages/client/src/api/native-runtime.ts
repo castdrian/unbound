@@ -7,6 +7,7 @@ import type {
 	NativeFFIBridge,
 	NativeJavaBridge,
 	NativeJavaHandle,
+	NativeJavaReference,
 	NativeAndroidSurfaceBridge,
 	NativeDebugBridge,
 	NativeJavaHooksBridge,
@@ -889,7 +890,7 @@ function createScopedNativePlugin(
 	const tokens = new Set<NativeHookToken>();
 	const surfaces = new Set<NativeFabricSurface>();
 	const uiSurfaces = new Set<NativeUIHandle>();
-	const javaHandles = new Set<NativeJavaHandle>();
+	const javaHandles = new Set<NativeJavaReference>();
 	const javaHookTokens = new Set<NativeJavaHookToken>();
 	const runtimeTokens = new Set<NativeRuntimeEventToken>();
 	const pendingInvocations = new Set<NativeCancelablePromise<unknown>>();
@@ -1261,7 +1262,7 @@ function createScopedNativePlugin(
 					scopeMethod(
 						javaBridge.construct.bind(javaBridge),
 						nativeJavaCapabilityRequirements.construct,
-					)(name, args),
+					)(name, args ?? []),
 				),
 			),
 		respondsTo: (handle, name, args) =>
@@ -1269,21 +1270,21 @@ function createScopedNativePlugin(
 				scopeMethod(
 					javaBridge.respondsTo.bind(javaBridge),
 					nativeJavaCapabilityRequirements.respondsTo,
-				)(handle, name, args),
+				)(handle, name, args ?? []),
 			),
 		invoke: (handle, name, args) =>
 			unwrapJava(
 				scopeMethod(
 					javaBridge.invoke.bind(javaBridge),
 					nativeJavaCapabilityRequirements.invoke,
-				)(handle, name, args),
+				)(handle, name, args ?? []),
 			),
 		invokeAsync: (handle, name, args) => {
 			const pending = scopeAsyncMethod(
 				javaBridge.invokeAsync?.bind(javaBridge),
 				nativeJavaCapabilityRequirements.invokeAsync,
 				'Asynchronous Java invocation is unavailable.',
-			)(handle, name, args);
+			)(handle, name, args ?? []);
 
 			return Object.assign(pending.then(unwrapJava), { cancel: () => pending.cancel() });
 		},

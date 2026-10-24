@@ -397,7 +397,7 @@ func resolveIPA(options buildOptions) (string, error) {
 }
 
 func iosRoot(root string) string {
-	return filepath.Join(root, "packages", "ios")
+	return filepath.Join(root, "ios")
 }
 
 func ensureSubmodules(root string, runner commandRunner) error {

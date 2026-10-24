@@ -70,12 +70,12 @@ func runPlatformWithRunner(action, platform, root, configuration string, runner 
 		if configuration == "debug" {
 			target = ":module:assembleDebug"
 		}
-		return runner(filepath.Join(root, "packages", "android"), gradleCommand(), []string{target, "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr)
+		return runner(filepath.Join(root, "android"), gradleCommand(), []string{target, "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr)
 	}
 	if err := runCoreTests(root, runner); err != nil {
 		return err
 	}
-	return runner(filepath.Join(root, "packages", "android"), gradleCommand(), []string{":module:testDebugUnitTest", "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr)
+	return runner(filepath.Join(root, "android"), gradleCommand(), []string{":module:testDebugUnitTest", "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr)
 }
 
 func runValidate(args []string) error {
@@ -94,10 +94,10 @@ func runValidate(args []string) error {
 	if err := runGoAndCoreTests(rootPath, defaultRunner); err != nil {
 		return err
 	}
-	if err := defaultRunner(filepath.Join(rootPath, "packages", "android"), gradleCommand(), []string{":module:testDebugUnitTest", "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr); err != nil {
+	if err := defaultRunner(filepath.Join(rootPath, "android"), gradleCommand(), []string{":module:testDebugUnitTest", "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr); err != nil {
 		return err
 	}
-	if err := defaultRunner(filepath.Join(rootPath, "packages", "android"), gradleCommand(), []string{":module:assembleRelease", "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr); err != nil {
+	if err := defaultRunner(filepath.Join(rootPath, "android"), gradleCommand(), []string{":module:assembleRelease", "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr); err != nil {
 		return err
 	}
 	if runtime.GOOS == "darwin" {
@@ -120,7 +120,7 @@ func runDependencies(args []string) error {
 	if err := validateWorkspace(rootPath); err != nil {
 		return err
 	}
-	for _, path := range []string{"go.mod", "packages/core/CMakeLists.txt", "packages/android/gradlew", "packages/ios/Makefile", ".gitmodules"} {
+	for _, path := range []string{"go.mod", "core/CMakeLists.txt", "android/gradlew", "ios/Makefile"} {
 		if _, err := os.Stat(filepath.Join(rootPath, path)); err != nil {
 			return fmt.Errorf("required repository path %s is unavailable: %w", path, err)
 		}
@@ -177,13 +177,13 @@ func validateWorkspace(root string) error {
 }
 
 func readWorkspaceManifest(root string) (workspaceManifest, error) {
-	data, err := os.ReadFile(filepath.Join(root, "packages", "manifest.json"))
+	data, err := os.ReadFile(filepath.Join(root, "manifest.json"))
 	if err != nil {
-		return workspaceManifest{}, fmt.Errorf("read packages/manifest.json: %w", err)
+		return workspaceManifest{}, fmt.Errorf("read manifest.json: %w", err)
 	}
 	var manifest workspaceManifest
 	if err := json.Unmarshal(data, &manifest); err != nil {
-		return workspaceManifest{}, fmt.Errorf("decode packages/manifest.json: %w", err)
+		return workspaceManifest{}, fmt.Errorf("decode manifest.json: %w", err)
 	}
 	return manifest, nil
 }
@@ -202,7 +202,7 @@ func validateWorkspaceManifest(root string, manifest workspaceManifest) error {
 			return errors.New("every package must have a name and kind")
 		}
 		if !workspacePath(module.Path) {
-			return fmt.Errorf("package %s must live under packages/: %s", module.Name, module.Path)
+			return fmt.Errorf("package %s must be a path inside the loader root: %s", module.Name, module.Path)
 		}
 		if _, exists := knownNames[module.Name]; exists {
 			return fmt.Errorf("duplicate workspace package name %q", module.Name)
@@ -229,9 +229,11 @@ func validateWorkspaceManifest(root string, manifest workspaceManifest) error {
 	return validateWorkspaceTopLevel(root, knownPaths)
 }
 
+var loaderSupportDirectories = map[string]struct{}{"build": {}, "docs": {}, "tools": {}}
+
 func workspacePath(path string) bool {
 	clean := filepath.ToSlash(filepath.Clean(path))
-	return path == clean && strings.HasPrefix(clean, "packages/")
+	return path == clean && clean != "." && !filepath.IsAbs(path) && clean != ".." && !strings.HasPrefix(clean, "../")
 }
 
 func validateWorkspaceDependencyGraph(packages []workspaceModule) error {
@@ -266,23 +268,24 @@ func validateWorkspaceDependencyGraph(packages []workspaceModule) error {
 }
 
 func validateWorkspaceTopLevel(root string, knownPaths map[string]struct{}) error {
-	entries, err := os.ReadDir(filepath.Join(root, "packages"))
+	entries, err := os.ReadDir(root)
 	if err != nil {
-		return fmt.Errorf("read packages/: %w", err)
+		return fmt.Errorf("read the loader root: %w", err)
 	}
 	knownTopLevel := make(map[string]struct{}, len(knownPaths))
 	for path := range knownPaths {
 		parts := strings.Split(filepath.ToSlash(path), "/")
-		if len(parts) > 1 {
-			knownTopLevel[parts[1]] = struct{}{}
-		}
+		knownTopLevel[parts[0]] = struct{}{}
 	}
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		if _, support := loaderSupportDirectories[entry.Name()]; support {
 			continue
 		}
 		if _, exists := knownTopLevel[entry.Name()]; !exists {
-			return fmt.Errorf("packages/%s is not registered in packages/manifest.json", entry.Name())
+			return fmt.Errorf("%s is not registered in manifest.json", entry.Name())
 		}
 	}
 	return nil
@@ -312,7 +315,7 @@ func runGoAndCoreTests(root string, runner commandRunner) error {
 
 func runCoreTests(root string, runner commandRunner) error {
 	buildPath := filepath.Join(root, "build", "shared-core")
-	configureArgs := []string{"-S", "packages/core", "-B", buildPath, "-DUNBOUND_CORE_TESTS=ON", "-DCMAKE_BUILD_TYPE=Debug"}
+	configureArgs := []string{"-S", "core", "-B", buildPath, "-DUNBOUND_CORE_TESTS=ON", "-DCMAKE_BUILD_TYPE=Debug"}
 	if runtime.GOOS != "windows" {
 		configureArgs = append(configureArgs, "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined")
 	}

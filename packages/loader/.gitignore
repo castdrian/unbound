@@ -4,9 +4,9 @@
 .tools-cache/
 attestation_private.pem
 /build/
-/packages/android/.gradle/
-/packages/android/.kotlin/
-/packages/android/**/build/
-/packages/ios/packages/
-/packages/*.deb
-/packages/*.ipa
+/android/.gradle/
+/android/.kotlin/
+/android/**/build/
+/ios/packages/
+/*.deb
+/*.ipa

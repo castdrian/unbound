@@ -3,8 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val repositoryRoot: File = rootDir.parentFile.parentFile
-val packageVersion: String = repositoryRoot.resolve("packages/ios/control").readLines()
+val repositoryRoot: File = rootDir.parentFile
+val packageVersion: String = repositoryRoot.resolve("ios/control").readLines()
     .first { it.startsWith("Version:") }
     .substringAfter(":")
     .trim()
@@ -96,7 +96,7 @@ android {
 }
 
 val copyBootstrapResources by tasks.registering(Copy::class) {
-    from(repositoryRoot.resolve("packages/bootstrap")) {
+    from(repositoryRoot.resolve("bootstrap")) {
         include("*.js")
     }
     into(layout.buildDirectory.dir("generated/unbound-assets/js"))

@@ -23,7 +23,7 @@ func TestPlatformAndroidBuildUsesGradleTargetForConfiguration(t *testing.T) {
 	if err := runPlatformWithRunner("build", "android", "/repo", "release", runner); err != nil {
 		t.Fatal(err)
 	}
-	if gotRoot != "/repo/packages/android" || gotName != "./gradlew" {
+	if gotRoot != "/repo/android" || gotName != "./gradlew" {
 		t.Fatalf("unexpected Android build target: %s %s", gotRoot, gotName)
 	}
 	if !reflect.DeepEqual(gotArgs, []string{":module:assembleRelease", "--no-daemon", "--console=plain"}) {
@@ -75,7 +75,7 @@ func TestValidateSubmoduleOutput(t *testing.T) {
 
 func TestValidateWorkspaceManifestRequiresEveryPackageRootToBeRegistered(t *testing.T) {
 	root := t.TempDir()
-	packages := filepath.Join(root, "packages")
+	packages := root
 	for _, name := range []string{"core", "ios", "unregistered"} {
 		if err := os.MkdirAll(filepath.Join(packages, name), 0o755); err != nil {
 			t.Fatal(err)
@@ -84,8 +84,8 @@ func TestValidateWorkspaceManifestRequiresEveryPackageRootToBeRegistered(t *test
 	manifest := workspaceManifest{
 		Name: "unbound-loader",
 		Packages: []workspaceModule{
-			{Name: "core", Path: "packages/core", Kind: "shared"},
-			{Name: "ios", Path: "packages/ios", Kind: "platform", Dependencies: []string{"core"}},
+			{Name: "core", Path: "core", Kind: "shared"},
+			{Name: "ios", Path: "ios", Kind: "platform", Dependencies: []string{"core"}},
 		},
 	}
 	if err := validateWorkspaceManifest(root, manifest); err == nil || !strings.Contains(err.Error(), "unregistered") {
@@ -95,7 +95,7 @@ func TestValidateWorkspaceManifestRequiresEveryPackageRootToBeRegistered(t *test
 
 func TestValidateWorkspaceManifestRejectsInvalidPackages(t *testing.T) {
 	root := t.TempDir()
-	packages := filepath.Join(root, "packages")
+	packages := root
 	if err := os.MkdirAll(filepath.Join(packages, "core", "runtime"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -107,30 +107,30 @@ func TestValidateWorkspaceManifestRejectsInvalidPackages(t *testing.T) {
 		{
 			name: "duplicate name",
 			manifest: workspaceManifest{Name: "workspace", Packages: []workspaceModule{
-				{Name: "core", Path: "packages/core", Kind: "shared"},
-				{Name: "core", Path: "packages/core/child", Kind: "shared"},
+				{Name: "core", Path: "core", Kind: "shared"},
+				{Name: "core", Path: "core/child", Kind: "shared"},
 			}},
 			contains: "duplicate workspace package name",
 		},
 		{
-			name: "outside packages",
+			name: "outside the loader root",
 			manifest: workspaceManifest{Name: "workspace", Packages: []workspaceModule{
 				{Name: "core", Path: "../core", Kind: "shared"},
 			}},
-			contains: "must live under packages",
+			contains: "must be a path inside the loader root",
 		},
 		{
 			name: "unknown dependency",
 			manifest: workspaceManifest{Name: "workspace", Packages: []workspaceModule{
-				{Name: "core", Path: "packages/core", Kind: "shared", Dependencies: []string{"missing"}},
+				{Name: "core", Path: "core", Kind: "shared", Dependencies: []string{"missing"}},
 			}},
 			contains: "unknown dependency",
 		},
 		{
 			name: "dependency cycle",
 			manifest: workspaceManifest{Name: "workspace", Packages: []workspaceModule{
-				{Name: "core", Path: "packages/core", Kind: "shared", Dependencies: []string{"runtime"}},
-				{Name: "runtime", Path: "packages/core/runtime", Kind: "platform", Dependencies: []string{"core"}},
+				{Name: "core", Path: "core", Kind: "shared", Dependencies: []string{"runtime"}},
+				{Name: "runtime", Path: "core/runtime", Kind: "platform", Dependencies: []string{"core"}},
 			}},
 			contains: "dependency cycle",
 		},

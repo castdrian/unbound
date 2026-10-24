@@ -60,7 +60,7 @@ func generateLoaderChangelog(root string, version string) (string, error) {
 		return "", fmt.Errorf("requested loader changelog version %s does not match package version %s", version, currentVersion)
 	}
 
-	versionCommits, err := gitOutput(root, defaultRunner, "log", "--format=%H", "-G", "^Version:", "--", "packages/ios/control")
+	versionCommits, err := gitOutput(root, defaultRunner, "log", "--format=%H", "-G", "^Version:", "--", "ios/control")
 	if err != nil {
 		return "", fmt.Errorf("read loader version history: %w", err)
 	}
@@ -68,7 +68,7 @@ func generateLoaderChangelog(root string, version string) (string, error) {
 	if len(commits) == 0 {
 		return "", errors.New("loader semantic version history is unavailable")
 	}
-	versionAtCommit, err := gitOutput(root, defaultRunner, "show", commits[0]+":packages/ios/control")
+	versionAtCommit, err := gitOutput(root, defaultRunner, "show", commits[0]+":./ios/control")
 	if err != nil {
 		return "", fmt.Errorf("read loader version commit: %w", err)
 	}

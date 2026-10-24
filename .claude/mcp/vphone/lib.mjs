@@ -7,8 +7,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 /** Absolute paths to the shell scripts the tools delegate to (single source of truth for device quirks). */
 export const SCRIPTS = {
-	vphone: resolve(ROOT, '.claude/skills/vphone/scripts/vphone.sh'),
-	logs: resolve(ROOT, '.claude/skills/vphone/scripts/vphone-logs.sh'),
+	vphone: resolve(ROOT, '.claude/skills/vphone-ssh/scripts/vphone.sh'),
+	logs: resolve(ROOT, '.claude/skills/vphone-ssh/scripts/vphone-logs.sh'),
 };
 
 /**

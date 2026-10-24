@@ -413,9 +413,7 @@ export type NativeJavaHookEvent = {
 };
 
 export type NativeJavaHookOptions = {
-	/** Replace the method's result with a cached value when one matches. */
 	replace?: boolean;
-	/** Notify the listener on every call; on by default. */
 	notify?: boolean;
 };
 

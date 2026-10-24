@@ -66,6 +66,7 @@ export function createMentionIndex(includeRoles: boolean) {
 		hydrateChannel,
 		hydrateMessage,
 		get: (id: string): Mention[] => mentionsByMessage.get(id) ?? [],
+		all: (): Mention[] => [...new Set([...mentionsByMessage.values()].flat())],
 		isUnresolved: (id: string) => unresolved.has(id),
 		clear() {
 			mentionsByMessage.clear();

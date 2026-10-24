@@ -7,6 +7,7 @@ export type SoundManager = {
 	prepare: (url: string, category: string, id: number, callback: PrepareCallback) => void;
 	play: (id: number) => Promise<void>;
 	stop: (id: number) => void;
+	release?: (id: number) => void;
 };
 
 export type Player = ReturnType<typeof createPlayer>;
@@ -37,6 +38,14 @@ export function createPlayer(manager: SoundManager, platform: string) {
 	let sequence = 0;
 	let stopTimer: ReturnType<typeof setTimeout> | undefined;
 
+	function release() {
+		try {
+			manager.release?.(Sound.id);
+		} catch (error) {
+			console.error('[Moyai] Failed to release the sound:', error);
+		}
+	}
+
 	function prepare() {
 		if (preparing || duration !== null) return;
 
@@ -44,9 +53,13 @@ export function createPlayer(manager: SoundManager, platform: string) {
 
 		try {
 			manager.prepare(Sound.url, 'media', Sound.id, (error, metadata) => {
-				if (disposed) return;
-
 				preparing = false;
+
+				if (disposed) {
+					if (!error) release();
+
+					return;
+				}
 
 				if (error) {
 					console.error('[Moyai] Failed to prepare the sound:', error);
@@ -105,6 +118,10 @@ export function createPlayer(manager: SoundManager, platform: string) {
 		if (playing) manager.stop(Sound.id);
 
 		playing = false;
+
+		if (duration !== null) release();
+
+		duration = null;
 	}
 
 	prepare();

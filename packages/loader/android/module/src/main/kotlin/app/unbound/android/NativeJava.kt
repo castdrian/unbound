@@ -52,7 +52,7 @@ object NativeJava {
             ?: throw IllegalArgumentException("No matching constructor for $name")
 
         constructor.isAccessible = true
-        val instance = constructor.newInstance(*values(constructor.parameterTypes, arguments))
+        val instance = rethrowingCause { constructor.newInstance(*values(constructor.parameterTypes, arguments)) }
             ?: throw IllegalStateException("Constructing $name produced no instance")
 
         return JSONObject().put("id", handle(instance)).toString()
@@ -76,7 +76,7 @@ object NativeJava {
         }
 
         method.isAccessible = true
-        return serialize(method.invoke(receiver, *values(method.parameterTypes, arguments)))
+        return serialize(rethrowingCause { method.invoke(receiver, *values(method.parameterTypes, arguments)) })
     }
 
     fun getField(handleJSON: String, name: String): String {
@@ -456,6 +456,12 @@ object NativeJava {
         is Double -> tagged("double", result)
         is String -> tagged("string", result.take(MAX_STRING_LENGTH))
         else -> tagged("handle", handle(result))
+    }
+
+    private inline fun <T> rethrowingCause(call: () -> T): T = try {
+        call()
+    } catch (error: java.lang.reflect.InvocationTargetException) {
+        throw error.targetException ?: error
     }
 
     fun handleFor(target: Any): String = JSONObject().put("id", handle(target)).toString()

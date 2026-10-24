@@ -56,6 +56,9 @@ jobs:
         secrets: inherit
 
     compatibility-source:
+        defaults:
+            run:
+                working-directory: ${{ github.workspace }}
         name: Check authorized compatibility source
         runs-on: ubuntu-latest
         outputs:

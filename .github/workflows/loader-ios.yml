@@ -165,6 +165,7 @@ jobs:
           path: packages/loader/ios/packages/*.deb
 
       - name: attest rootless package
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-path: packages/loader/ios/packages/*.deb
@@ -304,6 +305,7 @@ jobs:
           path: packages/loader/${{ env.APP_NAME }}.ipa
 
       - name: attest IPA
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-path: packages/loader/${{ env.APP_NAME }}.ipa
@@ -360,6 +362,7 @@ jobs:
           path: packages/loader/unbound-ios-simulator.zip
 
       - name: attest iOS Simulator artifact
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-path: packages/loader/unbound-ios-simulator.zip

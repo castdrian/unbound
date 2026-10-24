@@ -81,7 +81,7 @@ describe('applyChatRoleColors', () => {
 		expect(row.message?.textColor).toBe(0xffeeeeee);
 	});
 
-	test('gives nested mention nodes every enhanced color stop', () => {
+	test('gives nested mention nodes every enhanced color stop as API RGB values', () => {
 		const mention = { type: 'mention', userId: 'user' };
 		const row: ChatRow = {
 			message: { guildId: 'guild', content: [{ type: 'paragraph', content: [mention] }] },
@@ -89,13 +89,13 @@ describe('applyChatRoleColors', () => {
 
 		applyChatRoleColors(row, members, { ...tinted, chatMentions: true });
 		expect(mention).toMatchObject({
-			roleColor: 0xff112233 | 0,
-			color: 0xff112233 | 0,
+			roleColor: 0x112233,
+			color: 0x112233,
 			colorString: '#112233',
 			roleColors: {
-				primaryColor: 0xff112233 | 0,
-				secondaryColor: 0xff445566 | 0,
-				tertiaryColor: 0xff778899 | 0,
+				primaryColor: 0x112233,
+				secondaryColor: 0x445566,
+				tertiaryColor: 0x778899,
 			},
 		});
 	});

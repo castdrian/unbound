@@ -20,6 +20,7 @@ import {
 	javaNumber,
 	javaReference,
 	javaString,
+	javaText,
 } from '@unbound-plugins/shared/native/android/java-values';
 
 import { planPlacements, type Placement, type SpanRange } from '~/android/placements';
@@ -30,6 +31,8 @@ const TEXT_VIEW = 'com.facebook.drawee.span.SimpleDraweeSpanTextView';
 const TEXT_BUILDER = 'com.facebook.drawee.span.DraweeSpanStringBuilder';
 const TAPPABLE_SPAN = 'com.discord.span.utilities.spannable.ClickableSpan';
 const BACKGROUND_SPAN = 'com.discord.span.utilities.spannable.BackgroundSpan';
+const ANY_SPAN = 'java.lang.Object';
+const MENTION_SPANS = new Set([TAPPABLE_SPAN, BACKGROUND_SPAN]);
 const IMAGE_SIZE = 16;
 const ALIGN_CENTER = 2;
 const SPAN_EXCLUSIVE_EXCLUSIVE = 33;
@@ -118,13 +121,11 @@ export function createAndroidRenderer(
 		return entry?.bitmap ?? null;
 	}
 
-	function mentionSpans(builder: NativeJavaReference, range: SpanRange) {
+	function overlappingSpans(builder: NativeJavaReference, range: SpanRange) {
 		const length = javaNumber(java.invoke(builder, 'length')) ?? 0;
 
-		return [BACKGROUND_SPAN, TAPPABLE_SPAN].flatMap((className) =>
-			spansOf(java, builder, length, className).filter(
-				(hit) => hit.start <= range.start && hit.end >= range.end,
-			),
+		return spansOf(java, builder, length, ANY_SPAN).filter(
+			(hit) => hit.start < range.end && hit.end > range.start,
 		);
 	}
 
@@ -135,7 +136,7 @@ export function createAndroidRenderer(
 		bitmap: NativeJavaReference,
 	) {
 		const { range, replaceStart, replaceEnd, insertion, imageOffset } = placement;
-		const spans = mentionSpans(builder, range);
+		const spans = overlappingSpans(builder, range);
 		const grown = insertion.length - (replaceEnd - replaceStart);
 
 		java.invoke(builder, 'replace', [
@@ -157,14 +158,25 @@ export function createAndroidRenderer(
 			javaInt(SPAN_EXCLUSIVE_EXCLUSIVE),
 		]);
 
-		for (const { span: mentionSpan, flags } of spans) {
-			java.invoke(builder, 'removeSpan', [mentionSpan]);
-			java.invoke(builder, 'setSpan', [
-				mentionSpan,
-				javaInt(range.start),
-				javaInt(range.end + grown),
-				javaInt(flags),
-			]);
+		for (const { span: existing, flags } of spans) {
+			const stretched = MENTION_SPANS.has(javaText(java.className(existing)) ?? '');
+			const start = stretched
+				? range.start
+				: (javaNumber(java.invoke(builder, 'getSpanStart', [existing])) ?? -1);
+			const end = stretched
+				? range.end + grown
+				: (javaNumber(java.invoke(builder, 'getSpanEnd', [existing])) ?? -1);
+
+			java.invoke(builder, 'removeSpan', [existing]);
+
+			if (start >= 0 && end > start) {
+				java.invoke(builder, 'setSpan', [
+					existing,
+					javaInt(start),
+					javaInt(end),
+					javaInt(flags),
+				]);
+			}
 		}
 	}
 

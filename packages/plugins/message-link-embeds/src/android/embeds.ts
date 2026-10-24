@@ -71,7 +71,7 @@ type Embed = SurfaceContent & {
 	messageView: NativeJavaReference;
 	textView: NativeJavaReference;
 	host: NativeJavaHandle;
-	mounted: NativeFabricSurface | null;
+	mounting: Promise<NativeFabricSurface> | null;
 	messageId: string;
 	target: LinkTarget;
 	channelName: string;
@@ -152,7 +152,9 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 		embeds.delete(viewKey(embed.messageView as NativeJavaValue) ?? '');
 		byId.delete(embed.id);
 
-		if (embed.mounted) await fabric.unmountAsync(embed.mounted).catch(() => undefined);
+		const mounted = await embed.mounting?.catch(() => null);
+
+		if (mounted) await fabric.unmountAsync(mounted).catch(() => undefined);
 
 		await removeHost(java, embed.host).catch(() => undefined);
 	}
@@ -183,7 +185,7 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 			javaString(`\n${PLACEHOLDER}`),
 		]);
 		java.invoke(builder, 'setSpan', [
-			spacerSpan(java, width, embed.height * embed.density),
+			spacerSpan(java, width, (embed.height + Surface.topGap) * embed.density),
 			javaInt(insertAt + 1),
 			javaInt(insertAt + 2),
 			javaInt(SPAN_EXCLUSIVE_EXCLUSIVE),
@@ -217,10 +219,14 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 			{ width: embed.width * embed.density, height: embed.height * embed.density },
 		);
 
-		if (!embed.mounted && !embed.disposed) {
-			embed.mounted = await fabric.mountAsync(embed.host, surfaceModule!, {
+		if (!embed.mounting && !embed.disposed) {
+			embed.mounting = fabric.mountAsync(embed.host, surfaceModule!, {
 				renderRevision: embed.revision,
 				surfaceId: embed.id,
+			});
+			await embed.mounting.catch((error: unknown) => {
+				embed.mounting = null;
+				throw error;
 			});
 		}
 	}
@@ -328,7 +334,7 @@ export function createAndroidEmbeds({ java, hooks, fabric }: Native, renderers: 
 						messageView,
 						textView,
 						host: createHost(java, textView),
-						mounted: null,
+						mounting: null,
 						messageId,
 						target,
 						channelName,

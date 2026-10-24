@@ -6,7 +6,7 @@ export type ViewBridge = Pick<NativeJavaBridge, 'getClass' | 'invoke' | 'getFiel
 
 const MAX_VISITED = 4_000;
 
-export const STARTUP_SCAN_DELAYS = [300, 1_500, 4_000, 8_000];
+export const STARTUP_SCAN_DELAYS = [300];
 
 /**
  * @description Reads the decor view of the activity the loader saw resume last.

@@ -10,6 +10,12 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+open class HookedBase {
+    fun ping(): Int = 1
+}
+
+class HookedDerived : HookedBase()
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class NativeHooksTest {
@@ -89,6 +95,23 @@ class NativeHooksTest {
 
         assertEquals(1, method.parameterCount)
         assertEquals(Integer.TYPE, method.parameterTypes[0])
+    }
+
+    @Test
+    fun anInheritedMethodOnlyReportsReceiversOfTheRequestedClass() {
+        NativeHooks.hook("app.unbound.android.HookedDerived", "ping", "[]", "{}")
+
+        assertEquals(HookedBase::class.java, installer.installed[0].method.declaringClass)
+
+        val base = FakeChain(HookedBase(), emptyList(), 1)
+        installer.installed[0].hook.intercept(base)
+
+        assertTrue(base.proceeded)
+        assertEquals(0, dispatched.size)
+
+        installer.installed[0].hook.intercept(FakeChain(HookedDerived(), emptyList(), 1))
+
+        assertEquals(1, dispatched.size)
     }
 
     @Test

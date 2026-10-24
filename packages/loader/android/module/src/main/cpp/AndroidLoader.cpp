@@ -124,6 +124,12 @@ namespace unbound::android
 
     void AndroidLoader::executeBundleNow(jsi::Runtime &runtime)
     {
+        jsi::Value installed = runtime.global().getProperty(runtime, "__loaderBundleInstalled");
+        if (installed.isBool() && installed.getBool())
+        {
+            return;
+        }
+
         loader::native::registerRuntime(runtime);
         pipeline_->executeNow(runtime, kRunApplicationBundleWait);
     }

@@ -121,7 +121,7 @@ jobs:
 
             - name: Build module
               working-directory: packages/loader/android
-              run: ./gradlew :module:assembleRelease --build-cache --console=plain -PunboundBuildNumber="${GITHUB_RUN_NUMBER}"
+              run: ./gradlew :module:assembleRelease --build-cache --quiet --console=plain -PunboundBuildNumber="${GITHUB_RUN_NUMBER}"
 
             - name: Collect module
               id: collect

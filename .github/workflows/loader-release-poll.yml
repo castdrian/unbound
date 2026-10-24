@@ -23,14 +23,14 @@ jobs:
     outputs:
       version: ${{ steps.candidate.outputs.version }}
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: setup Go
+      - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
           go-version-file: packages/loader/go.mod
-      - name: cache Go builds
+      - name: Cache Go builds
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
@@ -40,7 +40,7 @@ jobs:
           key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/loader/go.mod', 'packages/loader/tools/**/*.go') }}
           restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
 
-      - name: resolve stable candidate
+      - name: Resolve stable candidate
         id: candidate
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -53,14 +53,14 @@ jobs:
     outputs:
       version: ${{ steps.candidate.outputs.version }}
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: setup Go
+      - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           cache: false
           go-version-file: packages/loader/go.mod
-      - name: cache Go builds
+      - name: Cache Go builds
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
@@ -70,7 +70,7 @@ jobs:
           key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/loader/go.mod', 'packages/loader/tools/**/*.go') }}
           restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
 
-      - name: resolve TestFlight candidate
+      - name: Resolve TestFlight candidate
         id: candidate
         env:
           DKRYPT_API_KEY: ${{ secrets.DKRYPT_API_KEY }}

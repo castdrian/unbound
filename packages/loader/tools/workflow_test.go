@@ -26,9 +26,9 @@ func TestBuildWorkflowInstallsAutotoolsBeforeTweakBuild(t *testing.T) {
 		t.Fatal("build-tweak job could not be located")
 	}
 	buildTweak := string(workflow[buildTweakStart:resolveSourceStart])
-	installAutotools := strings.Index(buildTweak, "- name: install Autotools")
-	verifyAutotools := strings.Index(buildTweak, "- name: verify Autotools")
-	buildPackage := strings.Index(buildTweak, "- name: build package")
+	installAutotools := strings.Index(buildTweak, "- name: Install Autotools")
+	verifyAutotools := strings.Index(buildTweak, "- name: Verify Autotools")
+	buildPackage := strings.Index(buildTweak, "- name: Build package")
 	if installAutotools < 0 || verifyAutotools <= installAutotools || buildPackage <= verifyAutotools {
 		t.Fatal("the tweak build must install and verify Autotools before building the package")
 	}
@@ -154,8 +154,8 @@ func TestBuildWorkflowCoordinatesBothPlatforms(t *testing.T) {
 		"value: ${{ jobs.android.outputs.module_filename }}",
 		"value: ${{ jobs.android.outputs.patched_filename }}",
 		"name: ios-simulator",
-		"name: publish stable release",
-		"name: publish TestFlight prerelease",
+		"name: Publish stable release",
+		"name: Publish TestFlight prerelease",
 		"if: inputs.is_testflight != true",
 	} {
 		if !strings.Contains(contents, required) {
@@ -382,7 +382,7 @@ func TestStableReleasePublishesLoaderUpdateRecords(t *testing.T) {
 	}
 	contents := string(workflow)
 	for _, required := range []string{
-		"name: publish loader update records",
+		"name: Publish loader update records",
 		"UNBOUND_API_KEY: ${{ secrets.UNBOUND_API_KEY }}",
 		"UNBOUND_API_URL: ${{ vars.UNBOUND_API_URL }}",
 		"UNBOUND_API_KEY is required for stable release publication",
@@ -583,7 +583,7 @@ func TestLoaderWorkflowsCacheTheirSlowestInputs(t *testing.T) {
 	for _, name := range []string{"loader-build.yml", "loader-ci.yml", "loader-ios.yml", "loader-release-poll.yml"} {
 		contents := read(name)
 		setups := strings.Count(contents, "uses: actions/setup-go@")
-		caches := strings.Count(contents, "name: cache Go builds")
+		caches := strings.Count(contents, "name: Cache Go builds")
 		if caches == 0 || caches < setups-1 {
 			t.Fatalf("%s sets up Go %d times but caches Go builds %d times", name, setups, caches)
 		}

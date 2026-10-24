@@ -43,6 +43,12 @@ jobs:
               uses: oven-sh/setup-bun@v2
               with:
                   bun-version: canary
+            - uses: actions/cache@v4
+              if: steps.release.outputs.prs_created == 'true'
+              with:
+                  path: ~/.bun/install/cache
+                  key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+                  restore-keys: bun-${{ runner.os }}-
 
             - if: steps.release.outputs.prs_created == 'true'
               run: |
@@ -66,6 +72,11 @@ jobs:
             - uses: oven-sh/setup-bun@v2
               with:
                   bun-version: canary
+            - uses: actions/cache@v4
+              with:
+                  path: ~/.bun/install/cache
+                  key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+                  restore-keys: bun-${{ runner.os }}-
 
             - run: bun install
 

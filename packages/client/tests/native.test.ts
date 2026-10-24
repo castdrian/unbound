@@ -99,6 +99,8 @@ const capabilities = [
 	'native.java.hooks',
 	'native.java.batch',
 	'native.java.associations',
+	'native.fabric.mount',
+	'native.fabric.async',
 	'native.debug.evaluations',
 	'native.debug.environment',
 	'native.ui.lookup',

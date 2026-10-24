@@ -2,10 +2,12 @@ import type {
 	NativeAssociationKey,
 	NativeCancelablePromise,
 	NativeFabricBridge,
+	NativeFabricSize,
 	NativeFabricSurface,
 	NativeFFIBridge,
 	NativeJavaBridge,
 	NativeJavaHandle,
+	NativeAndroidSurfaceBridge,
 	NativeDebugBridge,
 	NativeJavaHooksBridge,
 	NativeJavaHookToken,
@@ -729,6 +731,66 @@ function matchesNativeUIQuery(node: NativeUISnapshotNode, query: NativeUIQuery):
 	return true;
 }
 
+function createAndroidFabricBridge(
+	surfaces: NativeAndroidSurfaceBridge,
+	ui: NativeUIBridge,
+): NativeFabricBridge {
+	function unsupported(): never {
+		throw new NativePluginUnavailableError(
+			'Synchronous React surface operations are unavailable on Android; use the async variants.',
+		);
+	}
+
+	function unwrapAsync<T>(pending: NativeCancelablePromise<T>): NativeCancelablePromise<T> {
+		if (isNativeJavaFailure(pending)) {
+			return unwrapJava(pending);
+		}
+
+		return Object.assign(pending.then(unwrapJava), {
+			cancel: () => pending.cancel(),
+		});
+	}
+
+	function viewOf(surface: NativeFabricSurface): NativeUIHandle {
+		return unwrapJava(surfaces.view(surface));
+	}
+
+	function sizeFrame(
+		surface: NativeFabricSurface,
+		size: NativeFabricSize,
+	): NativeCancelablePromise<void> {
+		const pending = ui.measure(viewOf(surface));
+
+		return Object.assign(
+			pending.then((frame) =>
+				ui.setFrame(viewOf(surface), {
+					x: frame.x,
+					y: frame.y,
+					width: size.width,
+					height: size.height,
+				}),
+			),
+			{ cancel: () => pending.cancel() },
+		);
+	}
+
+	return {
+		mount: unsupported,
+		mountAsync: (container, moduleName, properties) =>
+			unwrapAsync(surfaces.mount(container, moduleName, properties)),
+		update: unsupported,
+		updateAsync: (surface, properties) => unwrapAsync(surfaces.update(surface, properties)),
+		setSize: unsupported,
+		setSizeAsync: (surface, _minimumSize, maximumSize) => sizeFrame(surface, maximumSize),
+		setFrame: unsupported,
+		setFrameAsync: (surface, frame) => ui.setFrame(viewOf(surface), frame),
+		measure: unsupported,
+		measureAsync: (surface) => ui.measure(viewOf(surface)),
+		unmount: unsupported,
+		unmountAsync: (surface) => unwrapAsync(surfaces.unmount(surface)),
+	};
+}
+
 function createIOSNativeUIBridge(
 	objc: NativeObjCBridge,
 	fabric: NativeFabricBridge,
@@ -802,7 +864,11 @@ function createScopedNativePlugin(
 	const bridge = getNativePlugin() ?? fallbackBridge;
 	const objcBridge = bridge.objc ?? fallbackBridge.objc;
 	const ffiBridge = bridge.ffi ?? fallbackBridge.ffi;
-	const fabricBridge = bridge.fabric ?? fallbackBridge.fabric;
+	const surfaceBridge = (bridge as { surfaces?: NativeAndroidSurfaceBridge }).surfaces;
+	const fabricBridge =
+		platform === 'android' && surfaceBridge
+			? createAndroidFabricBridge(surfaceBridge, bridge.ui ?? fallbackBridge.ui)
+			: (bridge.fabric ?? fallbackBridge.fabric);
 	const runtimeBridge =
 		platform === 'android' && capabilities.includes('native.runtime.events')
 			? createFluxRuntimeBridge()

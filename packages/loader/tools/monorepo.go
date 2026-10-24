@@ -277,8 +277,12 @@ func validateWorkspaceTopLevel(root string, knownPaths map[string]struct{}) erro
 		parts := strings.Split(filepath.ToSlash(path), "/")
 		knownTopLevel[parts[0]] = struct{}{}
 	}
+	tracked, hasTracked := trackedTopLevelDirectories(root)
 	for _, entry := range entries {
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		if _, isTracked := tracked[entry.Name()]; hasTracked && !isTracked {
 			continue
 		}
 		if _, support := loaderSupportDirectories[entry.Name()]; support {
@@ -289,6 +293,20 @@ func validateWorkspaceTopLevel(root string, knownPaths map[string]struct{}) erro
 		}
 	}
 	return nil
+}
+
+func trackedTopLevelDirectories(root string) (map[string]struct{}, bool) {
+	var output bytes.Buffer
+	if err := defaultRunner(root, "git", []string{"ls-files", "-z", "--", "."}, os.Environ(), &output, io.Discard); err != nil {
+		return nil, false
+	}
+	directories := map[string]struct{}{}
+	for _, path := range strings.Split(output.String(), "\x00") {
+		if index := strings.Index(path, "/"); index > 0 {
+			directories[path[:index]] = struct{}{}
+		}
+	}
+	return directories, len(directories) > 0
 }
 
 func printWorkspacePackages(output io.Writer, packages []workspaceModule) error {

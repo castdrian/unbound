@@ -170,3 +170,24 @@ func TestPrintWorkspacePackagesSortsPackagesAndDependencies(t *testing.T) {
 		t.Fatalf("unexpected workspace listing:\n%s", output.String())
 	}
 }
+
+func TestValidateWorkspaceIgnoresUntrackedDirectoriesInAGitCheckout(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"core", "arm64-Unbound.dylib.dSYM"} {
+		if err := os.MkdirAll(filepath.Join(root, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "core", "CMakeLists.txt"), []byte("project(core)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "core/CMakeLists.txt"}} {
+		if err := defaultRunner(root, "git", args, os.Environ(), io.Discard, io.Discard); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manifest := workspaceManifest{Name: "unbound-loader", Packages: []workspaceModule{{Name: "core", Path: "core", Kind: "shared"}}}
+	if err := validateWorkspaceManifest(root, manifest); err != nil {
+		t.Fatalf("an untracked build artifact directory must not fail validation: %v", err)
+	}
+}

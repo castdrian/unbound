@@ -535,7 +535,7 @@ func provisionSimforge(root string, runner commandRunner) (string, error) {
 	if executableExists(product) {
 		return product, nil
 	}
-	if err := runner(cache, "xcodebuild", []string{"-project", "simforge.xcodeproj", "-scheme", "simforge", "-configuration", "Release", "-derivedDataPath", derivedData, "MACOSX_DEPLOYMENT_TARGET=12.0", "build"}, os.Environ(), os.Stdout, os.Stderr); err != nil {
+	if err := runXcodebuild(runner, cache, []string{"-project", "simforge.xcodeproj", "-scheme", "simforge", "-configuration", "Release", "-derivedDataPath", derivedData, "MACOSX_DEPLOYMENT_TARGET=12.0", "build"}); err != nil {
 		return "", err
 	}
 	if !executableExists(product) {
@@ -573,7 +573,7 @@ func buildExtensions(options buildOptions, work string, runner commandRunner) ([
 		}
 		project := extension.name + ".xcodeproj"
 		args := []string{"-project", project, "build", "-target", extension.target, "-configuration", "Release", "-sdk", "iphoneos", "CONFIGURATION_BUILD_DIR=" + buildDir, "PRODUCT_NAME=" + extension.product, "PRODUCT_BUNDLE_IDENTIFIER=" + bundleBase + "." + extension.product, "PRODUCT_MODULE_NAME=" + extension.module, "SKIP_INSTALL=NO", "DEVELOPMENT_TEAM=", "CODE_SIGN_IDENTITY=", "CODE_SIGNING_REQUIRED=NO", "CODE_SIGNING_ALLOWED=NO", "ONLY_ACTIVE_ARCH=NO"}
-		if err := runner(destination, "xcodebuild", args, os.Environ(), os.Stdout, os.Stderr); err != nil {
+		if err := runXcodebuild(runner, destination, args); err != nil {
 			return nil, err
 		}
 		path := filepath.Join(buildDir, extension.product+".appex")
@@ -583,6 +583,37 @@ func buildExtensions(options buildOptions, work string, runner commandRunner) ([
 		paths = append(paths, path)
 	}
 	return paths, nil
+}
+
+func xcbeautifyArguments(ci bool) []string {
+	arguments := []string{"--disable-logging"}
+	if ci {
+		arguments = append(arguments, "--disable-colored-output")
+	}
+	return arguments
+}
+
+func runXcodebuild(runner commandRunner, directory string, args []string) error {
+	formatter, err := exec.LookPath("xcbeautify")
+	if err != nil {
+		return runner(directory, "xcodebuild", args, os.Environ(), os.Stdout, os.Stderr)
+	}
+	beautify := exec.Command(formatter, xcbeautifyArguments(os.Getenv("CI") != "")...)
+	beautify.Stdout = os.Stdout
+	beautify.Stderr = os.Stderr
+	input, err := beautify.StdinPipe()
+	if err != nil {
+		return err
+	}
+	if err := beautify.Start(); err != nil {
+		return err
+	}
+	buildErr := runner(directory, "xcodebuild", args, os.Environ(), input, input)
+	input.Close()
+	if err := beautify.Wait(); err != nil && buildErr == nil {
+		return fmt.Errorf("xcbeautify failed: %w", err)
+	}
+	return buildErr
 }
 
 func ipaExtensions(entries []string) map[string]struct{} {

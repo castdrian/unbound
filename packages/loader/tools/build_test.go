@@ -248,3 +248,12 @@ func TestZipDirectoryRunsFromPayload(t *testing.T) {
 		t.Fatalf("unexpected zip arguments: %#v", gotArgs)
 	}
 }
+
+func TestXcbeautifyKeepsCIOutputPlain(t *testing.T) {
+	if !reflect.DeepEqual(xcbeautifyArguments(true), []string{"--disable-logging", "--disable-colored-output"}) {
+		t.Fatalf("unexpected CI arguments: %#v", xcbeautifyArguments(true))
+	}
+	if !reflect.DeepEqual(xcbeautifyArguments(false), []string{"--disable-logging"}) {
+		t.Fatalf("unexpected local arguments: %#v", xcbeautifyArguments(false))
+	}
+}

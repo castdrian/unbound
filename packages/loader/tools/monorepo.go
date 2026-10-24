@@ -70,12 +70,12 @@ func runPlatformWithRunner(action, platform, root, configuration string, runner 
 		if configuration == "debug" {
 			target = ":module:assembleDebug"
 		}
-		return runner(filepath.Join(root, "android"), gradleCommand(), []string{target, "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr)
+		return runner(filepath.Join(root, "android"), gradleCommand(), []string{target, "--no-daemon", "--quiet", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr)
 	}
 	if err := runCoreTests(root, runner); err != nil {
 		return err
 	}
-	return runner(filepath.Join(root, "android"), gradleCommand(), []string{":module:testDebugUnitTest", "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr)
+	return runner(filepath.Join(root, "android"), gradleCommand(), []string{":module:testDebugUnitTest", "--no-daemon", "--quiet", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr)
 }
 
 func runValidate(args []string) error {
@@ -94,10 +94,10 @@ func runValidate(args []string) error {
 	if err := runGoAndCoreTests(rootPath, defaultRunner); err != nil {
 		return err
 	}
-	if err := defaultRunner(filepath.Join(rootPath, "android"), gradleCommand(), []string{":module:testDebugUnitTest", "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr); err != nil {
+	if err := defaultRunner(filepath.Join(rootPath, "android"), gradleCommand(), []string{":module:testDebugUnitTest", "--no-daemon", "--quiet", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr); err != nil {
 		return err
 	}
-	if err := defaultRunner(filepath.Join(rootPath, "android"), gradleCommand(), []string{":module:assembleRelease", "--no-daemon", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr); err != nil {
+	if err := defaultRunner(filepath.Join(rootPath, "android"), gradleCommand(), []string{":module:assembleRelease", "--no-daemon", "--quiet", "--console=plain"}, os.Environ(), os.Stdout, os.Stderr); err != nil {
 		return err
 	}
 	if runtime.GOOS == "darwin" {
@@ -325,7 +325,7 @@ func printWorkspacePackages(output io.Writer, packages []workspaceModule) error 
 }
 
 func runGoAndCoreTests(root string, runner commandRunner) error {
-	if err := runner(root, "go", []string{"test", "./..."}, os.Environ(), os.Stdout, os.Stderr); err != nil {
+	if err := runner(root, "go", []string{"test", "-count=1", "./..."}, os.Environ(), os.Stdout, os.Stderr); err != nil {
 		return err
 	}
 	return runCoreTests(root, runner)

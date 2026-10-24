@@ -26,13 +26,13 @@ func TestPlatformAndroidBuildUsesGradleTargetForConfiguration(t *testing.T) {
 	if gotRoot != "/repo/android" || gotName != "./gradlew" {
 		t.Fatalf("unexpected Android build target: %s %s", gotRoot, gotName)
 	}
-	if !reflect.DeepEqual(gotArgs, []string{":module:assembleRelease", "--no-daemon", "--console=plain"}) {
+	if !reflect.DeepEqual(gotArgs, []string{":module:assembleRelease", "--no-daemon", "--quiet", "--console=plain"}) {
 		t.Fatalf("unexpected Android build arguments: %#v", gotArgs)
 	}
 	if err := runPlatformWithRunner("build", "android", "/repo", "debug", runner); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(gotArgs, []string{":module:assembleDebug", "--no-daemon", "--console=plain"}) {
+	if !reflect.DeepEqual(gotArgs, []string{":module:assembleDebug", "--no-daemon", "--quiet", "--console=plain"}) {
 		t.Fatalf("unexpected Android debug build arguments: %#v", gotArgs)
 	}
 }

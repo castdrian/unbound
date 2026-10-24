@@ -1,3 +1,4 @@
+#import "CoreBridge.h"
 #import "Toolbox.h"
 #import "DevOverlay.h"
 #import "RecoveryQuickAction.h"
@@ -798,39 +799,31 @@ static UIWindowScene *activeWindowScene(void)
 
 - (void)wipePlugins
 {
-    [[NSFileManager defaultManager]
-        removeItemAtPath:[NSString pathWithComponents:@[ FileSystem.documents, @"plugins" ]]
-                   error:nil];
+    [CoreBridge wipeAddonsNamed:@"Plugins" in:FileSystem.documents];
     [self dismissViewControllerAnimated:YES completion:^{ [Utilities reloadApp]; }];
 }
 
 - (void)wipeThemes
 {
-    [[NSFileManager defaultManager]
-        removeItemAtPath:[NSString pathWithComponents:@[ FileSystem.documents, @"themes" ]]
-                   error:nil];
+    [CoreBridge wipeAddonsNamed:@"Themes" in:FileSystem.documents];
     [self dismissViewControllerAnimated:YES completion:^{ [Utilities reloadApp]; }];
 }
 
 - (void)wipeFonts
 {
-    [[NSFileManager defaultManager]
-        removeItemAtPath:[NSString pathWithComponents:@[ FileSystem.documents, @"fonts" ]]
-                   error:nil];
+    [CoreBridge wipeAddonsNamed:@"Fonts" in:FileSystem.documents];
     [self dismissViewControllerAnimated:YES completion:^{ [Utilities reloadApp]; }];
 }
 
 - (void)wipeIconPacks
 {
-    [[NSFileManager defaultManager]
-        removeItemAtPath:[NSString pathWithComponents:@[ FileSystem.documents, @"icon-packs" ]]
-                   error:nil];
+    [CoreBridge wipeAddonsNamed:@"Icons" in:FileSystem.documents];
     [self dismissViewControllerAnimated:YES completion:^{ [Utilities reloadApp]; }];
 }
 
 - (void)factoryReset
 {
-    [[NSFileManager defaultManager] removeItemAtPath:FileSystem.documents error:nil];
+    [CoreBridge factoryResetIn:FileSystem.documents];
     [self dismissViewControllerAnimated:YES completion:^{ [Utilities reloadApp]; }];
 }
 
@@ -868,43 +861,25 @@ static UIWindowScene *activeWindowScene(void)
 
     NSString *appRegistrationType = [Utilities isSystemApp] ? @"System" : @"User";
 
-    NSMutableString *body =
-        [NSMutableString stringWithFormat:@"### Environment\n"
-                                           "- **Device**: %@\n"
-                                           "- **iOS Version**: %@\n"
-                                           "- **App Version**: %@ (%@)\n"
-                                           "- **App Source**: %@\n"
-                                           "- **App Registration**: %@\n",
-                                          deviceModel, iosVersionString, appVersion, buildNumber,
-                                          appSource, appRegistrationType];
+    NSArray<NSArray<NSString *> *> *environment = @[
+        @[ @"Device", deviceModel ?: @"unknown" ],
+        @[ @"iOS Version", iosVersionString ?: @"unknown" ],
+        @[ @"App Version", [NSString stringWithFormat:@"%@ (%@)", appVersion, buildNumber] ],
+        @[ @"App Source", appSource ?: @"unknown" ],
+        @[ @"App Registration", appRegistrationType ],
+    ];
 
-    NSDictionary *entitlements = [Utilities getApplicationEntitlements];
+    NSMutableArray<NSArray<NSString *> *> *attachments  = [NSMutableArray array];
+    NSDictionary                          *entitlements = [Utilities getApplicationEntitlements];
     if (entitlements && entitlements.count > 0)
     {
-        [body appendString:@"\n### Entitlements\n"];
-        [body appendString:@"```xml\n"];
-        [body appendString:[Utilities formatEntitlementsAsPlist:entitlements]];
-        [body appendString:@"\n```\n"];
+        NSString *plist = [Utilities formatEntitlementsAsPlist:entitlements];
+        [attachments addObject:@[ @"Entitlements", plist ]];
     }
 
-    [body appendString:@"\n### Issue Description\n"
-                        "<!-- Describe the issue you're experiencing -->\n\n"
-                        "**Steps to reproduce:**\n"
-                        "1. \n"
-                        "2. \n"
-                        "3. \n\n"
-                        "**Expected behavior:**\n\n"
-                        "**Actual behavior:**\n\n"];
-
-    NSString *encodedTitle = [@"bug(iOS): replace this with a descriptive title"
-        stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet
-                                                               .URLQueryAllowedCharacterSet];
-    NSString *encodedBody =
-        [body stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet
-                                                                     .URLQueryAllowedCharacterSet];
-    NSString *urlString = [NSString
-        stringWithFormat:@"https://github.com/marioparaschiv/unbound/issues/new?title=%@&body=%@",
-                         encodedTitle, encodedBody];
+    NSString *urlString = [CoreBridge issueURLForPlatform:@"iOS"
+                                              environment:environment
+                                              attachments:attachments];
     NSURL    *url       = [NSURL URLWithString:urlString];
 
     if (!url)

@@ -163,6 +163,17 @@ static jstring nativeSettingJSON(JNIEnv *env, jclass, jstring store, jstring key
     return value ? toJavaString(env, loader::toJSON(*value)) : nullptr;
 }
 
+static jstring nativeToolbox(JNIEnv *env, jclass, jstring action, jstring argument)
+{
+    auto loader = currentLoader();
+    if (!loader || !action)
+    {
+        return nullptr;
+    }
+    return toJavaString(env, loader->toolbox(toStdString(env, action),
+                                             argument ? toStdString(env, argument) : std::string()));
+}
+
 static jstring nativeFontsJSON(JNIEnv *env, jclass)
 {
     auto loader = currentLoader();
@@ -327,6 +338,8 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *)
          reinterpret_cast<void *>(nativeSetBoolean)},
         {"nativeSettingJSON", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
          reinterpret_cast<void *>(nativeSettingJSON)},
+        {"nativeToolbox", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+         reinterpret_cast<void *>(nativeToolbox)},
         {"nativeFontsJSON", "()Ljava/lang/String;", reinterpret_cast<void *>(nativeFontsJSON)},
         {"nativeThemeColorsJSON", "(Ljava/lang/String;)Ljava/lang/String;",
          reinterpret_cast<void *>(nativeThemeColorsJSON)},

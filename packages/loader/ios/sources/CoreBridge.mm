@@ -8,6 +8,7 @@
 #include "LoaderAddons.h"
 #include "LoaderLog.h"
 #include "LoaderPreload.h"
+#include "LoaderToolbox.h"
 
 static std::string toStdString(NSString *value)
 {
@@ -23,6 +24,21 @@ static NSMutableArray *mutableArrayFromJSON(const nlohmann::json &value)
                                                      options:NSJSONReadingMutableContainers
                                                        error:nil];
     return [parsed isKindOfClass:[NSMutableArray class]] ? parsed : [NSMutableArray array];
+}
+
+static std::vector<std::pair<std::string, std::string>> pairsFromArray(NSArray<NSArray<NSString *> *> *rows)
+{
+    std::vector<std::pair<std::string, std::string>> pairs;
+
+    for (NSArray<NSString *> *row in rows)
+    {
+        if (row.count == 2)
+        {
+            pairs.emplace_back(toStdString(row[0]), toStdString(row[1]));
+        }
+    }
+
+    return pairs;
 }
 
 static LogLevel iosLogLevel(loader::LogLevel level)
@@ -91,6 +107,37 @@ static LogLevel iosLogLevel(loader::LogLevel level)
 
     std::string script = loader::buildPreloadScript(payload);
     return [NSData dataWithBytes:script.data() length:script.size()];
+}
+
++ (BOOL)wipeAddonsNamed:(NSString *)kind in:(NSString *)documents
+{
+    for (auto candidate : {loader::toolbox::AddonKind::Plugins, loader::toolbox::AddonKind::Themes,
+                           loader::toolbox::AddonKind::Icons, loader::toolbox::AddonKind::Fonts})
+    {
+        if ([kind caseInsensitiveCompare:@(loader::toolbox::addonDirectoryName(candidate))] == NSOrderedSame)
+        {
+            return loader::toolbox::wipeAddons(toStdString(documents), candidate);
+        }
+    }
+
+    return NO;
+}
+
++ (BOOL)factoryResetIn:(NSString *)documents
+{
+    return loader::toolbox::factoryReset(toStdString(documents));
+}
+
++ (NSString *)issueURLForPlatform:(NSString *)platform
+                      environment:(NSArray<NSArray<NSString *> *> *)environment
+                      attachments:(NSArray<NSArray<NSString *> *> *)attachments
+{
+    loader::toolbox::IssueReport report;
+    report.platform    = toStdString(platform);
+    report.environment = pairsFromArray(environment);
+    report.attachments = pairsFromArray(attachments);
+
+    return [NSString stringWithUTF8String:loader::toolbox::issueURL(report).c_str()] ?: @"";
 }
 
 @end

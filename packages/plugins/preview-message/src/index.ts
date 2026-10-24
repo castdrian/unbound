@@ -12,7 +12,6 @@ import {
 	PreviewRunning,
 	RowManager,
 	SelectedChannelStore,
-	StickerPreviewStore,
 	Users,
 } from '~/modules';
 
@@ -26,7 +25,6 @@ function start() {
 		MessageRecord,
 		RowManager,
 		DraftStore,
-		StickerPreviewStore,
 		SelectedChannelStore,
 		FluxHooks,
 		Portal,

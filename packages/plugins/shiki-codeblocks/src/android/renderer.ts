@@ -5,6 +5,11 @@ import type {
 	NativeJavaValue,
 } from '@unbound-app/api/native';
 import { readViewText, spansOf } from '@unbound-plugins/shared/native/android/spans';
+import {
+	currentDecorView,
+	findViewsOfClass,
+	STARTUP_SCAN_DELAYS,
+} from '@unbound-plugins/shared/native/android/views';
 import { javaInt, javaReference } from '@unbound-plugins/shared/native/android/java-values';
 
 import {
@@ -214,8 +219,20 @@ export function createAndroidRenderer({ java, hooks }: Native) {
 		},
 	);
 
+	function scanVisible() {
+		const decor = currentDecorView(java);
+
+		if (!decor || disposed) return;
+
+		for (const view of findViewsOfClass(java, decor, TEXT_VIEW)) schedule(view);
+	}
+
+	const scans = STARTUP_SCAN_DELAYS.map((delay) => setTimeout(scanVisible, delay));
+
 	return {
 		dispose() {
+			for (const scan of scans) clearTimeout(scan);
+
 			disposed = true;
 			hooks.remove(token);
 			unsubscribe();

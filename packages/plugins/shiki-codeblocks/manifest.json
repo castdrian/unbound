@@ -29,7 +29,8 @@
 			"native.java.invoke",
 			"native.java.invokeAsync",
 			"native.java.construct",
-			"native.java.hooks"
+			"native.java.hooks",
+			"native.java.fields"
 		]
 	},
 	"minNativePluginApi": "1.0.0",

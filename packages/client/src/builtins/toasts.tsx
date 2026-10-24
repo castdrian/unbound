@@ -31,7 +31,19 @@ function patchToastContainer() {
 		return;
 	}
 
-	Patcher.after(Components.ToastContainer, 'type', ({ result }) => {
+	const { ToastContainer: container } = Components;
+	const [target, key] =
+		typeof container?.type === 'function'
+			? [container, 'type']
+			: [Components, 'ToastContainer'];
+
+	if (typeof target[key] !== 'function') {
+		Logger.error('ToastContainer is neither a function nor a memo component');
+
+		return;
+	}
+
+	Patcher.after(target, key, ({ result }) => {
 		const settings = Settings.useSettingsStore(({ key }) => key?.startsWith('toasts'));
 
 		if (settings.get('toasts.enabled', true)) {

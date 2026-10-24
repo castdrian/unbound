@@ -72,6 +72,35 @@ export function javaText(value: NativeJavaValue | null | undefined): string | un
 }
 
 /**
+ * @description Reads a Java result as a boolean.
+ * @param value The result.
+ * @returns `true` only for a Java `true`.
+ */
+export function javaFlag(value: NativeJavaValue | null | undefined): boolean {
+	return value?.type === 'boolean' && value.value;
+}
+
+/**
+ * @description Tells whether two Java references point at the same object.
+ * @param left A reference.
+ * @param right Another reference.
+ * @returns `true` when both are handles to the same object.
+ */
+export function sameJavaReference(
+	left: NativeJavaReference | null | undefined,
+	right: NativeJavaReference | null | undefined,
+): boolean {
+	const key = (reference: NativeJavaReference | null | undefined) =>
+		reference && 'value' in reference
+			? reference.value
+			: reference && 'id' in reference
+				? String((reference as { id: unknown }).id)
+				: undefined;
+
+	return key(left) !== undefined && key(left) === key(right);
+}
+
+/**
  * @description Reads a Java result as a number.
  * @param value The result.
  * @returns The number, or `undefined` when the result is not numeric.
@@ -92,6 +121,8 @@ export function javaNumber(value: NativeJavaValue | null | undefined): number | 
 
 export default {
 	isJavaHandle,
+	javaFlag,
+	sameJavaReference,
 	javaBoolean,
 	javaFloat,
 	javaInt,

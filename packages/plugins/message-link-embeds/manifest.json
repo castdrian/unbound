@@ -33,7 +33,16 @@
 			"native.objc.hooks",
 			"native.fabric.mount"
 		],
-		"android": []
+		"android": [
+			"native.java.classes",
+			"native.java.invoke",
+			"native.java.invokeAsync",
+			"native.java.construct",
+			"native.java.fields",
+			"native.java.hooks",
+			"native.fabric.mount",
+			"native.fabric.async"
+		]
 	},
 	"version": "1.0.0",
 	"minNativePluginApi": "1.0.0",

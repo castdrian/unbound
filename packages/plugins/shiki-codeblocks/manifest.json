@@ -30,7 +30,9 @@
 			"native.java.invokeAsync",
 			"native.java.construct",
 			"native.java.hooks",
-			"native.java.fields"
+			"native.java.fields",
+			"native.fabric.mount",
+			"native.fabric.async"
 		]
 	},
 	"minNativePluginApi": "1.0.0",

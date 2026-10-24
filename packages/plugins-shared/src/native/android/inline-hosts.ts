@@ -141,6 +141,32 @@ export function reservedPosition(
 }
 
 /**
+ * @description Measures where the line holding reserved room starts inside a text view, for views pinned to the top of the room rather than its bottom.
+ * @param java The plugin's Java bridge.
+ * @param textView The text view.
+ * @param index The index of the placeholder character carrying the spacer span.
+ * @returns The line's top-left corner at the placeholder inside the text view, or `null` before the text is laid out.
+ */
+export function reservedTop(
+	java: InlineHostBridge,
+	textView: NativeJavaReference,
+	index: number,
+): InlinePosition | null {
+	const layout = javaReference(java.invoke(textView, 'getLayout', []));
+
+	if (!layout) return null;
+
+	const line = javaNumber(java.invoke(layout, 'getLineForOffset', [javaInt(index)])) ?? 0;
+	const top = javaNumber(java.invoke(layout, 'getLineTop', [javaInt(line)])) ?? 0;
+	const left = javaNumber(java.invoke(layout, 'getPrimaryHorizontal', [javaInt(index)])) ?? 0;
+
+	return {
+		x: left + (javaNumber(java.invoke(textView, 'getTotalPaddingLeft', [])) ?? 0),
+		y: top + (javaNumber(java.invoke(textView, 'getTotalPaddingTop', [])) ?? 0),
+	};
+}
+
+/**
  * @description Creates an empty `FrameLayout` to mount a React surface into over reserved room.
  * @param java The plugin's Java bridge.
  * @param textView A view whose context the host shares.
@@ -182,7 +208,9 @@ async function fillHost(
 	for (let index = 0; index < count; index++) {
 		const child = javaReference(java.invoke(host, 'getChildAt', [javaInt(index)]));
 
-		if (!child) continue;
+		if (!child) {
+			continue;
+		}
 
 		await java.invokeAsync(child, 'measure', [
 			javaInt(width | MEASURE_EXACTLY),
@@ -311,5 +339,6 @@ export default {
 	placeHost,
 	removeHost,
 	reservedPosition,
+	reservedTop,
 	spacerSpan,
 };

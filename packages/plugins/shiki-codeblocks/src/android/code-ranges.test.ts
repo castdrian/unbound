@@ -1,76 +1,64 @@
-import type { ThemedToken } from 'shiki';
 import { describe, expect, test } from 'bun:test';
 
-import { androidColor, codeRanges, sourceBlock, tokenRuns } from './code-ranges';
-
-function token(content: string, color?: string, fontStyle = 0): ThemedToken {
-	return { content, color, fontStyle, offset: 0 };
-}
+import { codeSlots, placeholderOffsets, sourceBlock } from './code-ranges';
 
 describe('android code blocks', () => {
 	const text = 'fresh shiki fixture\nconst answer = 42;\nconsole.log(answer); \n​';
 
-	test("drops the padding Discord appends to a block's range", () => {
-		expect(codeRanges(text, [{ start: 20, end: 61 }])).toEqual([
-			{ start: 20, end: 59, code: 'const answer = 42;\nconsole.log(answer);' },
+	test('keeps the newline that ends a block out of the replaced range', () => {
+		expect(codeSlots(text, [{ start: 20, end: 61 }])).toEqual([
+			{
+				start: 20,
+				end: 60,
+				blockEnd: 61,
+				code: 'const answer = 42;\nconsole.log(answer);',
+			},
 		]);
 	});
 
-	test('ignores empty and out-of-range blocks', () => {
+	test('ignores empty, out-of-range and overlapping blocks', () => {
 		expect(
-			codeRanges(text, [
+			codeSlots(text, [
 				{ start: 59, end: 61 },
 				{ start: 10, end: 400 },
 			]),
 		).toEqual([]);
+		expect(
+			codeSlots(text, [
+				{ start: 20, end: 61 },
+				{ start: 30, end: 40 },
+			]).map(({ start }) => start),
+		).toEqual([20]);
 	});
 
-	test('converts hex colors to signed ARGB integers', () => {
-		expect(androidColor('#ff0000')).toBe(0xffff0000 | 0);
-		expect(androidColor('#f00')).toBe(0xffff0000 | 0);
-		expect(androidColor('#00ff0080')).toBe(0x8000ff00 | 0);
-		expect(androidColor('red')).toBeUndefined();
-		expect(androidColor(undefined)).toBeUndefined();
+	test('orders blocks by position', () => {
+		const two = 'a\nfirst \nb\nsecond \n';
+
+		expect(
+			codeSlots(two, [
+				{ start: 11, end: 19 },
+				{ start: 2, end: 9 },
+			]).map(({ code }) => code),
+		).toEqual(['first', 'second']);
 	});
 
-	test('lays token runs over the code, skipping uncolored tokens', () => {
-		const [range] = codeRanges(text, [{ start: 20, end: 61 }]);
-		const runs = tokenRuns(
-			[
-				[
-					token('const', '#ff0000', 2),
-					token(' answer = '),
-					token('42', '#00ff00'),
-					token(';'),
-				],
-				[token('console', '#0000ff'), token('.log(answer);')],
-			],
-			range,
-		);
-
-		expect(runs).toEqual([
-			{ start: 20, end: 25, color: 0xffff0000 | 0, fontStyle: 2 },
-			{ start: 35, end: 37, color: 0xff00ff00 | 0, fontStyle: 0 },
-			{ start: 39, end: 46, color: 0xff0000ff | 0, fontStyle: 0 },
-		]);
-		expect(text.slice(39, 46)).toBe('console');
+	test('places each placeholder after the replacements before it', () => {
+		expect(
+			placeholderOffsets([
+				{ start: 2, end: 8 },
+				{ start: 11, end: 19 },
+			]),
+		).toEqual([2, 6]);
 	});
 
-	test('refuses tokens that do not spell out the rendered code', () => {
-		const [range] = codeRanges(text, [{ start: 20, end: 61 }]);
-
-		expect(tokenRuns([[token('something else', '#ff0000')]], range)).toBeNull();
-	});
-
-	test('finds the fenced block a rendered block came from', () => {
+	test('matches a rendered block to its fence', () => {
 		const blocks = [
-			{ code: 'print(1)', language: 'python' },
-			{ code: 'const answer = 42;\nconsole.log(answer);', language: 'javascript' },
+			{ code: 'one', language: 'ts' },
+			{ code: 'two', language: 'js' },
 		];
 
-		expect(sourceBlock('const answer = 42;\nconsole.log(answer);', blocks)?.language).toBe(
-			'javascript',
-		);
-		expect(sourceBlock('nothing', blocks)).toBeUndefined();
+		expect(sourceBlock('two', blocks)?.language).toBe('js');
+		expect(sourceBlock(' one ', blocks)?.language).toBe('ts');
+		expect(sourceBlock('three', blocks)).toBeUndefined();
 	});
 });

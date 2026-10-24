@@ -171,8 +171,34 @@ function layoutParamsClass(java: InlineHostBridge, container: NativeJavaReferenc
 	return 'android.view.ViewGroup$LayoutParams';
 }
 
+async function fillHost(
+	java: InlineHostBridge,
+	host: NativeJavaReference,
+	width: number,
+	height: number,
+): Promise<void> {
+	const count = javaNumber(java.invoke(host, 'getChildCount', [])) ?? 0;
+
+	for (let index = 0; index < count; index++) {
+		const child = javaReference(java.invoke(host, 'getChildAt', [javaInt(index)]));
+
+		if (!child) continue;
+
+		await java.invokeAsync(child, 'measure', [
+			javaInt(width | MEASURE_EXACTLY),
+			javaInt(height | MEASURE_EXACTLY),
+		]);
+		await java.invokeAsync(child, 'layout', [
+			javaInt(0),
+			javaInt(0),
+			javaInt(width),
+			javaInt(height),
+		]);
+	}
+}
+
 /**
- * @description Sizes a host view, adds it to its container when it is elsewhere, and moves it over the reserved room. The host is measured and laid out directly, since a container that lays out only the children it knows about would leave it at zero size.
+ * @description Sizes a host view, adds it to its container when it is elsewhere, and moves it over the reserved room. The host and the surfaces in it are measured and laid out directly, since a container that lays out only the children it knows about would leave the host at zero size, and a surface would keep the height it mounted at.
  * @param java The plugin's Java bridge.
  * @param host The host view.
  * @param container The view to hold it.
@@ -218,6 +244,7 @@ export async function placeHost(
 		javaInt(width),
 		javaInt(height),
 	]);
+	await fillHost(java, host, width, height);
 	await java.invokeAsync(host, 'setTranslationX', [javaFloat(position.x)]);
 	await java.invokeAsync(host, 'setTranslationY', [javaFloat(position.y)]);
 }

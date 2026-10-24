@@ -135,6 +135,16 @@ jobs:
           cache: false
           go-version-file: packages/loader/go.mod
 
+      - name: cache Go builds
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            ~/go/pkg/mod
+          key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/loader/go.mod', 'packages/loader/tools/**/*.go') }}
+          restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
+
       - name: resolve source version
         id: resolve
         env:

@@ -165,3 +165,39 @@ func TestLibFFIBuildLockSerializesSeparateProcesses(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestLibFFIBuildIsSkippedOnlyWhenTheStampMatchesItsOutputs(t *testing.T) {
+	directory := t.TempDir()
+	archive := filepath.Join(directory, "libffi.a")
+	include := filepath.Join(directory, "include")
+	key := libFFIBuildKey("12ffd1f9dc56fcea79d2f742f424301ae668d663")
+	if libFFIUpToDate(archive, include, key) {
+		t.Fatal("a missing build was reported as up to date")
+	}
+	if err := os.MkdirAll(include, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range append([]string{archive}, prefixPaths(include, libFFIHeaders)...) {
+		if err := os.WriteFile(path, []byte("built"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if libFFIUpToDate(archive, include, key) {
+		t.Fatal("a build without a stamp was reported as up to date")
+	}
+	if err := os.WriteFile(libFFIStampPath(archive), []byte(key), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !libFFIUpToDate(archive, include, key) {
+		t.Fatal("a stamped build with every output was rebuilt")
+	}
+	if libFFIUpToDate(archive, include, libFFIBuildKey("0000000000000000000000000000000000000000")) {
+		t.Fatal("a build for another libffi revision was reported as up to date")
+	}
+	if err := os.Remove(filepath.Join(include, "ffi.h")); err != nil {
+		t.Fatal(err)
+	}
+	if libFFIUpToDate(archive, include, key) {
+		t.Fatal("a build missing a header was reported as up to date")
+	}
+}

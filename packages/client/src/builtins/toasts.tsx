@@ -22,7 +22,7 @@ export function stop() {
 	Patcher.unpatchAll();
 }
 
-type PatchTarget = Parameters<typeof Patcher.after>[0];
+type PatchTarget = Record<string, (...args: never[]) => void>;
 
 function toastContainerTarget(): [PatchTarget, string] | undefined {
 	const App = findByFilePath('modules/toast/native/AppToastContainer.tsx', { interop: false });

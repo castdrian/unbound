@@ -47,6 +47,10 @@ type Tint = {
 // Discord reuses message objects across row generations, so remember the untinted color to avoid compounding.
 const tints = new WeakMap<ChatMessage, Tint>();
 
+function memberRgbColors(member: Member | null | undefined): number[] {
+	return memberArgbColors(member).map((color) => color & 0xffffff);
+}
+
 function memberArgbColors(member: Member | null | undefined): number[] {
 	if (!member) return [];
 
@@ -74,14 +78,14 @@ function colorMentions(content: unknown, members: Members, defaultGuildId?: stri
 		const guildId = node.guildId ?? defaultGuildId;
 
 		if (node.type === 'mention' && node.userId && guildId) {
-			const [primary, secondary, tertiary] = memberArgbColors(
+			const [primary, secondary, tertiary] = memberRgbColors(
 				members.getMember(guildId, node.userId),
 			);
 
 			if (primary !== undefined) {
 				node.roleColor = primary;
 				node.color = primary;
-				node.colorString = `#${(primary & 0xffffff).toString(16).padStart(6, '0')}`;
+				node.colorString = `#${primary.toString(16).padStart(6, '0')}`;
 				node.roleColors = {
 					primaryColor: primary,
 					...(secondary === undefined ? {} : { secondaryColor: secondary }),

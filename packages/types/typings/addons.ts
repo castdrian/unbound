@@ -28,7 +28,6 @@ export type AddonManifest = {
 	folder: string;
 	path: string;
 	url: string;
-	/** The platforms the addon supports; absent means every platform. */
 	platforms?: NativePluginPlatform[];
 	capabilities?: NativePluginCapability[];
 	platformCapabilities?: Partial<Record<NativePluginPlatform, NativePluginCapability[]>>;

@@ -65,6 +65,17 @@ class NativeJavaTest {
     }
 
     @Test
+    fun invokeReportsTheExceptionTheMethodThrew() {
+        val handle = NativeJava.getClass("java.lang.Integer")
+
+        val error = assertThrows(NumberFormatException::class.java) {
+            NativeJava.invoke(handle, "parseInt", """[{"type":"string","value":"not a number"}]""")
+        }
+
+        assertTrue(error.message.orEmpty().contains("not a number"))
+    }
+
+    @Test
     fun invokeResolvesPrimitiveOverloadsByDeclaredType() {
         val builder = NativeJava.construct("java.lang.StringBuilder", "[]")
 

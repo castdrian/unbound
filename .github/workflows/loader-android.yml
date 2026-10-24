@@ -55,7 +55,7 @@ defaults:
 jobs:
     core-tests:
         name: Shared core tests
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         steps:
             - name: Checkout code
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -73,7 +73,7 @@ jobs:
 
     build-module:
         name: Build LSPosed module
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         env:
             ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
             ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
@@ -140,7 +140,7 @@ jobs:
     patch-discord:
         name: Build patched Discord APK
         needs: build-module
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         outputs:
             patched_filename: ${{ steps.patch.outputs.patched_filename }}
         env:

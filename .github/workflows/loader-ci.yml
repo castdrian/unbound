@@ -27,7 +27,7 @@ defaults:
 jobs:
     validate-submodules:
         name: Validate submodules
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         steps:
             - name: Checkout code
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -64,7 +64,7 @@ jobs:
             run:
                 working-directory: ${{ github.workspace }}
         name: Check authorized compatibility source
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         outputs:
             available: ${{ steps.check.outputs.available }}
         steps:
@@ -144,7 +144,7 @@ jobs:
 
     comment-pr:
         name: Comment on PR
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         needs: build
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         steps:

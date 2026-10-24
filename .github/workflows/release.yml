@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
     release:
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         outputs:
             releases-created: ${{ steps.release.outputs.releases_created }}
             client-released: ${{ steps.release.outputs['packages/client--release_created'] }}
@@ -32,7 +32,7 @@ jobs:
             # release-please bumps package.json versions but only knows npm lockfiles, so the
             # workspace versions recorded in bun.lock are refreshed on the release PR branch.
             - if: steps.release.outputs.prs_created == 'true'
-              uses: actions/checkout@v4
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
               with:
                   ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
 
@@ -43,7 +43,7 @@ jobs:
               uses: oven-sh/setup-bun@v2
               with:
                   bun-version: canary
-            - uses: actions/cache@v4
+            - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
               if: steps.release.outputs.prs_created == 'true'
               with:
                   path: ~/.bun/install/cache
@@ -63,16 +63,16 @@ jobs:
     publish:
         needs: release
         if: needs.release.outputs.releases-created == 'true'
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
               with:
                   persist-credentials: false
 
             - uses: oven-sh/setup-bun@v2
               with:
                   bun-version: canary
-            - uses: actions/cache@v4
+            - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
               with:
                   path: ~/.bun/install/cache
                   key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}

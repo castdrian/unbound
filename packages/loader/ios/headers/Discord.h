@@ -19,8 +19,7 @@
 + (UIColor *)BACKGROUND_PRIMARY;
 @end
 
-@interface DCDTheme : NSObject
-+ (NSInteger)themeIndex;
+@interface DCDThemeModule : NSObject
 - (void)updateTheme:(id)theme;
 @end
 

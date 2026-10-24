@@ -1,6 +1,6 @@
 #import "Analytics.h"
 
-%hook SentrySDK
+%hook SentrySDKInternal
 + (void)startWithOptions:(id)options
 {
     [Logger info:LOG_CATEGORY_DEFAULT format:@"Blocked SentrySDK."];
@@ -16,14 +16,6 @@
 + (BOOL)isEnabled
 {
     return NO;
-}
-%end
-
-%hook FIRInstallations
-+ (void)load
-{
-    [Logger info:LOG_CATEGORY_DEFAULT format:@"Blocked Firebase Installations."];
-    return;
 }
 %end
 

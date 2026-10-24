@@ -127,7 +127,7 @@ jobs:
 
       - name: Read the libffi revision
         id: libffi
-        run: echo "revision=$(git -C libffi rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        run: echo "revision=$(git -C vendor/libffi rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Restore the libffi build
         id: libffi-cache

@@ -34,7 +34,7 @@
 		},
 		{
 			"name": "libffi",
-			"path": "libffi",
+			"path": "vendor/libffi",
 			"kind": "native-dependency"
 		},
 		{

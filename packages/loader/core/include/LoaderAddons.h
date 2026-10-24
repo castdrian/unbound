@@ -3,7 +3,7 @@
 #include <functional>
 #include <string>
 
-#include "../third_party/nlohmann/json.hpp"
+#include <nlohmann/json.hpp>
 
 namespace loader
 {

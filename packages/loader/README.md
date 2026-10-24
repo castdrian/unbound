@@ -185,6 +185,18 @@ Point `debugger.address` at a running `ub-debugger` bridge to evaluate JavaScrip
 
 </details>
 
+## Discord compatibility scan
+
+`.github/workflows/discord-compat.yml` runs every day for the stable and beta channels. It downloads the newest Discord IPA and APK and checks what the loaders, the client and the plugins look up against them: Metro module paths, props, stores and component names in the Hermes bundle, Objective-C classes, selectors and ivars in the Mach-O binaries, and Java classes, methods and fields in the dex files. Anything gone opens or updates a `discord-compat` issue, and the issue closes once a scan comes back clean.
+
+Run it locally against downloaded builds:
+
+```bash
+go run ./tools compat-scan --ipa discord.ipa --apk base.apk --android-version 350.8 --report report.md
+```
+
+Each run's `compat.json` is the next run's `--baseline`. A name that resolved in an earlier build and disappears is reported as broken, even when the scan cannot tell who owns it.
+
 ## Contributors
 
 [![Contributors](https://contrib.rocks/image?repo=marioparaschiv/unbound)](https://github.com/marioparaschiv/unbound/graphs/contributors)

@@ -1,9 +1,0 @@
-[submodule "extensions/OpenInDiscord"]
-	path = packages/ios/extensions/OpenInDiscord
-	url = https://github.com/castdrian/OpenInDiscord
-[submodule "extensions/ShareToDiscord"]
-	path = packages/ios/extensions/ShareToDiscord
-	url = https://github.com/castdrian/ShareToDiscord
-[submodule "vendor/libffi"]
-	path = packages/libffi
-	url = https://github.com/libffi/libffi.git

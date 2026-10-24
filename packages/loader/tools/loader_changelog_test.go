@@ -14,7 +14,7 @@ func TestGenerateLoaderChangelogUsesLoaderVersionChanges(t *testing.T) {
 	runGit(t, root, "config", "user.name", "Codex")
 	runGit(t, root, "config", "user.email", "codex@example.com")
 
-	controlPath := filepath.Join(root, "packages", "ios", "control")
+	controlPath := filepath.Join(root, "ios", "control")
 	if err := os.MkdirAll(filepath.Dir(controlPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestGenerateLoaderChangelogUsesLoaderVersionChanges(t *testing.T) {
 
 func TestGenerateLoaderChangelogRequiresPackageSemver(t *testing.T) {
 	root := t.TempDir()
-	controlPath := filepath.Join(root, "packages", "ios", "control")
+	controlPath := filepath.Join(root, "ios", "control")
 	if err := os.MkdirAll(filepath.Dir(controlPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func writeLoaderControl(t *testing.T, path string, version string) {
 
 func writeLoaderChange(t *testing.T, root string, content string) {
 	t.Helper()
-	path := filepath.Join(root, "packages", "ios", "source.txt")
+	path := filepath.Join(root, "ios", "source.txt")
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}

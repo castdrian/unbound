@@ -3,12 +3,12 @@
 	"packages": [
 		{
 			"name": "loader-core",
-			"path": "packages/core",
+			"path": "core",
 			"kind": "shared-runtime"
 		},
 		{
 			"name": "loader-ios",
-			"path": "packages/ios",
+			"path": "ios",
 			"kind": "platform-runtime",
 			"dependencies": [
 				"loader-core",
@@ -20,7 +20,7 @@
 		},
 		{
 			"name": "loader-android",
-			"path": "packages/android",
+			"path": "android",
 			"kind": "platform-runtime",
 			"dependencies": [
 				"loader-core",
@@ -29,28 +29,28 @@
 		},
 		{
 			"name": "loader-bootstrap",
-			"path": "packages/bootstrap",
+			"path": "bootstrap",
 			"kind": "shared-bootstrap"
 		},
 		{
 			"name": "libffi",
-			"path": "packages/libffi",
+			"path": "libffi",
 			"kind": "native-dependency"
 		},
 		{
 			"name": "apt-repo",
-			"path": "packages/apt-repo",
+			"path": "apt-repo",
 			"kind": "distribution-feed",
 			"dependencies": ["loader-ios"]
 		},
 		{
 			"name": "open-in-discord",
-			"path": "packages/ios/extensions/OpenInDiscord",
+			"path": "ios/extensions/OpenInDiscord",
 			"kind": "ios-extension"
 		},
 		{
 			"name": "share-to-discord",
-			"path": "packages/ios/extensions/ShareToDiscord",
+			"path": "ios/extensions/ShareToDiscord",
 			"kind": "ios-extension"
 		}
 	]

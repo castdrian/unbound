@@ -1,5 +1,5 @@
 ---
-name: vphone
+name: vphone-ssh
 description: Use when interacting with the virtual iPhone (vphone) over SSH — running commands on the device, copying files to/from it, reading or changing Unbound loader settings (e.g. loader.update.hmr), finding an app's data container, restarting Discord, or monitoring/catting Unbound logs (native os_log + JS/React Native console, timestamped). Covers the openssh-server/SFTP scp setup (no `scp -O`), password sudo, and the host-side idevicesyslog log path on the jailbroken iOS VM.
 ---
 
@@ -50,7 +50,7 @@ $S sudo "ls -la $(\$S app-data)/Documents/Unbound"
 
 ## Quick Reference
 
-Run from the loader repo root. `S=.claude/skills/vphone/scripts/vphone.sh`
+Run from the repository root. `S=.claude/skills/vphone-ssh/scripts/vphone.sh`
 
 | Goal | Command |
 |------|---------|
@@ -72,7 +72,7 @@ Run from the loader repo root. `S=.claude/skills/vphone/scripts/vphone.sh`
 
 `settings-set` value is **raw JSON**: `true`, `false`, `42`, `'"some string"'`.
 
-`$L` = `.claude/skills/vphone/scripts/vphone-logs.sh`.
+`$L` = `.claude/skills/vphone-ssh/scripts/vphone-logs.sh`.
 
 ## Common tasks
 

@@ -3,7 +3,7 @@
 /**
  * vphone MCP server — exposes the virtual iPhone (vphone) tooling as MCP tools.
  *
- * Every tool delegates to the shell scripts under `.claude/skills/vphone/scripts/`,
+ * Every tool delegates to the shell scripts under `.claude/skills/vphone-ssh/scripts/`,
  * keeping a single source of truth for the device's quirks (scp -O, password sudo,
  * jq settings merges, the logarchive→ndjson log pipeline). The connection is
  * configured via env on the wrapper: VPHONE_HOST, VPHONE_PORT, VPHONE_USER, VPHONE_PASS.

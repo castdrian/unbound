@@ -100,7 +100,7 @@ func runAndroidAVD(args []string) error {
 }
 
 func readAVDProfile(root string) (avdProfile, error) {
-	data, err := os.ReadFile(filepath.Join(root, "packages", "android", "dev-environment", "avd.json"))
+	data, err := os.ReadFile(filepath.Join(root, "android", "dev-environment", "avd.json"))
 	if err != nil {
 		return avdProfile{}, fmt.Errorf("read Android AVD profile: %w", err)
 	}

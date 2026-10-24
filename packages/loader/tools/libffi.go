@@ -44,7 +44,7 @@ func runLibFFIBuild(args []string) error {
 	if err != nil {
 		return err
 	}
-	sourcePath := filepath.Join(rootPath, "packages", "libffi")
+	sourcePath := filepath.Join(rootPath, "libffi")
 	if _, err := os.Stat(filepath.Join(sourcePath, ".git")); err != nil {
 		return fmt.Errorf("libffi submodule is unavailable: %w", err)
 	}

@@ -1,0 +1,76 @@
+import type { Addon } from '@unbound-app/types';
+import { View } from 'react-native';
+import { memo } from 'react';
+
+import { Discord } from '~/api/metro/components';
+import { TintedIcon } from '~/ui/components';
+import { Theme } from '~/api/metro/common';
+import { Icons } from '~/api/assets';
+
+import useStyles from './addon-card-header.style';
+
+type AddonCardHeaderProps = {
+	addon: Addon;
+};
+
+/**
+ * @description The top of an addon card: a tinted icon, the addon name with its version, the author,
+ * and the description. Pure and memoized; it reads nothing from any manager.
+ */
+function AddonCardHeader({ addon }: AddonCardHeaderProps) {
+	const styles = useStyles();
+	const { name, version, authors, description } = addon.data;
+	const author = authors?.map((a) => a.name).join(', ');
+
+	return (
+		<View style={styles.container}>
+			<View style={styles.iconContainer}>
+				<TintedIcon
+					source={Icons['PuzzlePieceIcon'] ?? 0}
+					size={22}
+					tint={Theme.colors.TEXT_STRONG}
+				/>
+			</View>
+			<View style={styles.content}>
+				<View style={styles.titleRow}>
+					<Discord.Text
+						variant='text-md/semibold'
+						style={[styles.title, { color: Theme.colors.TEXT_STRONG }]}
+						numberOfLines={1}
+					>
+						{name}
+					</Discord.Text>
+					{version ? (
+						<View style={styles.versionBadge}>
+							<Discord.Text
+								variant='text-xxs/semibold'
+								style={{ color: Theme.colors.TEXT_MUTED }}
+							>
+								v{version}
+							</Discord.Text>
+						</View>
+					) : null}
+				</View>
+				{author ? (
+					<Discord.Text
+						variant='text-xs/medium'
+						style={{ color: Theme.colors.TEXT_MUTED }}
+						numberOfLines={1}
+					>
+						by {author}
+					</Discord.Text>
+				) : null}
+				{description ? (
+					<Discord.Text
+						variant='text-sm/normal'
+						style={[styles.description, { color: Theme.colors.TEXT_DEFAULT }]}
+					>
+						{description}
+					</Discord.Text>
+				) : null}
+			</View>
+		</View>
+	);
+}
+
+export default memo(AddonCardHeader);

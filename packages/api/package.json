@@ -1,0 +1,60 @@
+{
+	"name": "@unbound-app/api",
+	"version": "0.6.0-a04d1032b9e7fb8ac891db69b6f1a42d4a8aa37d62774702566f52335fdaa036",
+	"author": {
+		"name": "Mario P.",
+		"email": "contact@marioparaschiv.com",
+		"url": "https://github.com/marioparaschiv"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/marioparaschiv/unbound.git",
+		"directory": "packages/api"
+	},
+	"files": [
+		"src"
+	],
+	"types": "./src/index.d.ts",
+	"exports": {
+		".": "./src/index.d.ts",
+		"./assets": "./src/assets.d.ts",
+		"./fs": "./src/fs.d.ts",
+		"./global": "./src/global.d.ts",
+		"./i18n": "./src/i18n.d.ts",
+		"./metro": "./src/metro/index.d.ts",
+		"./metro/api": "./src/metro/api.d.ts",
+		"./metro/common": "./src/metro/common.d.ts",
+		"./metro/components": "./src/metro/components.d.ts",
+		"./metro/filters": "./src/metro/filters.d.ts",
+		"./metro/stores": "./src/metro/stores.d.ts",
+		"./native": "./src/native.d.ts",
+		"./patcher": "./src/patcher.d.ts",
+		"./settings": "./src/settings.d.ts",
+		"./storage": "./src/storage.d.ts",
+		"./toasts": "./src/toasts.d.ts"
+	},
+	"devDependencies": {
+		"@unbound-app/client": "workspace:*",
+		"@unbound-app/sdk-generator": "workspace:*"
+	},
+	"peerDependencies": {
+		"@types/react": "catalog:react",
+		"react": "catalog:react",
+		"react-native": "catalog:react",
+		"typescript": "catalog:"
+	},
+	"peerDependenciesMeta": {
+		"react": {
+			"optional": false
+		},
+		"@types/react": {
+			"optional": false
+		},
+		"react-native": {
+			"optional": false
+		},
+		"typescript": {
+			"optional": false
+		}
+	}
+}

@@ -1,0 +1,51 @@
+---
+title: 'Introduction'
+description: 'The Developer API: the modules your addons build on.'
+icon: 'folder-tree'
+---
+
+The **Developer API** is the set of modules Unbound provides for building addons. They cover finding Discord's internals, persisting settings, localizing strings, showing toasts, and more.
+
+Every module is published in the `@unbound-app/api` package. Import modules by name from the package root, or import each one from its own subpath. At runtime, the same modules are available on the `unbound` global.
+
+```ts
+import { metro, storage } from '@unbound-app/api';
+// equivalent: import metro from '@unbound-app/api/metro';
+// runtime global: unbound.metro
+```
+
+<Note>
+	If you're new, start with [Metro](/modules/metro). Almost everything else, including assets, i18n, stores, and your own addons, uses it to locate Discord's modules.
+</Note>
+
+### Modules
+
+<CardGroup cols={2}>
+	<Card title='Metro' icon='box-taped' href='/modules/metro'>
+		Find the Discord module you need before you patch it.
+	</Card>
+	<Card title='Storage' icon='database' href='/modules/storage'>
+		Reactive, persisted settings: read, write, and re-render on change.
+	</Card>
+	<Card title='Settings' icon='sliders' href='/modules/settings'>
+		Register your own screens into Discord's settings navigation.
+	</Card>
+	<Card title='Assets' icon='face-smile' href='/modules/assets'>
+		Look up Discord's bundled images and icons by name.
+	</Card>
+	<Card title='Native' icon='file-code' href='/modules/native'>
+		Bridge to the app's native iOS and Android modules.
+	</Card>
+	<Card title='Toasts' icon='bells' href='/modules/toasts'>
+		Show transient, non-blocking notifications.
+	</Card>
+	<Card title='i18n' icon='globe' href='/modules/i18n'>
+		Localize your addon to the user's Discord language.
+	</Card>
+	<Card title='File System' icon='folder' href='/modules/fs'>
+		Read, write, and check files against the documents directory.
+	</Card>
+	<Card title='Managers' icon='layer-group' href='/modules/managers'>
+		How plugins and themes are loaded, started, and persisted.
+	</Card>
+</CardGroup>

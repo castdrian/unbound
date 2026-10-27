@@ -404,7 +404,7 @@ Or let the scan fetch the channel's latest builds itself:
 DKRYPT_API_KEY=... go run ./tools compat-scan --channel beta --report report.md
 ```
 
-With `--channel` and neither `--ipa` nor `--apk`, it downloads the channel's newest Android base APK through the same sources as `discord-apk`, and, for `stable` and `beta`, the newest App Store or TestFlight IPA from dkrypt. Without `DKRYPT_API_KEY` only Android is scanned, and `alpha` has no iOS build. Builds are kept in `--cache` (default `$UNBOUND_DISCORD_CACHE`, else the user cache directory under `unbound/discord`), keyed by version and verified against their version code or dkrypt's SHA-256 before reuse, so a rerun against the same release downloads nothing.
+With `--channel`, it downloads whichever of `--ipa` and `--apk` is missing: the channel's newest Android base APK through the same sources as `discord-apk`, and, for `stable` and `beta`, the newest App Store or TestFlight IPA from dkrypt. Without `DKRYPT_API_KEY` only Android is scanned, and `alpha` has no iOS build. Builds are kept in `--cache` (default `$UNBOUND_DISCORD_CACHE`, else the user cache directory under `unbound/discord`), per platform and channel, keyed by version and verified against their version code or dkrypt's SHA-256 before reuse, so a rerun against the same release downloads nothing; older builds are pruned. CI's compat scan passes the dkrypt action's IPA with `--ipa` and keeps the cache between runs with `actions/cache`.
 
 Each run's `compat.json` is the next run's `--baseline`. A name that resolved in an earlier build and disappears is reported as broken, even when the scan cannot tell who owns it.
 

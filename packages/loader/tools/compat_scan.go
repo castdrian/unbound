@@ -100,18 +100,22 @@ func runCompatScan(args []string) error {
 	if err := set.Parse(args); err != nil {
 		return err
 	}
-	if *ipa == "" && len(apks) == 0 {
-		if *channel == "" {
-			return errNoCompatTarget
-		}
-		builds, err := fetchCompatBuilds(context.Background(), *channel, *cache)
+	if *ipa == "" && len(apks) == 0 && *channel == "" {
+		return errNoCompatTarget
+	}
+	if *channel != "" && (*ipa == "" || len(apks) == 0) {
+		builds, err := fetchCompatBuilds(context.Background(), *channel, *cache, compatFetch{android: len(apks) == 0, ios: *ipa == ""})
 		if err != nil {
 			return err
 		}
-		*ipa = builds.ipa
-		apks = stringList{builds.apk}
-		if *androidVersion == "" {
-			*androidVersion = builds.androidVersion
+		if *ipa == "" {
+			*ipa = builds.ipa
+		}
+		if len(apks) == 0 {
+			apks = stringList{builds.apk}
+			if *androidVersion == "" {
+				*androidVersion = builds.androidVersion
+			}
 		}
 	}
 

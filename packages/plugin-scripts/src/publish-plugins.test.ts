@@ -1,7 +1,10 @@
+import { generateKeyPairSync } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import { verifyPluginSignature } from './sign-plugin';
 
 const SCRIPT = join(import.meta.dir, 'publish-plugins.ts');
 const REPOSITORY = 'owner/plugins';
@@ -99,6 +102,8 @@ async function serve(request: Request): Promise<Response> {
 	return new Response('not found', { status: 404 });
 }
 
+let extraEnv: Record<string, string> = {};
+
 async function run(...args: string[]): Promise<RunResult> {
 	const proc = Bun.spawn(['bun', SCRIPT, '--repository', REPOSITORY, ...args], {
 		cwd: work,
@@ -107,6 +112,8 @@ async function run(...args: string[]): Promise<RunResult> {
 			GITHUB_REPOSITORY: '',
 			UNBOUND_API_URL: server.url.href,
 			UNBOUND_API_KEY: 'test-key',
+			UNBOUND_BUNDLE_SIGNING_KEY: '',
+			...extraEnv,
 		},
 		stdout: 'pipe',
 		stderr: 'pipe',
@@ -251,4 +258,52 @@ test('a version reviewed from a main commit starts the changelog after that comm
 	expect(result.exitCode).toBe(0);
 	expect(result.output).toContain('- Keep the toggle');
 	expect(result.output).not.toContain('- Add more');
+});
+
+test('signs each published bundle into its manifest when the signing key is set', async () => {
+	const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+	const rawPublicKey = publicKey
+		.export({ format: 'der', type: 'spki' })
+		.subarray(12)
+		.toString('base64');
+
+	writePlugin('beta', '1.1.0');
+	commit('feat(beta): sign the build');
+	git(work, 'push', '-q', 'origin', 'main');
+	state.published = new Map([
+		['unbound.alpha', { version: '1.0.0', commitSha: null }],
+		['unbound.beta', { version: '1.0.0', commitSha: null }],
+	]);
+	state.calls = [];
+	extraEnv = {
+		UNBOUND_BUNDLE_SIGNING_KEY: privateKey.export({ format: 'pem', type: 'pkcs8' }).toString(),
+	};
+
+	try {
+		const result = await run();
+
+		expect(result.exitCode).toBe(0);
+
+		const build = state.calls[0]?.body.commitSha ?? '';
+		const manifest = JSON.parse(
+			git(work, 'show', `${build}:packages/plugins/beta/manifest.json`),
+		);
+		const bundle = new TextEncoder().encode(
+			`${git(work, 'show', `${build}:packages/plugins/beta/dist/index.js`)}\n`,
+		);
+
+		expect(manifest.version).toBe('1.1.0');
+		expect(manifest.main).toBe('index.tsx');
+		expect(
+			verifyPluginSignature(
+				rawPublicKey,
+				'unbound.beta',
+				'1.1.0',
+				bundle,
+				manifest.signature,
+			),
+		).toBe(true);
+	} finally {
+		extraEnv = {};
+	}
 });

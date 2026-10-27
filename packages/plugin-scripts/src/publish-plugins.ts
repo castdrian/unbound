@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import type { PublishFirstPartyRequest } from '@unbound-app/contracts/publish';
 import type { WorkspaceFiles } from '@unbound-app/contracts/workspace';
+import type { KeyObject } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -27,6 +28,12 @@ import type { LocalPlugin, PluginDecision, PublishedVersions } from './select-pl
 import type { PluginCommit } from './plugin-changelog';
 import { createRelease, mergeRelease, renderRelease } from './plugin-changelog';
 import { getSelected, selectPlugins } from './select-plugins';
+import {
+	parsePluginSigningKey,
+	PLUGIN_SIGNING_KEY_VARIABLE,
+	signPlugin,
+	withSignature,
+} from './sign-plugin';
 
 const WORKSPACE_DIR = 'packages/plugins';
 const TAG_PREFIX = 'plugin-builds/';
@@ -286,7 +293,21 @@ function prepareRelease(options: Options, decision: SelectedDecision, date: stri
 	return { plugin, changelog, entry: renderRelease(plugin.version, entry).trimEnd() };
 }
 
-function collectFiles(root: string, releases: PluginRelease[]): BuildFile[] {
+function readSigningKey(): KeyObject | undefined {
+	const pem = process.env[PLUGIN_SIGNING_KEY_VARIABLE];
+
+	if (!pem) {
+		console.warn(
+			`${PLUGIN_SIGNING_KEY_VARIABLE} is not set, so the plugins are published unsigned.`,
+		);
+
+		return undefined;
+	}
+
+	return parsePluginSigningKey(pem);
+}
+
+function collectFiles(root: string, releases: PluginRelease[], key?: KeyObject): BuildFile[] {
 	const files: BuildFile[] = [];
 
 	for (const { plugin, changelog } of releases) {
@@ -298,7 +319,21 @@ function collectFiles(root: string, releases: PluginRelease[]): BuildFile[] {
 			);
 		}
 
-		files.push({ path: bundle, contents: readFileSync(join(root, bundle)) });
+		const contents = readFileSync(join(root, bundle));
+
+		files.push({ path: bundle, contents });
+
+		if (key) {
+			const manifest = `${WORKSPACE_DIR}/${plugin.dir}/manifest.json`;
+			const signature = signPlugin(key, plugin.id, plugin.version, contents);
+
+			files.push({
+				path: manifest,
+				contents: new TextEncoder().encode(
+					withSignature(readFileSync(join(root, manifest), 'utf8'), signature),
+				),
+			});
+		}
 		files.push({
 			path: `${WORKSPACE_DIR}/${plugin.dir}/CHANGELOG.md`,
 			contents: new TextEncoder().encode(changelog),
@@ -367,7 +402,7 @@ function resolveBuild(options: Options, head: string, releases: PluginRelease[])
 	const commit = createBuildCommit(
 		root,
 		head,
-		collectFiles(root, releases),
+		collectFiles(root, releases, readSigningKey()),
 		`build(plugins): publish ${names}`,
 	);
 

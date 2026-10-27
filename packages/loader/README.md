@@ -299,6 +299,18 @@ Loaders from #271 verify only `<bundle>.sig`, and older loaders verify nothing, 
 2. The loader release after builds.unbound.rip and the release bucket have served signed manifests for a full release cycle removes the bundle-only fallback, so every loader requires a signed manifest.
 3. Once loaders from #271 are no longer supported, the build stops writing per-bundle `.sig` files.
 
+### Signed plugins
+
+`plugins-publish.yml` signs every first-party plugin it publishes with the same production key. The signature covers `unbound-addon/v1`, the manifest `id`, the `version` and the lowercase hex SHA-512 of the built bundle, one per line, and is stored in the published `manifest.json`:
+
+```json
+{ "signature": { "version": 1, "ed25519": "<base64>" } }
+```
+
+At startup the loader checks every plugin under `Unbound/Plugins` that has a `signature`. A plugin whose signature does not match its bundle is skipped and logged; every other plugin reaches the client with `trust` set to `signed` or `unsigned`. Third-party plugins have no signature and load as `unsigned`.
+
+`NativePlatform.addons.verify(manifest, bundle)` runs the same check for the client. Installs and updates refuse a bundle whose signature does not match, and refuse an unsigned update for an installed plugin that was signed. A loader built without a key reports every plugin as `unsigned`.
+
 ### Pull request builds
 
 Every pull request that runs the loader build (`loader-ci.yml`), forks included, also gets its latest build in the public bucket, so it can be tested with no settings changes:

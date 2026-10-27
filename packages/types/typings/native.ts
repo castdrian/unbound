@@ -604,6 +604,18 @@ export type NativeFontEntry = {
 	readonly source: NativeFontSource;
 };
 
+/** The outcome of checking an addon's signature against the keys compiled into the loader. */
+export type NativeAddonVerification = {
+	readonly status: 'signed' | 'unsigned' | 'invalid';
+	readonly signer?: string;
+	readonly problem?: string;
+};
+
+export type NativePlatformAddons = {
+	/** Checks a manifest's `signature` against its bundle. */
+	verify(manifest: string, bundle: string): NativeAddonVerification;
+};
+
 export type NativePlatformFonts = {
 	list(): NativeFontEntry[];
 };
@@ -622,6 +634,7 @@ export type NativePlatformBridge = {
 	readonly crashGuard?: NativePlatformCrashGuard;
 	readonly settings?: NativePlatformSettings;
 	readonly fonts?: NativePlatformFonts;
+	readonly addons?: NativePlatformAddons;
 	readonly ios?: NativePlatformIOSBridge;
 };
 

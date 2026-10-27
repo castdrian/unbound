@@ -2,6 +2,7 @@
 
 #include <optional>
 
+#include "LoaderAddonSignature.h"
 #include "LoaderFiles.h"
 #include "LoaderFonts.h"
 #include "LoaderLog.h"
@@ -115,6 +116,16 @@ nlohmann::json scanPlugins(const std::string &documents)
                     "Skipping " + folder + " as its entry failed to be read.");
                 return;
             }
+
+            AddonSignatureResult signature =
+                verifyAddonSignature(*manifest, *bundle, compiledBundleTrust());
+            if (signature.status == AddonSignatureStatus::Invalid)
+            {
+                log(LogLevel::Error, LOG_CATEGORY_PLUGINS,
+                    "Skipping " + folder + " as " + signature.problem + ".");
+                return;
+            }
+            (*manifest)["trust"] = describeAddonSignature(signature.status);
 
             (*manifest)["folder"] = folder;
             (*manifest)["path"]   = directory;

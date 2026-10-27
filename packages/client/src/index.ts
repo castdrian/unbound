@@ -5,6 +5,8 @@ import '~/api/metro';
 import { createLogger } from '@unbound-app/logger';
 
 import { BuiltIns, Plugins, Themes, Icons, Fonts } from '~/managers';
+import { askForNativeConsent } from '~/ui/addons/native-consent';
+import { setConsentPrompt } from '~/managers/addons';
 import storage from '~/api/storage';
 import * as api from '~/api';
 
@@ -39,6 +41,7 @@ export function initialize() {
 	window.unbound = { ...api, initialize, shutdown };
 	Logger.info('Initializing Unbound...');
 
+	setConsentPrompt(askForNativeConsent);
 	BuiltIns.initialize();
 	Plugins.initialize();
 	Themes.initialize();

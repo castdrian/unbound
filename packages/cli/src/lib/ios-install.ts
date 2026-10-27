@@ -126,7 +126,7 @@ export async function installOnIOS(
 	log('Restarting Discord…');
 
 	await pilotCommand(
-		['ui_action', '--device', device, '--action', 'screen_on'],
+		['ui_action', '--device', device, '--action', 'button', '--button', 'unlock'],
 		IOS_TIMEOUTS.restart,
 	);
 

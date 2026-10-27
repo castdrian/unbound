@@ -57,7 +57,7 @@ type avdSnapshotRestoreOptions struct {
 
 func runAVDSnapshot(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: dev android-avd snapshot <save|restore> (--out <file> [--with-settings] [--without-discord] | --from <file|https-url> [--sha256 <hex>] [--discord-channel <channel>]) [--name <name>] [--root <path>]")
+		return errors.New("usage: dev android-avd snapshot <save|restore|publish> (--out <file> [--with-settings] [--without-discord] | --from <file|https-url> [--sha256 <hex>] [--discord-channel <channel>] | [--repo <owner/name>] [--tag <tag>]) [--name <name>] [--root <path>]")
 	}
 	set := flag.NewFlagSet("dev android-avd snapshot", flag.ContinueOnError)
 	root := set.String("root", ".", "repository root")
@@ -68,6 +68,9 @@ func runAVDSnapshot(args []string) error {
 	withoutDiscord := set.Bool("without-discord", false, "leave Discord's APKs out, so the snapshot can be published; restore downloads Discord")
 	checksum := set.String("sha256", "", "SHA-256 the snapshot must match when restoring")
 	discordChannel := set.String("discord-channel", "stable", "Discord channel restore downloads when the snapshot has no Discord")
+	repository := set.String("repo", "marioparaschiv/unbound", "repository publish releases the snapshot to")
+	tag := set.String("tag", "", "release tag publish creates; avd-snapshot-<date> when empty")
+	dryRun := set.Bool("dry-run", false, "publish: save and verify the snapshot, then print the release notes instead of publishing")
 	if err := set.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -96,6 +99,8 @@ func runAVDSnapshot(args []string) error {
 			return fmt.Errorf("--discord-channel takes stable, beta or alpha, not %q", *discordChannel)
 		}
 		return restoreAVDSnapshot(profile, *from, avdSnapshotRestoreOptions{sha256: *checksum, discordChannel: *discordChannel})
+	case "publish":
+		return publishAVDSnapshot(profile, *repository, valueOr(*tag, "avd-snapshot-"+time.Now().UTC().Format("20060102")), *dryRun)
 	default:
 		return fmt.Errorf("unknown snapshot action %q", args[0])
 	}

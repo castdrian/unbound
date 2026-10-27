@@ -215,6 +215,14 @@ go run ./tools dev android-avd snapshot restore --from https://github.com/mariop
 
 `--without-discord` on `save` leaves Discord's APKs out, which is what makes a snapshot publishable; `restore` then downloads Discord's newest build for `--discord-channel` (default `stable`) with the splits the AVD needs. `--from` takes a local file or an `https` URL, and `--sha256` refuses a download that doesn't match.
 
+Refresh the published snapshot after updating Magisk, Vector or the module, or about monthly:
+
+```bash
+go run ./tools dev android-avd snapshot publish
+```
+
+With the provisioned AVD running, `publish` saves a snapshot without Discord, stops the AVD, restores the snapshot onto a throwaway `<name>_snapshot_verify` AVD, and checks it gives root, has the Xposed module, and loads every plugin and Unbound's bundle. It then deletes the throwaway AVD, restarts yours, and publishes the snapshot as an `avd-snapshot-<date>` prerelease with its SHA-256, the restore command and the Magisk and Vector versions. Nothing is published if the check fails. `--dry-run` stops before publishing and prints the release notes, and `--tag` and `--repo` override where it goes.
+
 For iOS, `xcrun simctl list devices available` shows installable runtimes and devices; boot one with `xcrun simctl boot <UDID>`. `go run ./tools build all --simulator --ipa <Discord.ipa>` produces the Simulator app archive. Install the extracted `Payload/Discord.app` with `xcrun simctl install booted <path>`, and launch it with `xcrun simctl launch booted com.hammerandchisel.discord`. The simulator target is useful for packaging and UI smoke tests; private Discord runtime behavior still requires an actual device.
 
 For physical jailbroken-device testing, install jb-p1lot and check pairing and bridge status with `jb-p1lot device_list` and `jb-p1lot device_status --device <UDID>`. The Go environment report uses these read-only status calls and never performs device actions. The vphone path remains available through `vphone-cli vm list`, `vphone-cli vm launch`, and `vphone-cli vm stop`; its VM bundles and firmware are kept outside this repository.

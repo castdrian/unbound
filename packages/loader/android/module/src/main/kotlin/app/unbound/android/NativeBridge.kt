@@ -86,6 +86,9 @@ object NativeBridge {
     external fun nativeLog(level: Int, category: String, message: String)
 
     @JvmStatic
+    external fun nativeAppendLogFile(level: Int, category: String, message: String)
+
+    @JvmStatic
     external fun nativeDevOverlayButtonSide(): Double
 
     @JvmStatic

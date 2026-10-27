@@ -8,7 +8,7 @@ const { before } = await import('~/api/patcher');
 class FreezeAddons extends FakeAddons {
 	disabled: string[] = [];
 
-	disable(entity: Parameters<FakeAddons['disable']>[0]) {
+	disable(entity: Parameters<InstanceType<typeof FakeAddons>['disable']>[0]) {
 		this.disabled.push(typeof entity === 'string' ? entity : entity.id);
 		super.disable(entity);
 	}

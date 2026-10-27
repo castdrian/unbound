@@ -54,6 +54,19 @@ describe('crash reports', () => {
 		expect(stored?.addonTrust).toBe('signed');
 		expect(stored?.seconds).toBe(9.5);
 		expect(stored?.message).toBeNull();
+		expect(stored?.log).toBeNull();
+	});
+
+	test('stores the log lines a report carries', async () => {
+		const log = '2026-10-27T21:00:00.000Z E [plugins] Failed to start addon unbound.example';
+		const response = await send({ ...report, log }, '203.0.113.13');
+
+		expect(response.status).toBe(200);
+
+		const { id } = crashReportResponseSchema.parse(await response.json());
+		const [stored] = await ctx.db.select().from(crashReport).where(eq(crashReport.id, id));
+
+		expect(stored?.log).toBe(log);
 	});
 
 	test('refuses malformed and oversized reports', async () => {
@@ -65,6 +78,10 @@ describe('crash reports', () => {
 		const oversized = await send({ ...report, stack: 'x'.repeat(16_001) }, '203.0.113.11');
 
 		expect(oversized.status).toBe(400);
+
+		const longLog = await send({ ...report, log: 'x'.repeat(16_001) }, '203.0.113.11');
+
+		expect(longLog.status).toBe(400);
 	});
 
 	test('limits how often one address can report', async () => {

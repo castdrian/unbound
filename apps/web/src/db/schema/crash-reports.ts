@@ -20,6 +20,7 @@ export const crashReport = pgTable(
 		seconds: doublePrecision('seconds'),
 		message: text('message'),
 		stack: text('stack'),
+		log: text('log'),
 		receivedAt: timestampMs('received_at').notNull(),
 	},
 	(table) => [

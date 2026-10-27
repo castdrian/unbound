@@ -35,6 +35,7 @@ const reportCrashEndpoint = endpoint(
 			seconds: body.seconds ?? null,
 			message: body.message ?? null,
 			stack: body.stack ?? null,
+			log: body.log ?? null,
 			receivedAt: ctx.now(),
 		});
 

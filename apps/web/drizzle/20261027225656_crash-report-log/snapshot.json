@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "5b7919d8-81ed-4135-8f6a-50f4307d82ff",
+  "prevIds": [
+    "457f6819-ef2f-4719-83de-02363ae3d655"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "crash_report",
+        "log"
+      ],
+      "writes": [
+        "s|col|public.crash_report.log",
+        "n|col|public.crash_report.log",
+        "e|col|public.crash_report.log"
+      ],
+      "reads": [
+        "n|tbl|public.crash_report",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "crash_report",
+        "name": "log",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

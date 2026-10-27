@@ -24,6 +24,9 @@ type NativePluginGlobal = typeof globalThis & {
 mock.module('react-native', () => ({
 	NativeModules: {},
 	TurboModuleRegistry: { get: () => undefined },
+	Switch: 'Switch',
+	Text: 'Text',
+	View: 'View',
 }));
 
 type FluxTestMessage = {

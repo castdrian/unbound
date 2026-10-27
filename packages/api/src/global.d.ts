@@ -21,6 +21,8 @@ export type {
 	ContextMenuItem,
 	ContextMenuProps,
 	CreateStyles,
+	DESIGN_COMPONENTS,
+	DesignComponentName,
 	DesignModule,
 	DiscordAsset,
 	DiscordFunction,

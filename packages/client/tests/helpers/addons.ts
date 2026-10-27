@@ -36,6 +36,9 @@ mock.module('~/api/storage', () => {
 mock.module('react-native', () => ({
 	NativeModules: {},
 	TurboModuleRegistry: { get: () => undefined },
+	Switch: 'Switch',
+	Text: 'Text',
+	View: 'View',
 }));
 
 // Loaded dynamically after the mocks above: static imports hoist above `mock.module`, which would let

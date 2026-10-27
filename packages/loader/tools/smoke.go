@@ -115,13 +115,15 @@ type smokeResult struct {
 
 func runSmoke(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: smoke <android|ios> [flags]")
+		return errors.New("usage: smoke <android|ios|ios-device> [flags]")
 	}
 	switch args[0] {
 	case "android":
 		return runAndroidSmoke(args[1:])
 	case "ios":
 		return runIOSSmoke(args[1:])
+	case "ios-device":
+		return runIOSDeviceSmoke(args[1:])
 	default:
 		return fmt.Errorf("unknown smoke platform %q", args[0])
 	}

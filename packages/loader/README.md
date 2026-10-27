@@ -522,6 +522,14 @@ go run ./tools smoke ios --app Payload/Discord.app --client ../client/dist
 
 `--apks` is a directory of patched split APKs, from which the base, the emulator's ABI split and the other config splits are installed. Without `--client` the app keeps its default bundle URL. The simulator build retargets frameworks that only declare an iPhoneOS deployment target, such as `CydiaSubstrate.framework`, to the simulator platform, since the simulator refuses to load them otherwise.
 
+To smoke-test a jailbroken iPhone that already runs the loader, drive it through jb-p1lot:
+
+```bash
+go run ./tools smoke ios-device --udid <udid> --bridge-port 9092
+```
+
+It backs up the device's Unbound folder, installs only the first-party plugins with the smoke settings merged into the device's own (so a pinned bundle URL survives unless you pass `--client`), unlocks the device, relaunches Discord, follows the loader's on-device log file, and checks every plugin over the bridge. The backup is restored afterwards, also when the run fails. The device reaches the bridge at this machine's LAN address, or `--host` when that is wrong; pick a `--bridge-port` other than a bridge you already run.
+
 ## Symbolicating native crashes
 
 Every build keeps the unstripped loader next to its stripped packages. iOS uploads the `tweak symbols` artifact with a dSYM per architecture, and Android uploads the `android symbols` artifact with `<abi>/libunbound.so.dbg` for `arm64-v8a` and `x86_64`. Both hold the build IDs or UUIDs they were checked against and the commit they came from. Releases attach them as `unbound-ios-symbols.zip` and `unbound-android-symbols.zip`. Pull request artifacts expire after 14 days, and other builds keep the repository default.

@@ -7,6 +7,7 @@ import type { CrashEnvironment, CrashEvent } from '~/lib/crash-report';
 import { buildCrashReport } from '~/lib/crash-report';
 import { BundleInfo } from '~/api/native';
 import storage from '~/api/storage';
+import fs from '~/api/fs';
 
 export type { CrashEvent, CrashReportAddon } from '~/lib/crash-report';
 
@@ -14,12 +15,22 @@ const logger = createLogger('Crash Reports');
 
 export const CRASH_REPORTS_SETTING = 'crash-reports';
 
+const LOG_FILE = 'Unbound/Logs/unbound.log';
+
 /**
  * @description Reads whether the user turned crash reporting on. It is off until they do.
  * @returns Whether reports may be sent.
  */
 export function crashReportsEnabled(): boolean {
 	return storage.get('unbound', CRASH_REPORTS_SETTING, false);
+}
+
+async function readLoaderLog(): Promise<string | undefined> {
+	try {
+		return (await fs.exists(LOG_FILE)) ? await fs.read(LOG_FILE) : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 function currentEnvironment(clientVersion: string): CrashEnvironment | undefined {
@@ -51,7 +62,7 @@ export async function reportCrash(event: CrashEvent): Promise<void> {
 	try {
 		const { API_URL, CLIENT_VERSION } = await import('~/lib/constants');
 		const environment = currentEnvironment(CLIENT_VERSION);
-		const report = environment && buildCrashReport(event, environment);
+		const report = environment && buildCrashReport(event, environment, await readLoaderLog());
 
 		if (!report) {
 			return;

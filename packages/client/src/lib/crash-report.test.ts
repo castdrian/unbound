@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import type { CrashEnvironment } from './crash-report';
 
-import { buildCrashReport } from './crash-report';
+import { buildCrashReport, crashLogExcerpt, scrubLogLine } from './crash-report';
 
 const environment: CrashEnvironment = {
 	platform: 'ios',
@@ -60,5 +60,44 @@ describe('crash reports', () => {
 				environment,
 			),
 		).toBeUndefined();
+	});
+});
+
+describe('crash report logs', () => {
+	const token = `${'M'.repeat(26)}.${'G'.repeat(6)}.${'x'.repeat(38)}`;
+
+	test('scrub tokens, credentials and email addresses', () => {
+		expect(scrubLogLine(`I [console] got ${token}`)).toBe('I [console] got [redacted]');
+		expect(scrubLogLine(`mfa.${'a'.repeat(84)} left`)).toBe('[redacted] left');
+		expect(scrubLogLine('fetch with Bearer abc.def-123')).toBe('fetch with [redacted]');
+		expect(scrubLogLine('{"token":"abc123","password": hunter2}')).toBe(
+			'{"token":"[redacted]","password": [redacted]}',
+		);
+		expect(scrubLogLine('mail me at someone@example.com')).toBe('mail me at [redacted]');
+		expect(scrubLogLine('I [plugins] Loaded 32 plugins.')).toBe(
+			'I [plugins] Loaded 32 plugins.',
+		);
+	});
+
+	test('keep the newest lines that fit, oldest first', () => {
+		const lines = Array.from({ length: 200 }, (_, index) => `${index} ${'y'.repeat(150)}`);
+		const excerpt = crashLogExcerpt(`${lines.join('\n')}\n`) ?? '';
+		const kept = excerpt.split('\n');
+
+		expect(excerpt.length).toBeLessThanOrEqual(16_000);
+		expect(kept.at(-1)).toStartWith('199 ');
+		expect(Number(kept[0]?.split(' ')[0])).toBeGreaterThan(0);
+		expect(crashLogExcerpt('\n\n')).toBeUndefined();
+	});
+
+	test('travel in the report scrubbed', () => {
+		const report = buildCrashReport(
+			{ kind: 'crash' },
+			environment,
+			`E [plugins] boom ${token}\n`,
+		);
+
+		expect(report?.log).toBe('E [plugins] boom [redacted]');
+		expect(buildCrashReport({ kind: 'crash' }, environment)?.log).toBeUndefined();
 	});
 });

@@ -1,0 +1,55 @@
+name: Configuration Health
+
+# Reports which repository secrets and variables the workflows need, as documented in
+# .github/config-requirements.json, and fails while a required one is missing. Only whether each is
+# set reaches the job, never its value.
+
+on:
+    workflow_dispatch:
+    schedule:
+        - cron: '41 7 * * 1'
+    push:
+        branches:
+            - main
+        paths:
+            - .github/**
+            - scripts/config-health.ts
+
+permissions:
+    contents: read
+
+jobs:
+    check:
+        if: github.repository == 'marioparaschiv/unbound'
+        runs-on: ubuntu-26.04
+        timeout-minutes: 5
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+              with:
+                  persist-credentials: false
+            - name: Setup Bun dependencies
+              uses: ./.github/actions/setup-bun-deps
+              with:
+                  frozen-lockfile: 'true'
+            - name: Check the configuration
+              env:
+                  CONFIG_PRESENT_UNBOUND_BUNDLE_SIGNING_KEY: ${{ secrets.UNBOUND_BUNDLE_SIGNING_KEY != '' }}
+                  CONFIG_PRESENT_UNBOUND_PR_BUNDLE_SIGNING_KEY: ${{ secrets.UNBOUND_PR_BUNDLE_SIGNING_KEY != '' }}
+                  CONFIG_PRESENT_ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 != '' }}
+                  CONFIG_PRESENT_ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS != '' }}
+                  CONFIG_PRESENT_ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD != '' }}
+                  CONFIG_PRESENT_ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD != '' }}
+                  CONFIG_PRESENT_ATTESTATION_PK: ${{ secrets.ATTESTATION_PK != '' }}
+                  CONFIG_PRESENT_GPG_KEY: ${{ secrets.GPG_KEY != '' }}
+                  CONFIG_PRESENT_DKRYPT_API_KEY: ${{ secrets.DKRYPT_API_KEY != '' }}
+                  CONFIG_PRESENT_UNBOUND_API_KEY: ${{ secrets.UNBOUND_API_KEY != '' }}
+                  CONFIG_PRESENT_UNBOUND_API_URL: ${{ vars.UNBOUND_API_URL != '' }}
+                  CONFIG_PRESENT_S3_ENDPOINT: ${{ vars.S3_ENDPOINT != '' }}
+                  CONFIG_PRESENT_S3_REGION: ${{ vars.S3_REGION != '' }}
+                  CONFIG_PRESENT_S3_PUBLIC_BUCKET: ${{ vars.S3_PUBLIC_BUCKET != '' }}
+                  CONFIG_PRESENT_S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID != '' }}
+                  CONFIG_PRESENT_S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY != '' }}
+                  CONFIG_PRESENT_CDN_URL: ${{ vars.CDN_URL != '' }}
+                  CONFIG_PRESENT_DKRYPT_BASE_URL: ${{ vars.DKRYPT_BASE_URL != '' }}
+              run: bun scripts/config-health.ts

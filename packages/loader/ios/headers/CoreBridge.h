@@ -5,6 +5,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface CoreBridge : NSObject
 
 + (void)installLogging;
++ (void)openLogFile;
 
 + (NSString *)documentsName;
 

@@ -223,7 +223,7 @@ On the iOS vphone and the Android emulator, the loader finds a dev server on the
 
 Point `debugger.address` at a running `ub-debugger` bridge to evaluate JavaScript on a device. The emulator reaches the host at `10.0.2.2`.
 
-`ubd logs` tails the loader's and the client's output without the bridge: `adb logcat` filtered to the `Unbound`, `ReactNativeJS` and `unknown:ReactNative` tags and Discord's crashes on Android, or the unified log of a jailbroken iPhone over USB through `idevicesyslog` with `--ios`. The SE has neither `log` nor a working `oslog`, so jb-p1lot only picks the device. `ubd inspect class|views|find` describes Java classes and dumps native views through the bridge.
+`ubd logs` tails the loader's and the client's output without the bridge: `adb logcat` filtered to the `Unbound`, `ReactNativeJS` and `unknown:ReactNative` tags and Discord's crashes on Android, or the unified log of a jailbroken iPhone over USB through `idevicesyslog` with `--ios`. The SE has neither `log` nor a working `oslog`, so jb-p1lot only picks the device. The loader also writes its own log, the JavaScript console included, to `Unbound/Logs/unbound.log` in Discord's data, keeping three files of up to 1 MiB each; `ubd logs --pull [--out <folder>]` copies them off the device as root, so history from before a crash or a restart survives without a tail running. `ubd inspect class|views|find` describes Java classes and dumps native views through the bridge.
 
 </details>
 

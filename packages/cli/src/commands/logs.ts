@@ -2,6 +2,7 @@ import type { CommandDefinition } from '@unbound-app/debugger-protocol/registry'
 import { z } from 'zod';
 
 import { createLogPrinter, LOG_LEVELS, parseLogLevel, type LogEvent } from '~/lib/log-lines';
+import { defaultLogFolder, pullAndroidLogs, pullIOSLogs } from '~/lib/log-pull';
 import { loadFrameRewriter } from '~/lib/log-symbolicator';
 import { tailAndroid, tailIOS } from '~/lib/log-tail';
 
@@ -45,6 +46,18 @@ const schema = z.object({
 		.describe(
 			'The Hermes bundle to symbolicate against; defaults to the bytecode version the loader reports, else the newest built.',
 		),
+	pull: z
+		.boolean()
+		.default(false)
+		.describe(
+			"Copy the loader's own log files off the device instead of tailing; they survive restarts and hold the JavaScript console too.",
+		),
+	out: z
+		.string()
+		.optional()
+		.describe(
+			'The folder --pull writes the log files into; defaults to a timestamped folder here.',
+		),
 });
 
 const logsCommand: CommandDefinition<typeof schema> = {
@@ -55,7 +68,19 @@ const logsCommand: CommandDefinition<typeof schema> = {
 		'through its unified log. Runs until interrupted.',
 	surfaces: { cli: 'root', mcp: false },
 	schema,
-	async handler({ serial, ios, udid, level, grep, since, follow, symbolicate, bundle }) {
+	async handler({
+		serial,
+		ios,
+		udid,
+		level,
+		grep,
+		since,
+		follow,
+		symbolicate,
+		bundle,
+		pull,
+		out,
+	}) {
 		const onIOS = ios || udid !== void 0;
 
 		if (onIOS && serial !== void 0) {
@@ -63,6 +88,14 @@ const logsCommand: CommandDefinition<typeof schema> = {
 				ok: false,
 				text: 'Pass either --serial for an Android device or --ios/--udid for an iPhone, not both.',
 			};
+		}
+
+		if (pull) {
+			const folder = out ?? defaultLogFolder();
+
+			return onIOS
+				? pullIOSLogs({ udid, out: folder })
+				: pullAndroidLogs({ serial, out: folder });
 		}
 
 		const minimum = parseLogLevel(level);

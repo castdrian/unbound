@@ -12,6 +12,7 @@
 #include "LoaderDiagnostics.h"
 #include "LoaderJSI.h"
 #include "LoaderLog.h"
+#include "LoaderLogFile.h"
 #include "LoaderPreferences.h"
 #include "LoaderPreload.h"
 #include "LoaderToolboxGestures.h"
@@ -44,6 +45,7 @@ static void writeLog(loader::LogLevel level, const std::string &category,
 {
     __android_log_write(androidPriority(level), "Unbound",
                         loader::formatLogLine(category, message).c_str());
+    loader::appendLogFile(level, category, message);
 }
 
 static void nativeLog(JNIEnv *env, jclass, jint level, jstring category, jstring message)
@@ -57,6 +59,7 @@ static void nativeInitialize(JNIEnv *env, jclass, jstring documents, jstring boo
 {
     LoaderConfiguration configuration;
     configuration.documents = toStdString(env, documents);
+    loader::openLogFile(configuration.documents);
     configuration.bootstrapScripts =
         nlohmann::json::parse(toStdString(env, bootstrapScripts), nullptr, false);
     configuration.origin          = toStdString(env, origin);

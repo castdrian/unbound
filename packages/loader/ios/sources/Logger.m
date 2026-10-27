@@ -1,5 +1,7 @@
 #import "Logger.h"
 
+#include "LoaderLogFile.h"
+
 @implementation Logger
 
 static dispatch_queue_t _logQueue;
@@ -48,6 +50,7 @@ static os_log_t getLoggerForCategory(const char *category)
     va_end(args);
 
     os_log_t logger = getLoggerForCategory(category);
+    UnboundAppendLogFile((int) level, category, message.UTF8String);
 
     dispatch_async(_logQueue, ^{
         switch (level)

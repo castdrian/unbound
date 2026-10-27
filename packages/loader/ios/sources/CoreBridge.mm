@@ -14,6 +14,7 @@
 #include "LoaderDiagnostics.h"
 #include "LoaderFonts.h"
 #include "LoaderLog.h"
+#include "LoaderLogFile.h"
 #include "LoaderPreferences.h"
 #include "LoaderPreload.h"
 #include "LoaderThemes.h"
@@ -220,6 +221,11 @@ nlohmann::json UnboundFontCatalog()
                 category:category.c_str()
                   format:@"%@", [NSString stringWithUTF8String:message.c_str()] ?: @""];
         });
+}
+
++ (void)openLogFile
+{
+    loader::openLogFile(toStdString(FileSystem.documents));
 }
 
 + (void)scanAddons

@@ -7,6 +7,7 @@
 #include "LoaderFiles.h"
 #include "LoaderJSI.h"
 #include "LoaderLog.h"
+#include "LoaderLogFile.h"
 #include "NativePlatformBridge.h"
 
 namespace loader {
@@ -149,6 +150,7 @@ void LoaderPipeline::announceCrashDisabledAddons()
 void LoaderPipeline::injectPreBundle(jsi::Runtime &runtime)
 {
     host_->installNativeModules(runtime);
+    installConsoleCapture(runtime);
     announceCrashDisabledAddons();
 
     if (settings_.getBoolean("loader.devtools", false))

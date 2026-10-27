@@ -331,6 +331,7 @@ static void retryRCTInstanceHooks(NSUInteger attempt)
 {
     [CoreBridge installLogging];
     [FileSystem init];
+    [CoreBridge openLogFile];
     [Settings init];
     loader::registerNativePlatformProvider();
 

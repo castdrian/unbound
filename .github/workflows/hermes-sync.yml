@@ -1,0 +1,64 @@
+name: Sync Hermes Bytecode
+
+# Keeps packages/client/scripts/build/hermes.json on the newest bytecode versions hermesc publishes,
+# so the bundle build and the compatibility scan agree on what ships. A new hermesc release opens a
+# pull request instead of breaking the next release build.
+#
+# Optional configuration in the repository settings:
+#   secrets: HERMES_SYNC_TOKEN, a token that can push branches and open pull requests. Pull requests
+#            opened with the default GITHUB_TOKEN do not start CI until they are re-run.
+
+on:
+    repository_dispatch:
+        types:
+            - hermesc-published
+    schedule:
+        - cron: '17 6 * * *'
+    workflow_dispatch:
+
+permissions:
+    contents: write
+    pull-requests: write
+
+concurrency:
+    group: hermes-sync
+    cancel-in-progress: false
+
+jobs:
+    sync:
+        if: github.repository == 'marioparaschiv/unbound'
+        runs-on: ubuntu-26.04
+        timeout-minutes: 5
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+              with:
+                  token: ${{ secrets.HERMES_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+            - name: Setup Bun dependencies
+              uses: ./.github/actions/setup-bun-deps
+              with:
+                  frozen-lockfile: 'true'
+            - name: Update hermes.json
+              run: bun packages/client/scripts/build/sync-hermes.ts
+            - name: Open a pull request
+              env:
+                  GH_TOKEN: ${{ secrets.HERMES_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+              run: |
+                  if git diff --quiet -- packages/client/scripts/build/hermes.json; then
+                      echo "hermes.json is up to date."
+                      exit 0
+                  fi
+                  versions=$(jq -r '.bytecodeVersions | join("-")' packages/client/scripts/build/hermes.json)
+                  branch="chore/hermes-bytecode-$versions"
+                  if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+                      echo "$branch already exists."
+                      exit 0
+                  fi
+                  git config user.name 'github-actions[bot]'
+                  git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+                  git switch -c "$branch"
+                  git commit -am "build(client): compile Hermes bytecode ${versions//-/, }"
+                  git push origin "$branch"
+                  gh pr create --base main --head "$branch" \
+                      --title "build(client): compile Hermes bytecode ${versions//-/, }" \
+                      --body "hermesc now publishes bytecode ${versions//-/, }. This updates \`hermes.json\` so the bundle build and the compatibility scan match the versions that ship."

@@ -207,6 +207,14 @@ go run ./tools dev android-avd snapshot restore --from unbound-avd.tar
 
 `save` reads a running AVD and captures the Magisk-patched ramdisk, `/data/adb` (Magisk, the Xposed framework and its module scope, without logs), the Magisk, Unbound and Discord APKs, and Unbound's plugins, themes, fonts and bundle. It never reads Discord's own data stores, leaves Unbound's `settings.json` out unless you pass `--with-settings`, and refuses to write the file if anything it captured looks like a Discord token. `restore` needs the AVD stopped: it installs the ramdisk into the system image, creates and boots the AVD, installs everything and reboots, leaving Discord at its sign-in screen.
 
+A provisioned snapshot without Discord is published as a GitHub release (`avd-snapshot-*`), so a new AVD can skip the rooting steps entirely:
+
+```bash
+go run ./tools dev android-avd snapshot restore --from https://github.com/marioparaschiv/unbound/releases/download/avd-snapshot-20261027/unbound-avd.tar --sha256 <sha256 from the release>
+```
+
+`--without-discord` on `save` leaves Discord's APKs out, which is what makes a snapshot publishable; `restore` then downloads Discord's newest build for `--discord-channel` (default `stable`) with the splits the AVD needs. `--from` takes a local file or an `https` URL, and `--sha256` refuses a download that doesn't match.
+
 For iOS, `xcrun simctl list devices available` shows installable runtimes and devices; boot one with `xcrun simctl boot <UDID>`. `go run ./tools build all --simulator --ipa <Discord.ipa>` produces the Simulator app archive. Install the extracted `Payload/Discord.app` with `xcrun simctl install booted <path>`, and launch it with `xcrun simctl launch booted com.hammerandchisel.discord`. The simulator target is useful for packaging and UI smoke tests; private Discord runtime behavior still requires an actual device.
 
 For physical jailbroken-device testing, install jb-p1lot and check pairing and bridge status with `jb-p1lot device_list` and `jb-p1lot device_status --device <UDID>`. The Go environment report uses these read-only status calls and never performs device actions. The vphone path remains available through `vphone-cli vm list`, `vphone-cli vm launch`, and `vphone-cli vm stop`; its VM bundles and firmware are kept outside this repository.

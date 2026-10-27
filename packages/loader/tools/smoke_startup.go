@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -71,4 +72,35 @@ func describeBudget(budget time.Duration) string {
 
 func roundStartup(took time.Duration) time.Duration {
 	return took.Round(100 * time.Millisecond)
+}
+
+const slowestStartsShown = 5
+
+func describeStartMs(startMs *float64) string {
+	if startMs == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%.0f ms", *startMs)
+}
+
+func renderSlowestStarts(statuses []smokePluginStatus) string {
+	timed := []smokePluginStatus{}
+	for _, status := range statuses {
+		if status.StartMs != nil {
+			timed = append(timed, status)
+		}
+	}
+	if len(timed) == 0 {
+		return ""
+	}
+	sort.SliceStable(timed, func(left, right int) bool { return *timed[left].StartMs > *timed[right].StartMs })
+	total := 0.0
+	for _, status := range timed {
+		total += *status.StartMs
+	}
+	names := []string{}
+	for _, status := range timed[:min(slowestStartsShown, len(timed))] {
+		names = append(names, fmt.Sprintf("`%s` %s", status.ID, describeStartMs(status.StartMs)))
+	}
+	return fmt.Sprintf("Plugins took %.0f ms to start in total. Slowest: %s.\n\n", total, strings.Join(names, ", "))
 }

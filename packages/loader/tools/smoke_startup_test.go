@@ -69,3 +69,23 @@ func TestRenderSmokeReportShowsStartupTimes(t *testing.T) {
 		t.Fatalf("startup table missing from report:\n%s", report)
 	}
 }
+
+func TestRenderSlowestStartsListsTheSlowestFirst(t *testing.T) {
+	ms := func(value float64) *float64 { return &value }
+	statuses := []smokePluginStatus{
+		{ID: "unbound.a", StartMs: ms(3)},
+		{ID: "unbound.b", StartMs: ms(120)},
+		{ID: "unbound.c"},
+		{ID: "unbound.d", StartMs: ms(40)},
+	}
+	got := renderSlowestStarts(statuses)
+	if !strings.Contains(got, "163 ms to start in total") || !strings.Contains(got, "Slowest: `unbound.b` 120 ms, `unbound.d` 40 ms, `unbound.a` 3 ms.") {
+		t.Fatalf("unexpected summary %q", got)
+	}
+	if renderSlowestStarts([]smokePluginStatus{{ID: "unbound.c"}}) != "" {
+		t.Fatal("an older client without timings adds no summary")
+	}
+	if describeStartMs(nil) != "—" || describeStartMs(ms(12.4)) != "12 ms" {
+		t.Fatal("unexpected start cell")
+	}
+}

@@ -62,6 +62,28 @@ describe('parseMessage rejection', () => {
 	test('rejects invalid JSON', () => {
 		expect(parseMessage('{not json')).toBeUndefined();
 	});
+
+	test('rejects frames missing the fields their type needs', () => {
+		expect(parseMessage(JSON.stringify({ type: 'log', level: 1 }))).toBeUndefined();
+		expect(
+			parseMessage(JSON.stringify({ type: 'log', level: 9, message: 'x' })),
+		).toBeUndefined();
+		expect(parseMessage(JSON.stringify({ type: 'log', level: 1, message: 7 }))).toBeUndefined();
+		expect(parseMessage(JSON.stringify({ type: 'eval-result', ok: true }))).toBeUndefined();
+		expect(
+			parseMessage(
+				JSON.stringify({ type: 'plugin-push', id: 'a', addonId: 'b', bundle: 'c' }),
+			),
+		).toBeUndefined();
+		expect(parseMessage(JSON.stringify({ type: 'device-status' }))).toBeUndefined();
+		expect(parseMessage(JSON.stringify(['log']))).toBeUndefined();
+	});
+
+	test('accepts a well-formed log line', () => {
+		const log = { type: 'log', level: 2, message: 'hi' };
+
+		expect(parseMessage(JSON.stringify(log))).toEqual(log);
+	});
 });
 
 describe('allowlist', () => {

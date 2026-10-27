@@ -114,13 +114,61 @@ export function parseMessage(raw: string): BridgeMessage | undefined {
 	return isBridgeMessage(value) ? value : void 0;
 }
 
+function hasRequiredFields(frame: unknown): frame is BridgeMessage {
+	if (typeof frame !== 'object' || frame === null || !('type' in frame)) {
+		return false;
+	}
+
+	switch (frame.type) {
+		case 'log':
+			return (
+				'message' in frame &&
+				typeof frame.message === 'string' &&
+				'level' in frame &&
+				(frame.level === 1 || frame.level === 2 || frame.level === 3)
+			);
+		case 'eval':
+			return (
+				'id' in frame &&
+				typeof frame.id === 'string' &&
+				'code' in frame &&
+				typeof frame.code === 'string'
+			);
+		case 'eval-result':
+		case 'plugin-push-result':
+			return (
+				'id' in frame &&
+				typeof frame.id === 'string' &&
+				'ok' in frame &&
+				typeof frame.ok === 'boolean'
+			);
+		case 'plugin-push':
+			return (
+				'id' in frame &&
+				typeof frame.id === 'string' &&
+				'addonId' in frame &&
+				typeof frame.addonId === 'string' &&
+				'bundle' in frame &&
+				typeof frame.bundle === 'string' &&
+				'manifest' in frame &&
+				typeof frame.manifest === 'object' &&
+				frame.manifest !== null
+			);
+		case 'device-status':
+			return 'connected' in frame && typeof frame.connected === 'boolean';
+		default:
+			return false;
+	}
+}
+
 function isBridgeMessage(value: unknown): value is BridgeMessage {
 	return (
 		typeof value === 'object' &&
 		value !== null &&
 		'type' in value &&
 		typeof value.type === 'string' &&
-		MESSAGE_TYPES.has(value.type)
+		MESSAGE_TYPES.has(value.type) &&
+		hasRequiredFields(value)
 	);
 }
 

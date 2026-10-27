@@ -127,6 +127,7 @@ jobs:
               with:
                   name: native bridge fuzz crashes
                   path: packages/loader/build/fuzz/crash-*
+                  retention-days: ${{ github.event_name == 'pull_request' && 14 || 0 }}
 
     build-module:
         name: Build LSPosed module

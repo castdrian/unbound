@@ -364,33 +364,20 @@ func isSystemJavaClass(name string) bool {
 }
 
 func similarClassNames(name string, classes []string) string {
-	short := name
-	if dot := strings.LastIndex(name, "."); dot >= 0 {
-		short = name[dot+1:]
-	}
-	var matches []string
-	for _, candidate := range classes {
-		candidateShort := candidate
-		if dot := strings.LastIndex(candidate, "."); dot >= 0 {
-			candidateShort = candidate[dot+1:]
-		}
-		if candidate != name && (candidateShort == short || strings.HasPrefix(candidateShort, short)) {
-			matches = append(matches, candidate)
+	return similarNames(name, sliceNames(classes))
+}
+
+func similarTerms(terms []string, candidates func(yield func(string) bool)) string {
+	var parts []string
+	for _, term := range terms {
+		if names := nearestNames(term, candidates); len(names) > 0 {
+			parts = append(parts, "`"+term+"` → "+describeTerms(names))
 		}
 	}
-	sort.Slice(matches, func(left, right int) bool {
-		if len(matches[left]) != len(matches[right]) {
-			return len(matches[left]) < len(matches[right])
-		}
-		return matches[left] < matches[right]
-	})
-	if len(matches) == 0 {
+	if len(parts) == 0 {
 		return ""
 	}
-	if len(matches) > 3 {
-		matches = matches[:3]
-	}
-	return " (similar: " + describeTerms(matches) + ")"
+	return " (similar: " + strings.Join(parts, "; ") + ")"
 }
 
 func sortedObjCClassNames(index *objcIndex) []string {
@@ -456,7 +443,7 @@ func evaluateReference(reference *compatReference, target *compatTarget, seen ma
 		if target.hermes.has(reference.Name) {
 			return compatOK, ""
 		}
-		return compatBroken, "`" + reference.Name + "` is not in the Hermes bundle"
+		return compatBroken, "`" + reference.Name + "` is not in the Hermes bundle" + similarNames(reference.Name, setNames(target.hermes.identifiers))
 	case referenceProps, referencePrototypes:
 		var missing, plain []string
 		for _, term := range reference.Terms {
@@ -468,7 +455,7 @@ func evaluateReference(reference *compatReference, target *compatTarget, seen ma
 			}
 		}
 		if len(missing) > 0 {
-			return compatBroken, describeTerms(missing) + " not in the Hermes bundle"
+			return compatBroken, describeTerms(missing) + " not in the Hermes bundle" + similarTerms(missing, setNames(target.hermes.identifiers))
 		}
 		if len(plain) > 0 {
 			return compatPossible, describeTerms(plain) + " only appears as a string, never as a property name"

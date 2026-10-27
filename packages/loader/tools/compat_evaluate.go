@@ -76,19 +76,21 @@ func evaluateObjCReference(reference *compatReference, target *compatTarget, see
 			status, reason := unlessSeen("not defined by Discord, may be inherited from `" + owner + "`")
 			return status, reason, true
 		default:
+			similar := similarNames(reference.Name, setNames(objc.Classes[reference.Class].Methods))
 			if seen[key] {
-				return compatBroken, "`" + reference.Class + "` no longer defines `" + reference.Name + "`", true
+				return compatBroken, "`" + reference.Class + "` no longer defines `" + reference.Name + "`" + similar, true
 			}
-			return compatPossible, "`" + reference.Class + "` does not define `" + reference.Name + "`", true
+			return compatPossible, "`" + reference.Class + "` does not define `" + reference.Name + "`" + similar, true
 		}
 	case referenceObjCIvar:
 		if objc.Ivars[reference.Name] {
 			return compatOK, "", true
 		}
+		similar := similarNames(reference.Name, setNames(objc.Ivars))
 		if seen[key] {
-			return compatBroken, "no Discord class has the ivar `" + reference.Name + "` any more", true
+			return compatBroken, "no Discord class has the ivar `" + reference.Name + "` any more" + similar, true
 		}
-		return compatPossible, "no Discord class has the ivar `" + reference.Name + "`", true
+		return compatPossible, "no Discord class has the ivar `" + reference.Name + "`" + similar, true
 	}
 	return "", "", false
 }
@@ -158,7 +160,7 @@ func evaluateJavaReference(reference *compatReference, target *compatTarget, unl
 			case dexSignatureMismatch:
 				return compatBroken, signature(reference.Name), true
 			case dexMissing:
-				return compatBroken, "`" + reference.Class + "` has no method `" + reference.Name + "`", true
+				return compatBroken, "`" + reference.Class + "` has no method `" + reference.Name + "`" + similarNames(reference.Name, setNames(dex.Classes[reference.Class].Methods)), true
 			}
 			owner = external
 		}
@@ -166,7 +168,7 @@ func evaluateJavaReference(reference *compatReference, target *compatTarget, unl
 			if dex.Classes[reference.Class] == nil {
 				return "", "", true
 			}
-			status, reason := unlessSeen("not defined by Discord, may be inherited from `" + owner + "`")
+			status, reason := unlessSeen("not defined by Discord, may be inherited from `" + owner + "`" + similarNames(reference.Name, setNames(dex.Classes[reference.Class].Methods)))
 			return status, reason, true
 		}
 		switch result, _ := framework.lookupMethod(owner, reference.Name, parameters); result {
@@ -187,7 +189,7 @@ func evaluateJavaReference(reference *compatReference, target *compatTarget, unl
 			status, reason := unlessSeen("no Discord, Android SDK or loader code defines or reads the field `" + reference.Name + "`")
 			return status, reason, true
 		}
-		status, reason := unlessSeen("no Discord code defines or reads the field `" + reference.Name + "`")
+		status, reason := unlessSeen("no Discord code defines or reads the field `" + reference.Name + "`" + similarNames(reference.Name, setNames(target.dex.FieldNames)))
 		return status, reason, true
 	}
 	return "", "", false

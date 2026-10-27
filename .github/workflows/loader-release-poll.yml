@@ -112,6 +112,7 @@ jobs:
             id-token: write
             attestations: write
             artifact-metadata: write
+            actions: read
         uses: ./.github/workflows/loader-build.yml
         with:
             version: ${{ needs.stable-candidate.outputs.version }}
@@ -127,6 +128,7 @@ jobs:
             id-token: write
             attestations: write
             artifact-metadata: write
+            actions: read
         uses: ./.github/workflows/loader-build.yml
         with:
             version: ${{ needs.testflight-candidate.outputs.version }}
@@ -142,6 +144,7 @@ jobs:
             id-token: write
             attestations: write
             artifact-metadata: write
+            actions: read
         uses: ./.github/workflows/loader-build.yml
         with:
             version: ${{ needs.android-beta-candidate.outputs.version }}
@@ -158,6 +161,7 @@ jobs:
             id-token: write
             attestations: write
             artifact-metadata: write
+            actions: read
         uses: ./.github/workflows/loader-build.yml
         with:
             version: ${{ needs.android-alpha-candidate.outputs.version }}

@@ -371,6 +371,9 @@ jobs:
         needs: patch-discord
         runs-on: ubuntu-26.04
         timeout-minutes: 40
+        permissions:
+            contents: read
+            actions: read
         steps:
             - name: Checkout code
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -429,6 +432,13 @@ jobs:
                   disable-animations: true
                   working-directory: packages/loader
                   script: go run ./tools smoke android --apks smoke/apks --client ../client/dist --artifacts smoke/artifacts --timeout 12m --bundle-budget 4m --plugins-budget 6m
+
+            - name: Compare startup with main
+              if: success() && github.event_name == 'pull_request'
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: go run ./tools smoke-regression --current smoke/artifacts/startup.json --repo "$GITHUB_REPOSITORY"
 
             - name: Upload smoke test logs
               if: always()

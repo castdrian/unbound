@@ -355,6 +355,7 @@ jobs:
         if: always() && inputs.only_app_repo != true && inputs.only_apt_repo != true && inputs.is_testflight != true && needs.resolve-source.result == 'success' && (needs.compat-gate.result == 'success' || needs.compat-gate.result == 'skipped')
         permissions:
             contents: read
+            actions: read
         uses: ./.github/workflows/loader-android.yml
         with:
             ios_version: ${{ needs.resolve-source.outputs.version }}

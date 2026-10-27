@@ -487,6 +487,9 @@ func describeSmokeStatus(status smokePluginStatus) string {
 func writeSmokeReport(result *smokeResult, options *smokeOptions) {
 	report := renderSmokeReport(result)
 	_ = os.WriteFile(filepath.Join(options.artifacts, "report.md"), []byte(report), 0o644)
+	if startup, err := json.MarshalIndent(startupRecord(result), "", "\t"); err == nil {
+		_ = os.WriteFile(filepath.Join(options.artifacts, smokeStartupFile), startup, 0o644)
+	}
 	if options.summary == "" {
 		return
 	}

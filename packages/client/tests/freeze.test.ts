@@ -1,5 +1,6 @@
-import type { AddonAttribution } from '~/api/crash-guard';
 import { describe, expect, test } from 'bun:test';
+
+import type { AddonAttribution } from '~/api/crash-guard';
 
 const { FakeAddons, makeManifest } = await import('./helpers/addons');
 const { currentAddonAttribution, withAddonAttribution } = await import('~/api/crash-guard');
@@ -91,7 +92,7 @@ describe('addon attribution', () => {
 		};
 		const seen: unknown[] = [];
 		const unpatch = withAddonAttribution(recordingAttribution(calls, 'plugin'), () =>
-			before(target, 'read', function (this: unknown) {
+			before(target, 'read', function (this: typeof target) {
 				seen.push(this);
 			}),
 		);

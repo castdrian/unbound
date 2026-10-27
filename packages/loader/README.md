@@ -246,6 +246,7 @@ Browser login (`LoaderBrowserLogin`) and the tweak's Mach-O attestation digest (
 	"channel": "beta",
 	"buildTime": "2026-10-27T12:06:15.507Z",
 	"bytecodeVersions": [98, 96, 94],
+	"nativeBridge": { "api": "1.0.0", "abi": "1.0.0" },
 	"sha512": {
 		"unbound.98.bundle": "<128 hex digits>",
 		"unbound.js": "<128 hex digits>"
@@ -253,7 +254,7 @@ Browser login (`LoaderBrowserLogin`) and the tweak's Mach-O attestation digest (
 }
 ```
 
-`channel` comes from `UNBOUND_CHANNEL` (`build-bundle.yml` sets `beta` for pushes to main and `stable` for releases; local builds write `local`, dev builds `dev`). `buildTime` is ISO 8601 in UTC. `sha512` holds the lowercase hex SHA-512 of every bundle in the build.
+`channel` comes from `UNBOUND_CHANNEL` (`build-bundle.yml` sets `beta` for pushes to main and `stable` for releases; local builds write `local`, dev builds `dev`). `buildTime` is ISO 8601 in UTC. `sha512` holds the lowercase hex SHA-512 of every bundle in the build. `nativeBridge` holds the native bridge `api` and `abi` versions from `core/include/NativePluginVersion.h` that the bundle was built against.
 
 When `UNBOUND_BUNDLE_SIGNING_KEY` holds a PEM PKCS#8 Ed25519 key, the build refreshes `sha512` and writes a base64 Ed25519 signature next to every bundle (`<bundle>.sig`) and next to the manifest (`manifest.json.sig`). Each signature covers the exact bytes of its file. Without the key, the build writes no signatures and still succeeds, so local and fork builds keep working.
 
@@ -264,7 +265,7 @@ To sign a build that already exists, run `bun run --cwd packages/client sign [--
 The loader compiles in `core/keys/bundle-signing.pub`, the production public key (raw 32 bytes as base64). CMake and the iOS Makefile log at configure time whether verification is on. Every update check then works like this:
 
 1. Fetch `manifest.json` and `manifest.json.sig` from the update URL and verify the signature with the vendored Monocypher Ed25519 implementation (`vendor/monocypher`).
-2. Refuse the manifest if it lacks `buildTime`, `revision`, `channel` or a hash for the bundle the loader picked, or if anti-rollback (below) rejects it.
+2. Refuse the manifest if it lacks `buildTime`, `revision`, `channel` or a hash for the bundle the loader picked, if anti-rollback (below) rejects it, or if its `nativeBridge` needs a different ABI major version or a newer API than the loader provides. A refused update keeps the current bundle running; the log names the version to update the loader to. A manifest without `nativeBridge` is accepted.
 3. Download the bundle and compare its SHA-512 with the manifest. A mismatch rejects the candidate, and the current bundle keeps running.
 4. Store the signed manifest and its signature beside the candidate as `<candidate>.trust`.
 
@@ -296,8 +297,8 @@ The `.trust` record of such a candidate names the exemption, and the candidate i
 Loaders from #271 verify only `<bundle>.sig`, and older loaders verify nothing, so the published output keeps the per-bundle `.sig` files beside the signed manifest. A loader from this release still accepts a bundle that only has a valid `<bundle>.sig` while the update URL serves no valid `manifest.json.sig`, but only while it has no baseline for that URL. Once a URL has served a signed manifest, an unsigned or invalid manifest from it is refused. Plan:
 
 1. This release: the build publishes the signed manifest and the per-bundle `.sig` files; loaders prefer the manifest and fall back to `<bundle>.sig` only without a baseline.
-2. The loader release after builds.unbound.rip and the release bucket have served signed manifests for a full release cycle removes the bundle-only fallback, so every loader requires a signed manifest.
-3. Once loaders from #271 are no longer supported, the build stops writing per-bundle `.sig` files.
+2. The loader release after builds.unbound.rip and the release bucket have served signed manifests for a full release cycle removes the bundle-only fallback, so every loader requires a signed manifest. Tracked in #283, due on or after 2027-01-15.
+3. Once loaders from #271 are no longer supported, the build stops writing per-bundle `.sig` files. Tracked in #284, due on or after 2027-02-15.
 
 ### Pull request builds
 

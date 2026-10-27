@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <jsi/jsi.h>
 
+#include "NativePluginRuntime.h"
+
 namespace loader {
 namespace jsi = facebook::jsi;
 
@@ -167,8 +169,8 @@ void installConsoleCapture(jsi::Runtime &runtime)
         return;
     }
     auto forward = std::make_shared<jsi::Value>(runtime, original);
-    auto capture = jsi::Function::createFromHostFunction(
-        runtime, jsi::PropNameID::forAscii(runtime, "nativeLoggingHook"), 2,
+    auto capture = native::makeFunction(
+        runtime, "nativeLoggingHook", 2,
         [forward](jsi::Runtime &rt, const jsi::Value &, const jsi::Value *arguments,
                   size_t count) -> jsi::Value {
             if (count > 0 && arguments[0].isString())

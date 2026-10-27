@@ -54,6 +54,13 @@ static void nativeLog(JNIEnv *env, jclass, jint level, jstring category, jstring
                             message ? toStdString(env, message) : std::string());
 }
 
+static void nativeAppendLogFile(JNIEnv *env, jclass, jint level, jstring category, jstring message)
+{
+    loader::appendLogFile(loader::logLevelFromIndex(level),
+                          category ? toStdString(env, category) : LOG_CATEGORY_DEFAULT,
+                          message ? toStdString(env, message) : std::string());
+}
+
 static void nativeInitialize(JNIEnv *env, jclass, jstring documents, jstring bootstrapScripts,
                              jstring origin, jint bytecodeVersion, jstring platformInfo)
 {
@@ -548,6 +555,8 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *)
         {"nativePrepareAddons", "()V", reinterpret_cast<void *>(nativePrepareAddons)},
         {"nativeLog", "(ILjava/lang/String;Ljava/lang/String;)V",
          reinterpret_cast<void *>(nativeLog)},
+        {"nativeAppendLogFile", "(ILjava/lang/String;Ljava/lang/String;)V",
+         reinterpret_cast<void *>(nativeAppendLogFile)},
         {"nativeDevOverlayButtonSide", "()D", reinterpret_cast<void *>(nativeDevOverlayButtonSide)},
         {"nativeIncompatibleHostMessage", "()Ljava/lang/String;",
          reinterpret_cast<void *>(nativeIncompatibleHostMessage)},

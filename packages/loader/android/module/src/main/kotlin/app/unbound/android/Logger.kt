@@ -25,7 +25,19 @@ object Logger {
         ERROR(Log.ERROR),
     }
 
+    private const val EARLY_LINES_KEPT = 256
+
+    private val earlyLines = EarlyLogBuffer(EARLY_LINES_KEPT)
+
     @Volatile var nativeReady = false
+        set(ready) {
+            field = ready
+            if (ready) {
+                earlyLines.drain { line ->
+                    runCatching { NativeBridge.nativeAppendLogFile(line.level, line.category, line.message) }
+                }
+            }
+        }
 
     fun debug(category: LogCategory, message: String) = write(Level.DEBUG, category, message)
 
@@ -38,6 +50,24 @@ object Logger {
 
     private fun write(level: Level, category: LogCategory, message: String) {
         if (nativeReady && runCatching { NativeBridge.nativeLog(level.ordinal, category.id, message) }.isSuccess) return
+        if (!nativeReady) earlyLines.add(EarlyLogLine(level.ordinal, category.id, message))
         Log.println(level.priority, TAG, "[${category.id}] $message")
+    }
+}
+
+data class EarlyLogLine(val level: Int, val category: String, val message: String)
+
+class EarlyLogBuffer(private val capacity: Int) {
+    private val lines = ArrayDeque<EarlyLogLine>()
+
+    @Synchronized
+    fun add(line: EarlyLogLine) {
+        lines.addLast(line)
+        while (lines.size > capacity) lines.removeFirst()
+    }
+
+    @Synchronized
+    fun drain(write: (EarlyLogLine) -> Unit) {
+        while (lines.isNotEmpty()) write(lines.removeFirst())
     }
 }

@@ -1538,7 +1538,7 @@ static void validateNativeScalarArgument(id value, const std::string &type)
     }
 }
 
-static bool isRegisteredClass(Class candidate)
+static bool isRegisteredClassAddress(uintptr_t candidate)
 {
     static std::mutex                    mutex;
     static std::unordered_set<uintptr_t> classes;
@@ -1558,7 +1558,7 @@ static bool isRegisteredClass(Class candidate)
         free(list);
         known = count;
     }
-    return classes.count(reinterpret_cast<uintptr_t>((__bridge void *) candidate)) != 0;
+    return classes.count(candidate) != 0;
 }
 
 static bool isObjectPointer(const void *pointer)
@@ -1572,17 +1572,24 @@ static bool isObjectPointer(const void *pointer)
     {
         return false;
     }
+    if (isRegisteredClassAddress(address))
+    {
+        return true;
+    }
     uintptr_t isa = 0;
     if (!readMemorySafely(pointer, &isa, sizeof(isa)))
     {
         return false;
     }
-    Class cls = object_getClass((__bridge id) pointer);
-    if (isRegisteredClass(cls))
+    for (uintptr_t mask :
+         {~uintptr_t(0), uintptr_t(0x007ffffffffffff8ULL), uintptr_t(0x0000000ffffffff8ULL)})
     {
-        return true;
+        if (isRegisteredClassAddress(isa & mask))
+        {
+            return true;
+        }
     }
-    return isRegisteredClass((__bridge Class) pointer);
+    return false;
 }
 
 static bool isSelectorPointer(const void *pointer)

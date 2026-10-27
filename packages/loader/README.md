@@ -376,6 +376,14 @@ Run the scan against downloaded builds. Either `--ipa` or `--apk` can be left ou
 go run ./tools compat-scan --ipa discord.ipa --apk discord-alpha/base.apk --android-version 352.8 --report report.md
 ```
 
+Or let the scan fetch the channel's latest builds itself:
+
+```bash
+DKRYPT_API_KEY=... go run ./tools compat-scan --channel beta --report report.md
+```
+
+With `--channel` and neither `--ipa` nor `--apk`, it downloads the channel's newest Android base APK through the same sources as `discord-apk`, and, for `stable` and `beta`, the newest App Store or TestFlight IPA from dkrypt. Without `DKRYPT_API_KEY` only Android is scanned, and `alpha` has no iOS build. Builds are kept in `--cache` (default `$UNBOUND_DISCORD_CACHE`, else the user cache directory under `unbound/discord`), keyed by version and verified against their version code or dkrypt's SHA-256 before reuse, so a rerun against the same release downloads nothing.
+
 Each run's `compat.json` is the next run's `--baseline`. A name that resolved in an earlier build and disappears is reported as broken, even when the scan cannot tell who owns it.
 
 When Discord renames something, keep the old name as a fallback so one loader works on every channel. A lookup that lists several names passes when any of them resolves:

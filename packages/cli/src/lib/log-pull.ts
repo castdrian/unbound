@@ -1,5 +1,5 @@
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { CommandOutput } from '@unbound-app/debugger-protocol/registry';
-import { mkdirSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
@@ -176,6 +176,35 @@ export function iosStageScript(): string {
 	].join('\n');
 }
 
+const SYMBOLICATED_SUFFIX = '.symbolicated.log';
+
+/**
+ * @description Writes a symbolicated copy next to each pulled log file, mapping Hermes frames of the client bundle to source positions.
+ * @param directory The folder the logs were pulled into.
+ * @param rewrite Rewrites one log line's frames.
+ * @returns The names of the copies written.
+ */
+export function symbolicatePulledLogs(
+	directory: string,
+	rewrite: (line: string) => string,
+): string[] {
+	const written: string[] = [];
+
+	for (const file of readdirSync(directory).sort()) {
+		if (!file.endsWith('.log') || file.endsWith(SYMBOLICATED_SUFFIX)) {
+			continue;
+		}
+
+		const lines = readFileSync(join(directory, file), 'utf8').split('\n');
+		const name = file.replace(/\.log$/, SYMBOLICATED_SUFFIX);
+
+		writeFileSync(join(directory, name), lines.map(rewrite).join('\n'));
+		written.push(name);
+	}
+
+	return written;
+}
+
 /**
  * @description Names the default folder logs are pulled into, stamped so pulls never overwrite each other.
  * @param now The time to stamp the folder with.
@@ -202,7 +231,7 @@ function prepareOutput(out: string): string {
 
 function describePulled(directory: string): CommandOutput {
 	const files = readdirSync(directory)
-		.filter((file) => file.endsWith('.log'))
+		.filter((file) => file.endsWith('.log') && !file.endsWith(SYMBOLICATED_SUFFIX))
 		.sort();
 
 	return files.length

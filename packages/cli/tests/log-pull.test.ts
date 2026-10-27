@@ -12,6 +12,7 @@ import {
 	iosStageScript,
 	pullAndroidLogs,
 	pullIOSLogs,
+	symbolicatePulledLogs,
 } from '../src/lib/log-pull';
 
 type Call = { command: string; args: string[] };
@@ -162,4 +163,25 @@ test('defaultLogFolder stamps the pull time', () => {
 	expect(defaultLogFolder(new Date('2026-10-27T21:04:05.678Z'))).toBe(
 		'unbound-logs-20261027-210405',
 	);
+});
+
+test('symbolicatePulledLogs writes a rewritten copy of each pulled log', () => {
+	const out = outputFolder();
+	const directory = join(out, '..');
+
+	writeFileSync(
+		join(directory, 'unbound.log'),
+		'at f (address at unbound.98.bundle:1:2)\nplain\n',
+	);
+	writeFileSync(join(directory, 'unbound.1.log'), 'older\n');
+
+	const written = symbolicatePulledLogs(directory, (line) =>
+		line.replace('unbound.98.bundle:1:2', 'src/index.ts:10:4'),
+	);
+
+	expect(written).toEqual(['unbound.1.symbolicated.log', 'unbound.symbolicated.log']);
+	expect(readFileSync(join(directory, 'unbound.symbolicated.log'), 'utf8')).toBe(
+		'at f (address at src/index.ts:10:4)\nplain\n',
+	);
+	expect(symbolicatePulledLogs(directory, (line) => line)).toEqual(written);
 });

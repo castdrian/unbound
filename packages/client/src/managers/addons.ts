@@ -24,8 +24,8 @@ import {
 	finishAddonStart,
 	withAddonAttribution,
 } from '~/api/crash-guard';
-import type { AddonAttribution, AddonFreeze } from '~/api/crash-guard';
 import { consentCapabilities, consentKey, needsConsent } from '~/lib/native-consent';
+import type { AddonAttribution, AddonFreeze } from '~/api/crash-guard';
 import type { NativeConsents } from '~/lib/native-consent';
 import { Manager, ManagerType } from '~/managers/base';
 import { showToast } from '~/api/toasts';

@@ -117,10 +117,12 @@ int main()
 
         for (int waited = 0; waited < 300; waited++)
         {
-            std::lock_guard<std::mutex> lock(reportsMutex);
-            if (!reports.empty())
             {
-                break;
+                std::lock_guard<std::mutex> lock(reportsMutex);
+                if (!reports.empty())
+                {
+                    break;
+                }
             }
             std::this_thread::sleep_for(10ms);
         }

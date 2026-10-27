@@ -2,6 +2,7 @@ import type {
 	PluginPushRequest,
 	PluginPushResult,
 	EvalResult,
+	LogMessage,
 } from '@unbound-app/debugger-protocol';
 import { parseMessage } from '@unbound-app/debugger-protocol';
 import type { PluginEntity } from '@unbound-app/types';
@@ -230,6 +231,21 @@ function inspect(value: unknown): string {
 	}
 }
 
+/**
+ * @description Builds the bridge's log frame for one `nativeLoggingHook` call, whatever it was called with.
+ * @param message The logged text, as the hook received it.
+ * @param level The hook's level, as it received it.
+ * @returns A frame the bridge accepts: string text and a level of 1, 2 or 3.
+ */
+// UNKNOWN: nativeLoggingHook is called by native code and other patches with whatever they pass.
+export function logFrame(message: unknown, level: unknown): LogMessage {
+	return {
+		type: 'log',
+		level: level === 2 || level === 3 ? level : 1,
+		message: inspect(message),
+	};
+}
+
 function patchLoggingHook() {
 	Patcher.before(globalThis, 'nativeLoggingHook', ({ args }) => {
 		const [message, level] = args;
@@ -240,7 +256,7 @@ function patchLoggingHook() {
 			sending = true;
 
 			try {
-				ws.send(JSON.stringify({ type: 'log', level, message }));
+				ws.send(JSON.stringify(logFrame(message, level)));
 			} catch {
 				// Swallow: logging the failure here would re-enter this hook and loop.
 			} finally {

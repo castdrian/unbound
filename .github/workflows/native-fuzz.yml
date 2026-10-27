@@ -1,0 +1,108 @@
+name: Nightly native fuzzing
+
+on:
+    schedule:
+        - cron: '37 3 * * *'
+    workflow_dispatch:
+        inputs:
+            minutes:
+                description: 'Minutes to fuzz JS-to-native conversion'
+                default: '20'
+
+permissions:
+    contents: read
+
+concurrency:
+    group: native-fuzz
+    cancel-in-progress: false
+
+defaults:
+    run:
+        working-directory: packages/loader
+
+jobs:
+    fuzz:
+        name: Fuzz the native bridge with libFuzzer
+        runs-on: ubuntu-26.04
+        timeout-minutes: 60
+        permissions:
+            contents: read
+            issues: write
+        env:
+            HERMES_TAG: hermes-v250829098.0.14
+            JSI_MINUTES: ${{ (inputs.minutes || '20') }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+              with:
+                  fetch-depth: 1
+
+            - name: Fetch Hermes
+              run: git clone --depth 1 --branch "$HERMES_TAG" https://github.com/facebook/hermes.git build/hermes-src
+
+            - name: Check Hermes matches the vendored JSI
+              run: cmp vendor/react/jsi/jsi.h build/hermes-src/API/jsi/jsi/jsi.h
+
+            - name: Cache the fuzzer build
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+              with:
+                  path: packages/loader/build/libfuzzer
+                  key: native-libfuzzer-${{ runner.os }}-${{ env.HERMES_TAG }}-${{ hashFiles('packages/loader/core/**') }}
+                  restore-keys: native-libfuzzer-${{ runner.os }}-${{ env.HERMES_TAG }}-
+
+            - name: Restore the corpus
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+              with:
+                  path: packages/loader/build/fuzz-corpus
+                  key: native-fuzz-corpus-${{ github.run_id }}
+                  restore-keys: native-fuzz-corpus-
+
+            - name: Configure the fuzzers
+              run: cmake -S core -B build/libfuzzer -DUNBOUND_CORE_TESTS=ON -DUNBOUND_CORE_FUZZ=ON -DUNBOUND_CORE_JSI_FUZZ=ON -DUNBOUND_HERMES_SOURCE_DIR="$PWD/build/hermes-src" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_FLAGS="-fsanitize=fuzzer-no-link,address,undefined" -DCMAKE_CXX_FLAGS="-fsanitize=fuzzer-no-link,address,undefined -fno-sanitize-recover=all"
+
+            - name: Build the fuzzers
+              run: cmake --build build/libfuzzer --target native_jsi_libfuzzer native_bridge_libfuzzer -j"$(nproc)"
+
+            - name: Fuzz JS-to-native conversion
+              run: |
+                  mkdir -p build/fuzz-corpus/jsi build/fuzz-crashes
+                  build/libfuzzer/native_jsi_libfuzzer build/fuzz-corpus/jsi -max_total_time=$(( JSI_MINUTES * 60 )) -max_len=512 -timeout=10 -rss_limit_mb=4096 -artifact_prefix=build/fuzz-crashes/jsi-
+
+            - name: Fuzz the native parsers
+              run: |
+                  mkdir -p build/fuzz-corpus/bridge build/fuzz-crashes
+                  build/libfuzzer/native_bridge_libfuzzer build/fuzz-corpus/bridge -max_total_time=600 -max_len=4096 -artifact_prefix=build/fuzz-crashes/bridge-
+
+            - name: Minimise the corpus
+              run: |
+                  for corpus in jsi bridge; do
+                    mkdir -p "build/fuzz-corpus/$corpus-min"
+                    build/libfuzzer/native_${corpus}_libfuzzer -merge=1 "build/fuzz-corpus/$corpus-min" "build/fuzz-corpus/$corpus" > /dev/null 2>&1 || true
+                    rm -rf "build/fuzz-corpus/$corpus" && mv "build/fuzz-corpus/$corpus-min" "build/fuzz-corpus/$corpus"
+                  done
+                  du -sh build/fuzz-corpus/* | tee -a "$GITHUB_STEP_SUMMARY"
+
+            - name: Upload crashing inputs
+              if: failure()
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+              with:
+                  name: native fuzz crashes
+                  path: packages/loader/build/fuzz-crashes/
+                  if-no-files-found: ignore
+                  retention-days: 30
+
+            - name: Report the crash
+              if: failure() && github.event_name == 'schedule'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  set -euo pipefail
+                  gh label create native-fuzz --repo "$GITHUB_REPOSITORY" --color B60205 --description "The nightly native fuzzer found a crash" --force >/dev/null
+                  existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label native-fuzz --state open --json number --jq '.[0].number // empty')
+                  body="The nightly native fuzzer failed in $RUN_URL. Its crashing inputs are in the \`native fuzz crashes\` artifact; reproduce one with \`build/libfuzzer/native_jsi_libfuzzer <input>\` or \`native_bridge_libfuzzer <input>\` after configuring as the workflow does."
+                  if [ -n "$existing" ]; then
+                    gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+                  else
+                    gh issue create --repo "$GITHUB_REPOSITORY" --label native-fuzz --title "Nightly native fuzzer found a crash" --body "$body"
+                  fi

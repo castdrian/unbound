@@ -17,6 +17,8 @@ std::string addonRecord(AddonSlot slot);
 
 AddonSlot currentAddon();
 uint32_t *claimActivityCell();
+uintptr_t currentActivityThread();
+AddonSlot addonOnThread(uintptr_t thread);
 
 bool writeCrashingAddonRecord(int descriptor);
 

@@ -9,6 +9,7 @@ enum class CrashPhase
 {
     Starting,
     Running,
+    Frozen,
 };
 
 struct CrashedAddon {
@@ -22,6 +23,7 @@ class AddonCrashGuard
 public:
     static constexpr const char *kStartingFile = "addon-starting.json";
     static constexpr const char *kRunningFile  = "addon-running.json";
+    static constexpr const char *kFrozenFile   = "addon-frozen.json";
     static constexpr const char *kCrashesFile  = "addon-crashes.json";
     static constexpr int         kCrashLimit   = 2;
 
@@ -34,6 +36,7 @@ public:
 private:
     std::string startingPath() const;
     std::string runningPath() const;
+    std::string frozenPath() const;
     std::string crashesPath() const;
 
     std::string directory_;

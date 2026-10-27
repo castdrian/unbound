@@ -434,7 +434,7 @@ export type NativeCancelablePromise<T> = Promise<T> & {
 	cancel(): void;
 };
 export type NativeClassHandle = NativeHandle;
-export type NativeCrashPhase = 'starting' | 'running';
+export type NativeCrashPhase = 'starting' | 'running' | 'frozen';
 export type NativeCrashedAddon = {
 	readonly id: string;
 	readonly name: string;

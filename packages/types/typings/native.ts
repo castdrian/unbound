@@ -572,7 +572,7 @@ export type NativePlatformFiles = {
 	remove(path: string): boolean;
 };
 
-export type NativeCrashPhase = 'starting' | 'running';
+export type NativeCrashPhase = 'starting' | 'running' | 'frozen';
 
 export type NativeCrashedAddon = {
 	readonly id: string;

@@ -6,6 +6,7 @@
 #include "LoaderAddonSignature.h"
 #include "LoaderCrashGuard.h"
 #include "LoaderFiles.h"
+#include "LoaderFreezeWatchdog.h"
 #include "LoaderJSI.h"
 #include "NativePluginRuntime.h"
 
@@ -159,6 +160,7 @@ static jsi::Value activityCell(jsi::Runtime &runtime)
 static jsi::Object crashGuardObject(jsi::Runtime &runtime, const std::string &documents)
 {
     crashDisabledAddons(documents);
+    startFreezeWatchdog(documents);
 
     jsi::Object guard(runtime);
     guard.setProperty(

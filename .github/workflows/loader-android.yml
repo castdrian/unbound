@@ -401,7 +401,7 @@ jobs:
                   emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
                   disable-animations: true
                   working-directory: packages/loader
-                  script: go run ./tools smoke android --apks smoke/apks --client ../client/dist --artifacts smoke/artifacts --timeout 12m
+                  script: go run ./tools smoke android --apks smoke/apks --client ../client/dist --artifacts smoke/artifacts --timeout 12m --bundle-budget 4m --plugins-budget 6m
 
             - name: Upload smoke test logs
               if: always()

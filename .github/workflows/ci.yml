@@ -64,6 +64,16 @@ jobs:
             - name: Check the generated SDK is up to date
               run: |
                   git diff --exit-code -I '^[[:space:]]*"version": ' -- packages/api/src packages/api/package.json
+            - name: Check the database migrations match the schema
+              working-directory: apps/web
+              run: |
+                  bunx drizzle-kit generate --name schema-drift
+                  if [ -n "$(git status --porcelain -- drizzle)" ]; then
+                    git status --porcelain -- drizzle
+                    echo "::error::The schema has changes without a migration, or a snapshot is out of date; run 'bun run db:generate' in apps/web and commit the result."
+                    exit 1
+                  fi
+
             - name: Build the client
               env:
                   TMPDIR: ${{ runner.temp }}

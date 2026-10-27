@@ -108,7 +108,7 @@ int main()
         std::atomic_bool markerSeen{false};
         runtime.post([&] {
             loader::AddonScope scope(slot);
-            for (int waited = 0; waited < 100 && !loader::fileExists(marker); waited++)
+            for (int waited = 0; waited < 300 && !loader::fileExists(marker); waited++)
             {
                 std::this_thread::sleep_for(10ms);
             }

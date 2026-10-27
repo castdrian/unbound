@@ -27,6 +27,11 @@ type dkryptArtifact struct {
 	SHA256       string `json:"sha256"`
 }
 
+type compatFetch struct {
+	android bool
+	ios     bool
+}
+
 type compatBuilds struct {
 	ipa            string
 	apk            string
@@ -56,16 +61,21 @@ func iosSourceForChannel(channel string) string {
 	}
 }
 
-func fetchCompatBuilds(ctx context.Context, channel, cache string) (compatBuilds, error) {
+func fetchCompatBuilds(ctx context.Context, channel, cache string, wanted compatFetch) (compatBuilds, error) {
 	if discordAndroidChannelRank(channel) < 0 {
 		return compatBuilds{}, fmt.Errorf("compat-scan fetches builds for stable, beta or alpha, not %q", channel)
 	}
 	var builds compatBuilds
-	apk, version, err := cachedAndroidBuild(ctx, channel, filepath.Join(cache, "android"))
-	if err != nil {
-		return compatBuilds{}, fmt.Errorf("Android %s build: %w", channel, err)
+	if wanted.android {
+		apk, version, err := cachedAndroidBuild(ctx, channel, filepath.Join(cache, "android", channel))
+		if err != nil {
+			return compatBuilds{}, fmt.Errorf("Android %s build: %w", channel, err)
+		}
+		builds.apk, builds.androidVersion = apk, version
 	}
-	builds.apk, builds.androidVersion = apk, version
+	if !wanted.ios {
+		return builds, nil
+	}
 	source := iosSourceForChannel(channel)
 	if source == "" {
 		fmt.Fprintf(os.Stderr, "compat-scan: Discord ships no iOS %s build, scanning Android only\n", channel)
@@ -76,7 +86,7 @@ func fetchCompatBuilds(ctx context.Context, channel, cache string) (compatBuilds
 		fmt.Fprintln(os.Stderr, "compat-scan: DKRYPT_API_KEY is not set, scanning Android only")
 		return builds, nil
 	}
-	ipa, err := cachedIOSBuild(ctx, envOr("DKRYPT_BASE_URL", defaultDkryptURL), apiKey, source, filepath.Join(cache, "ios"))
+	ipa, err := cachedIOSBuild(ctx, envOr("DKRYPT_BASE_URL", defaultDkryptURL), apiKey, source, filepath.Join(cache, "ios", source))
 	if err != nil {
 		return compatBuilds{}, fmt.Errorf("iOS %s build: %w", source, err)
 	}
@@ -100,6 +110,7 @@ func cachedAndroidBuild(ctx context.Context, channel, cache string) (string, str
 	}
 	directory := filepath.Join(cache, fmt.Sprint(code))
 	path := filepath.Join(directory, "base.apk")
+	defer pruneCacheExcept(cache, fmt.Sprint(code))
 	if _, err := verifyDiscordSplit(path, code); err == nil {
 		fmt.Fprintf(os.Stderr, "compat-scan: using cached Android %s %s\n", channel, release.Version)
 		return path, release.Version, nil
@@ -120,6 +131,18 @@ func cachedAndroidBuild(ctx context.Context, channel, cache string) (string, str
 	return path, release.Version, nil
 }
 
+func pruneCacheExcept(directory, keep string) {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.Name() != keep {
+			os.RemoveAll(filepath.Join(directory, entry.Name()))
+		}
+	}
+}
+
 func cachedIOSBuild(ctx context.Context, baseURL, apiKey, source, cache string) (string, error) {
 	base := strings.TrimRight(baseURL, "/")
 	body, status, err := fetchResponse(ctx, &http.Client{Timeout: discordAPKLookupLimit}, base+"/v1/artifacts", apiKey, nil)
@@ -135,6 +158,7 @@ func cachedIOSBuild(ctx context.Context, baseURL, apiKey, source, cache string) 
 	}
 	name := unsafeCacheName.ReplaceAllString(fmt.Sprintf("%s-%s-%s.ipa", source, artifact.VersionLabel, artifact.BuildNumber), "_")
 	path := filepath.Join(cache, name)
+	defer pruneCacheExcept(cache, name)
 	if matchesSHA256(path, artifact.SHA256) {
 		fmt.Fprintf(os.Stderr, "compat-scan: using cached iOS %s %s (%s)\n", source, artifact.VersionLabel, artifact.BuildNumber)
 		return path, nil

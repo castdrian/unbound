@@ -75,6 +75,9 @@ func TestCachedIOSBuildDownloadsOnceAndVerifies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(cache, "appstore-300.0-1.ipa"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if first != second || downloads != 1 || filepath.Base(first) != "appstore-301.0-77.ipa" {
 		t.Fatalf("expected one cached download, got %s %s after %d downloads", first, second, downloads)
 	}
@@ -83,6 +86,9 @@ func TestCachedIOSBuildDownloadsOnceAndVerifies(t *testing.T) {
 	}
 	if _, err := cachedIOSBuild(context.Background(), server.URL, "key", "appstore", cache); err != nil || downloads != 2 {
 		t.Fatalf("a cached file that no longer matches should be downloaded again, got %v after %d downloads", err, downloads)
+	}
+	if entries, _ := os.ReadDir(cache); len(entries) != 1 {
+		t.Fatalf("older builds should be pruned, cache holds %d entries", len(entries))
 	}
 }
 

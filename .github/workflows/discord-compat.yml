@@ -61,9 +61,12 @@ jobs:
                   key: go-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/loader/go.mod', 'packages/loader/tools/**/*.go') }}
                   restore-keys: go-${{ runner.os }}-${{ runner.arch }}-
 
-            - name: Download Discord for Android
-              id: android
-              run: go run ./tools discord-apk --channel "$CHANNEL" --output-dir discord-android --split base
+            - name: Cache Discord builds
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+              with:
+                  path: ~/.cache/unbound-discord
+                  key: discord-builds-${{ matrix.channel }}-${{ github.run_id }}
+                  restore-keys: discord-builds-${{ matrix.channel }}-
 
             - name: Download Discord for iOS
               if: env.IOS_SOURCE != 'none'
@@ -97,8 +100,6 @@ jobs:
 
             - name: Scan
               env:
-                  ANDROID_APK: ${{ steps.android.outputs.apk }}
-                  ANDROID_VERSION: ${{ steps.android.outputs.version }}
                   IOS_SDK: ${{ steps.sdks.outputs.ios }}
                   ANDROID_JAR: ${{ steps.sdks.outputs.android }}
               run: |
@@ -106,8 +107,7 @@ jobs:
                   scan_args=(
                     --root ../..
                     --channel "$CHANNEL"
-                    --apk "$ANDROID_APK"
-                    --android-version "$ANDROID_VERSION"
+                    --cache "$HOME/.cache/unbound-discord"
                     --ios-sdk "$IOS_SDK"
                     --android-jar "$ANDROID_JAR"
                     --baseline baseline/compat.json

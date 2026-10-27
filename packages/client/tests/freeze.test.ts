@@ -6,6 +6,10 @@ const { FakeAddons, makeManifest } = await import('./helpers/addons');
 const { currentAddonAttribution, withAddonAttribution } = await import('~/api/crash-guard');
 const { before } = await import('~/api/patcher');
 
+type Counter = {
+	value: number;
+};
+
 class FreezeAddons extends FakeAddons {
 	disabled: string[] = [];
 
@@ -86,7 +90,7 @@ describe('addon attribution', () => {
 		const calls: string[] = [];
 		const target = {
 			value: 1,
-			read(this: { value: number }) {
+			read(this: Counter) {
 				return this.value;
 			},
 		};

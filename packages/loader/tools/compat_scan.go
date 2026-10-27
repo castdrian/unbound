@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -95,11 +96,23 @@ func runCompatScan(args []string) error {
 	iosSDK := set.String("ios-sdk", "", "iPhoneOS SDK path (found with xcrun when empty)")
 	androidJar := set.String("android-jar", "", "android.jar from the Android SDK (found under ANDROID_HOME when empty)")
 	failOnBreakage := set.Bool("fail-on-breakage", false, "exit with an error when anything is broken or possibly broken")
+	cache := set.String("cache", defaultCompatCache(), "where --channel keeps the Discord builds it downloads")
 	if err := set.Parse(args); err != nil {
 		return err
 	}
 	if *ipa == "" && len(apks) == 0 {
-		return errors.New("usage: compat-scan [--ipa <path>] [--apk <path>...] [--android-version <v>] [--baseline <json>] [--results <json>] [--report <md>]")
+		if *channel == "" {
+			return errNoCompatTarget
+		}
+		builds, err := fetchCompatBuilds(context.Background(), *channel, *cache)
+		if err != nil {
+			return err
+		}
+		*ipa = builds.ipa
+		apks = stringList{builds.apk}
+		if *androidVersion == "" {
+			*androidVersion = builds.androidVersion
+		}
 	}
 
 	sources, err := collectCompatReferences(*root)

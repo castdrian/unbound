@@ -91,12 +91,17 @@ export class NativeConsentRequiredError extends Error {
 	}
 }
 
+function monotonicNow(): number {
+	return globalThis.performance?.now?.() ?? Date.now();
+}
+
 /**
  * @description Shared lifecycle manager for addons (plugins and themes), extending {@link Manager}.
  * Implements the load/unload, start/stop, and enable/disable operations common to every addon kind.
  * @template T The addon entity type this manager governs.
  */
 export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>> {
+	startDurations = new Map<string, number>();
 	private freezes = new Map<string, number>();
 	private pendingStops = new Map<string, Promise<void>>();
 	private pendingStarts = new Set<string>();
@@ -458,6 +463,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 
 		const recoveryMode = storage.get('unbound', 'recovery', false);
 		const guardKey = this.crashGuardKey(resolved.id);
+		const startedAt = monotonicNow();
 
 		if (!recoveryMode) {
 			beginAddonStart(guardKey, resolved.data.name);
@@ -481,6 +487,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 
 			withAddonAttribution(attribution, () => resolved.instance?.start?.(context));
 			resolved.started = true;
+			this.startDurations.set(resolved.id, monotonicNow() - startedAt);
 
 			this.emit('started', resolved);
 		} catch (error) {

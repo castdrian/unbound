@@ -44,7 +44,8 @@ var (
 			id: entity.id,
 			started: Boolean(entity.started),
 			failed: Boolean(entity.failed),
-			error: error ? String(error && error.message ? error.message : error) : ''
+			error: error ? String(error && error.message ? error.message : error) : '',
+			startMs: manager.startDurations ? manager.startDurations.get(entity.id) : undefined
 		});
 	}
 	return JSON.stringify(statuses);
@@ -80,10 +81,11 @@ type smokePlugin struct {
 }
 
 type smokePluginStatus struct {
-	ID      string `json:"id"`
-	Started bool   `json:"started"`
-	Failed  bool   `json:"failed"`
-	Error   string `json:"error"`
+	ID      string   `json:"id"`
+	Started bool     `json:"started"`
+	Failed  bool     `json:"failed"`
+	Error   string   `json:"error"`
+	StartMs *float64 `json:"startMs"`
 }
 
 type smokeTarget interface {
@@ -517,7 +519,8 @@ func renderSmokeReport(result *smokeResult) string {
 		byID[status.ID] = status
 	}
 	report.WriteString(renderStartupTimes(result.startup, result.budget))
-	report.WriteString("| Plugin | Loaded by the loader | Debugger status |\n| --- | --- | --- |\n")
+	report.WriteString(renderSlowestStarts(result.statuses))
+	report.WriteString("| Plugin | Loaded by the loader | Debugger status | Start |\n| --- | --- | --- | --- |\n")
 	for _, plugin := range result.plugins {
 		loaded := "no"
 		if result.loaded[plugin.id] {
@@ -529,7 +532,7 @@ func renderSmokeReport(result *smokeResult) string {
 		} else if len(result.statuses) > 0 {
 			status = "unknown to the client"
 		}
-		fmt.Fprintf(&report, "| `%s` | %s | %s |\n", plugin.id, loaded, status)
+		fmt.Fprintf(&report, "| `%s` | %s | %s | %s |\n", plugin.id, loaded, status, describeStartMs(byID[plugin.id].StartMs))
 	}
 	report.WriteString("\n")
 	return report.String()

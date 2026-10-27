@@ -260,7 +260,7 @@ describe('installOnIOS', () => {
 			'ui_action',
 			'shell_exec',
 		]);
-		expect(calls[2]?.args).toContain('wake');
+		expect(calls[2]?.args).toContain('unlock');
 		expect(calls[2]?.args).not.toContain('screen_on');
 		expect(calls.at(-1)?.args.at(-1)).toContain(
 			'uiopen --bundleid com.hammerandchisel.discord',

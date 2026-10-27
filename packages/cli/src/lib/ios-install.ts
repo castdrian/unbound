@@ -125,7 +125,10 @@ export async function installOnIOS(
 
 	log('Restarting Discord…');
 
-	await pilotCommand(['ui_action', '--device', device, '--action', 'wake'], IOS_TIMEOUTS.restart);
+	await pilotCommand(
+		['ui_action', '--device', device, '--action', 'button', '--button', 'unlock'],
+		IOS_TIMEOUTS.restart,
+	);
 
 	const restarted = await shell(
 		`killall -9 Discord; sleep 1; /var/jb/usr/bin/uiopen --bundleid ${DISCORD_BUNDLE_ID}`,

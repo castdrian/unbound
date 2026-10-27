@@ -82,3 +82,12 @@ func TestDisabledOverlayFindsOnlyTheNamedDisabledOverlay(t *testing.T) {
 		t.Fatal("a missing overlay must not be reported as disabled")
 	}
 }
+
+func TestAVDTargetReadsPlatformFromSystemImage(t *testing.T) {
+	if got := avdTarget("system-images;android-35;google_apis;arm64-v8a"); got != "android-35" {
+		t.Fatalf("unexpected target %q", got)
+	}
+	if got := avdTarget("broken"); got != "" {
+		t.Fatalf("unexpected target %q", got)
+	}
+}

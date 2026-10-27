@@ -6,6 +6,7 @@ import installCommand from '~/commands/install';
 import modulesCommand from '~/commands/modules';
 import publishCommand from '~/commands/publish';
 import createCommand from '~/commands/create';
+import deviceCommand from '~/commands/device';
 import logoutCommand from '~/commands/logout';
 import reloadCommand from '~/commands/reload';
 import timingCommand from '~/commands/timing';
@@ -33,6 +34,7 @@ export const commands: CommandDefinition<z.ZodObject<z.ZodRawShape>>[] = [
 	reloadCommand,
 	pushCommand,
 	installCommand,
+	deviceCommand,
 	logsCommand,
 	viewsCommand,
 	inspectCommand,

@@ -27,6 +27,44 @@ declare const TRANSITION_STATE_KEYS: readonly ['MOUNTED', 'ENTERED', 'YEETED'];
 declare const nativeHandle: unique symbol;
 /** The kinds of addon a manifest can declare. */
 export declare const ADDON_TYPES: readonly ['plugin', 'theme', 'icon-pack', 'font'];
+/** The components of Discord's design module, each of which Unbound can stand in for when Discord drops it. */
+export declare const DESIGN_COMPONENTS: readonly [
+	'Text',
+	'Heading',
+	'TableRow',
+	'TableSwitchRow',
+	'FormSwitch',
+	'TableCheckboxRow',
+	'TableRadioRow',
+	'TableRadioGroup',
+	'TableRowGroup',
+	'TableRowGroupTitle',
+	'TableRowIcon',
+	'RowButton',
+	'RowGroup',
+	'Button',
+	'IconButton',
+	'ImageButton',
+	'FloatingActionButton',
+	'TextInput',
+	'TextField',
+	'TextArea',
+	'TextAreaField',
+	'SearchField',
+	'GhostInput',
+	'SplitTextInput',
+	'Slider',
+	'Checkbox',
+	'SegmentedControl',
+	'SegmentedControlPages',
+	'Stack',
+	'Card',
+	'AlertModal',
+	'AlertActionButton',
+	'ActionSheet',
+	'ActionSheetRow',
+	'ContextMenu',
+];
 export declare const NATIVE_PLUGIN_CAPABILITIES: readonly [
 	'native.objc.classes',
 	'native.objc.invoke',
@@ -244,6 +282,7 @@ export type ContextMenuProps = {
 export type CreateStyles = <T extends StyleSheetSpec>(
 	styles: StyleSheetSpecOrFactory<T>,
 ) => () => ResolvedStyles<T>;
+export type DesignComponentName = (typeof DESIGN_COMPONENTS)[number];
 export type DesignModule = {
 	createStyles: CreateStyles;
 	TextStyleSheet: Record<TextVariant, TextStyle>;

@@ -21,6 +21,47 @@ export type DiscordFunction<T = any> = (...args: any[]) => T;
  */
 export type SemanticColorToken = Readonly<Record<string, string | number | boolean>>;
 
+/** The components of Discord's design module, each of which Unbound can stand in for when Discord drops it. */
+export const DESIGN_COMPONENTS = [
+	'Text',
+	'Heading',
+	'TableRow',
+	'TableSwitchRow',
+	'FormSwitch',
+	'TableCheckboxRow',
+	'TableRadioRow',
+	'TableRadioGroup',
+	'TableRowGroup',
+	'TableRowGroupTitle',
+	'TableRowIcon',
+	'RowButton',
+	'RowGroup',
+	'Button',
+	'IconButton',
+	'ImageButton',
+	'FloatingActionButton',
+	'TextInput',
+	'TextField',
+	'TextArea',
+	'TextAreaField',
+	'SearchField',
+	'GhostInput',
+	'SplitTextInput',
+	'Slider',
+	'Checkbox',
+	'SegmentedControl',
+	'SegmentedControlPages',
+	'Stack',
+	'Card',
+	'AlertModal',
+	'AlertActionButton',
+	'ActionSheet',
+	'ActionSheetRow',
+	'ContextMenu',
+] as const satisfies readonly (keyof DesignModule)[];
+
+export type DesignComponentName = (typeof DESIGN_COMPONENTS)[number];
+
 export type DesignModule = {
 	/* Styling */
 	createStyles: CreateStyles;

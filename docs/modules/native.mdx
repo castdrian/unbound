@@ -188,6 +188,8 @@ In the plugin manifest, declare only the capabilities the plugin needs:
 - FFI: `native.ffi.symbols`, `native.ffi.call`
 - Fabric: `native.fabric.mount` (iOS only), `native.fabric.async`
 
+FFI calls skip the bridge's type and object checks, so the user has to allow them. The first time an unsigned plugin that declares `native.ffi.symbols` or `native.ffi.call` is enabled, Unbound asks whether it may call native functions directly, and it starts only if the user allows it. It asks again when an update adds another FFI capability. Until then, an FFI plugin that was enabled before does not start. First-party plugins signed by the Unbound publish pipeline never ask.
+
 Before calling `start(context)`, the addon manager validates the capability names and the optional minimum API version. `context.native` is scoped to the plugin. `context.dispose()` is called during stop, unload, reload, and cleanup after a failed start.
 
 Existing plugins whose `start` function takes no context still work. New plugins should use the scoped context so native resources can't outlive the plugin's lifecycle.

@@ -1,4 +1,9 @@
-import type { Addon, AddonManifest, PluginContext } from '@unbound-app/types';
+import type {
+	Addon,
+	AddonManifest,
+	NativePluginCapability,
+	PluginContext,
+} from '@unbound-app/types';
 import { NATIVE_PLUGIN_CAPABILITIES } from '@unbound-app/types/native';
 import type { AddonRelease } from '@unbound-app/contracts/updates';
 import toError from '@unbound-app/utils/to-error';
@@ -18,6 +23,8 @@ import {
 	crashedAddon,
 	finishAddonStart,
 } from '~/api/crash-guard';
+import { consentCapabilities, consentKey, needsConsent } from '~/lib/native-consent';
+import type { NativeConsents } from '~/lib/native-consent';
 import { Manager, ManagerType } from '~/managers/base';
 import storage from '~/api/storage';
 import fs from '~/api/fs';
@@ -49,7 +56,32 @@ type AddonEvents<T extends Addon> = {
 	updated: (entity: T) => void;
 	'update-error': (entity: T, error: Error) => void;
 	deleted: (entity: T) => void;
+	'consent-required': (entity: T) => void;
 };
+
+/** Asks the user whether an addon may use consent-gated capabilities; resolves to their answer. */
+export type ConsentPrompt = (
+	addon: Addon,
+	capabilities: readonly NativePluginCapability[],
+) => Promise<boolean>;
+
+let consentPrompt: ConsentPrompt | undefined;
+
+/**
+ * @description Registers how the UI asks for consent before an addon gets direct native access.
+ * @param prompt The prompt, or `undefined` to refuse every request.
+ */
+export function setConsentPrompt(prompt: ConsentPrompt | undefined): void {
+	consentPrompt = prompt;
+}
+
+/** Thrown when an addon asks for direct native access the user has not allowed. */
+export class NativeConsentRequiredError extends Error {
+	constructor(name: string) {
+		super(`${name} needs your permission for direct native access.`);
+		this.name = 'NativeConsentRequiredError';
+	}
+}
 
 /**
  * @description Shared lifecycle manager for addons (plugins and themes), extending {@link Manager}.
@@ -390,8 +422,9 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	/**
 	 * @description Starts an addon, evaluating its bundle into an instance, running it, and emits `started`.
 	 * @param entity The addon to start, as its id or the entity itself.
+	 * @param consented Whether the user just allowed its consent-gated capabilities.
 	 */
-	start(entity: AddonResolveable) {
+	start(entity: AddonResolveable, consented = false) {
 		const resolved = this.resolve(entity);
 
 		if (!resolved || resolved.started) return;
@@ -403,6 +436,16 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		}
 
 		this.pendingStarts.delete(resolved.id);
+
+		if (!consented && needsConsent(resolved.data, this.getConsents())) {
+			const error = new NativeConsentRequiredError(resolved.data.name);
+
+			this.logger.warn(error.message);
+			this.errors.set(resolved.id, error);
+			this.emit('consent-required', resolved);
+
+			return;
+		}
 
 		const recoveryMode = storage.get('unbound', 'recovery', false);
 		const guardKey = this.crashGuardKey(resolved.id);
@@ -580,6 +623,18 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 
 		if (!resolved) return;
 
+		if (needsConsent(resolved.data, this.getConsents())) {
+			return this.requestConsent(resolved).then((granted) => {
+				if (granted) {
+					this.enableNow(resolved, true);
+				}
+			});
+		}
+
+		this.enableNow(resolved, false);
+	}
+
+	private enableNow(resolved: T, consented: boolean): void {
 		try {
 			const states = this.getStates();
 
@@ -587,7 +642,7 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			this.settings.set('states', states);
 
 			if (!resolved.started) {
-				this.start(resolved);
+				this.start(resolved, consented);
 			}
 
 			this.emit('enabled', resolved);
@@ -622,6 +677,42 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			this.logger.error(`Failed to disable addon ${resolved.id}:`, error);
 			this.errors.set(resolved.id, toError(error));
 		}
+	}
+
+	/**
+	 * @description Reads the consents the user gave for consent-gated capabilities.
+	 * @returns The consents keyed by addon id.
+	 */
+	protected getConsents(): NativeConsents {
+		const consents: NativeConsents = this.settings.get('consents', {});
+
+		return consents;
+	}
+
+	/**
+	 * @description Asks the user to allow an addon's consent-gated capabilities and records the answer.
+	 * @param entity The addon asking.
+	 * @returns Whether the user allowed it.
+	 */
+	protected async requestConsent(entity: T): Promise<boolean> {
+		const capabilities = consentCapabilities(entity.data);
+		const granted = consentPrompt
+			? await consentPrompt(entity, capabilities).catch(() => false)
+			: false;
+
+		if (!granted) {
+			this.errors.set(entity.id, new NativeConsentRequiredError(entity.data.name));
+
+			return false;
+		}
+
+		this.settings.set('consents', {
+			...this.getConsents(),
+			[entity.id]: consentKey(entity.data),
+		});
+		this.errors.delete(entity.id);
+
+		return true;
 	}
 
 	/**

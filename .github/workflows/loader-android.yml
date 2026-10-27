@@ -102,6 +102,33 @@ jobs:
             - name: Run core tests
               run: ctest --test-dir build/core --output-on-failure
 
+    native-bridge-fuzz:
+        name: Fuzz the native bridge
+        runs-on: ubuntu-26.04
+        timeout-minutes: 8
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+              with:
+                  fetch-depth: 1
+
+            - name: Configure the fuzzer
+              run: cmake -S core -B build/fuzz -DUNBOUND_CORE_FUZZ=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_FLAGS="-fsanitize=fuzzer-no-link,address,undefined" -DCMAKE_CXX_FLAGS="-fsanitize=fuzzer-no-link,address,undefined -fno-sanitize-recover=all"
+
+            - name: Build the fuzzer
+              run: cmake --build build/fuzz --target native_bridge_libfuzzer -j"$(nproc)"
+
+            - name: Fuzz for a minute
+              run: build/fuzz/native_bridge_libfuzzer -max_total_time=60 -max_len=4096 -artifact_prefix=build/fuzz/
+
+            - name: Upload crashing inputs
+              if: failure()
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+              with:
+                  name: native bridge fuzz crashes
+                  path: packages/loader/build/fuzz/crash-*
+                  retention-days: ${{ github.event_name == 'pull_request' && 14 || 0 }}
+
     build-module:
         name: Build LSPosed module
         runs-on: ubuntu-26.04

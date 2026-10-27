@@ -1,0 +1,27 @@
+#pragma once
+
+#include <nlohmann/json.hpp>
+#include <string>
+
+#include "LoaderBundleSignature.h"
+
+namespace loader {
+enum class AddonSignatureStatus
+{
+    Unsigned,
+    Signed,
+    Invalid,
+};
+
+struct AddonSignatureResult {
+    AddonSignatureStatus status = AddonSignatureStatus::Unsigned;
+    TrustedSigner        signer = TrustedSigner::None;
+    std::string          problem;
+};
+
+std::string          addonSigningMessage(const std::string &id, const std::string &version,
+                                         const std::string &bundle);
+AddonSignatureResult verifyAddonSignature(const nlohmann::json &manifest, const std::string &bundle,
+                                          const BundleTrust &trust);
+const char          *describeAddonSignature(AddonSignatureStatus status);
+}

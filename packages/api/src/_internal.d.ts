@@ -142,6 +142,13 @@ export type AddonManifest = {
 	capabilities?: NativePluginCapability[];
 	platformCapabilities?: Partial<Record<NativePluginPlatform, NativePluginCapability[]>>;
 	minNativePluginApi?: string;
+	/** The Ed25519 signature the Unbound team's publish pipeline puts on first-party plugins. */
+	signature?: {
+		version: 1;
+		ed25519: string;
+	};
+	/** Set by the loader and installer: whether the bundle carries a valid Unbound signature. */
+	trust?: AddonTrust;
 	/** Requirements on the Unbound client running the addon. */
 	unbound?: {
 		/** The minimum Unbound client version (semver) the addon supports. */
@@ -150,6 +157,8 @@ export type AddonManifest = {
 };
 /** An addon referenced either by its id string or the {@link Addon} entity itself. */
 export type AddonResolveable = string | Addon;
+/** Whether an addon's bundle carries a valid Unbound signature. */
+export type AddonTrust = 'signed' | 'unsigned';
 export type AddonType = (typeof ADDON_TYPES)[number];
 export type AlertActionButtonProps = {
 	text: string;
@@ -364,6 +373,12 @@ export type InternalToastOptions = {
 	closing?: boolean;
 	date?: number;
 } & ToastOptions;
+/** The outcome of checking an addon's signature against the keys compiled into the loader. */
+export type NativeAddonVerification = {
+	readonly status: 'signed' | 'unsigned' | 'invalid';
+	readonly signer?: string;
+	readonly problem?: string;
+};
 export type NativeAssociationKey = NativeHandle;
 export type NativeBatchReference = {
 	readonly $nativeBatchResult: number;
@@ -721,6 +736,10 @@ export type NativeObjCBridge = {
 	): NativeHookToken;
 };
 export type NativeObjectHandle = NativeHandle;
+export type NativePlatformAddons = {
+	/** Checks a manifest's `signature` against its bundle. */
+	verify(manifest: string, bundle: string): NativeAddonVerification;
+};
 export type NativePlatformApp = {
 	getAppSource(): string;
 };
@@ -733,6 +752,7 @@ export type NativePlatformBridge = {
 	readonly crashGuard?: NativePlatformCrashGuard;
 	readonly settings?: NativePlatformSettings;
 	readonly fonts?: NativePlatformFonts;
+	readonly addons?: NativePlatformAddons;
 	readonly ios?: NativePlatformIOSBridge;
 };
 export type NativePlatformCrashGuard = {

@@ -3,6 +3,7 @@
 #include <mutex>
 
 #include "LoaderAddonActivity.h"
+#include "LoaderAddonSignature.h"
 #include "LoaderCrashGuard.h"
 #include "LoaderFiles.h"
 #include "LoaderJSI.h"
@@ -334,6 +335,49 @@ void installNativePlatform(jsi::Runtime &runtime, std::shared_ptr<NativePlatform
         platform.setProperty(runtime, "files", std::move(files));
         platform.setProperty(runtime, "crashGuard", crashGuardObject(runtime, provider->documents));
     }
+
+    jsi::Object addons(runtime);
+    addons.setProperty(
+        runtime, "verify",
+        native::makeFunction(
+            runtime, "verify", 2,
+            [](jsi::Runtime &rt, const jsi::Value &, const jsi::Value *args,
+               size_t count) -> jsi::Value {
+                jsi::Object result(rt);
+                if (count < 2 || !args[0].isString() || !args[1].isString())
+                {
+                    result.setProperty(rt, "status", jsi::String::createFromAscii(rt, "invalid"));
+                    result.setProperty(rt, "problem",
+                                       jsi::String::createFromAscii(
+                                           rt, "verify needs the manifest JSON and the bundle"));
+                    return result;
+                }
+                nlohmann::json manifest =
+                    nlohmann::json::parse(args[0].getString(rt).utf8(rt), nullptr, false);
+                AddonSignatureResult signature =
+                    manifest.is_object()
+                        ? verifyAddonSignature(manifest, args[1].getString(rt).utf8(rt),
+                                               compiledBundleTrust())
+                        : AddonSignatureResult{AddonSignatureStatus::Invalid, TrustedSigner::None,
+                                               "the manifest is not a JSON object"};
+                result.setProperty(
+                    rt, "status",
+                    jsi::String::createFromAscii(rt, describeAddonSignature(signature.status)));
+                if (signature.status == AddonSignatureStatus::Signed)
+                {
+                    result.setProperty(
+                        rt, "signer",
+                        jsi::String::createFromUtf8(
+                            rt, describeSigner(signature.signer, compiledBundleTrust())));
+                }
+                if (!signature.problem.empty())
+                {
+                    result.setProperty(rt, "problem",
+                                       jsi::String::createFromUtf8(rt, signature.problem));
+                }
+                return result;
+            }));
+    platform.setProperty(runtime, "addons", std::move(addons));
 
     platform.setProperty(runtime, "platform",
                          jsi::String::createFromUtf8(runtime, provider->platform));

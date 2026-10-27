@@ -299,10 +299,11 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			const manifest = await this.fetchManifest(url);
 			const origin = url.split('/').slice(0, -1).join('/');
 			const bundle = await this.fetchBundle(new URL(manifest.main, `${origin}/`).toString());
+			const trusted = this.verifySignature(manifest, bundle, this.getEntity(manifest.id));
 
-			await this.persist(bundle, manifest);
+			await this.persist(bundle, trusted);
 
-			this.load(bundle, manifest);
+			this.load(bundle, trusted);
 			const entity = this.getEntity(manifest.id);
 
 			if (entity) {
@@ -344,7 +345,11 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 				throw new Error(`Bundle SHA-256 ${digest} does not match ${update.sha256}.`);
 			}
 
-			const result = await this.reload(resolved, bundle, manifest);
+			const result = await this.reload(
+				resolved,
+				bundle,
+				this.verifySignature(manifest, bundle, resolved),
+			);
 
 			if (!result.ok) {
 				this.emit('update-error', resolved, result.error);
@@ -667,6 +672,44 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 	 * @param url The bundle URL.
 	 * @returns The bundle source.
 	 */
+	/**
+	 * @description Checks a downloaded addon's signature against the keys compiled into the loader and
+	 * records the result as `trust`. A bundle whose signature does not match, or an unsigned bundle
+	 * replacing a signed one, is refused.
+	 * @param manifest The downloaded manifest.
+	 * @param bundle The downloaded bundle.
+	 * @param installed The installed copy the download replaces, if any.
+	 * @returns The manifest with `trust` set.
+	 */
+	protected verifySignature(
+		manifest: AddonManifest,
+		bundle: string,
+		installed?: T,
+	): AddonManifest {
+		const addons = globalThis.NativePlatform?.addons;
+		const { trust: _ignored, ...rest } = manifest;
+
+		if (!addons) {
+			return { ...rest, trust: 'unsigned' };
+		}
+
+		const result = addons.verify(JSON.stringify(rest), bundle);
+
+		if (result.status === 'invalid') {
+			throw new Error(
+				`Refused ${manifest.id}: ${result.problem ?? 'its signature does not match'}.`,
+			);
+		}
+
+		if (result.status === 'unsigned' && installed?.data.trust === 'signed') {
+			throw new Error(
+				`Refused ${manifest.id}: the installed version is signed but this one is not.`,
+			);
+		}
+
+		return { ...rest, trust: result.status };
+	}
+
 	private async fetchBundle(url: string): Promise<string> {
 		const res = await fetch(url, { cache: 'no-cache' });
 

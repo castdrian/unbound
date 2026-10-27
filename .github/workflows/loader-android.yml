@@ -103,7 +103,7 @@ jobs:
               run: ctest --test-dir build/core --output-on-failure
 
     native-jsi-fuzz:
-        name: Fuzz JS-to-native conversion
+        name: Host Hermes bridge tests and fuzzing
         runs-on: ubuntu-26.04
         timeout-minutes: 40
         env:
@@ -130,8 +130,11 @@ jobs:
             - name: Configure the fuzzer
               run: cmake -S core -B build/jsi-fuzz -DUNBOUND_CORE_TESTS=ON -DUNBOUND_CORE_JSI_FUZZ=ON -DUNBOUND_HERMES_SOURCE_DIR="$PWD/build/hermes-src" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_FLAGS="-fsanitize=address,undefined" -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all"
 
-            - name: Build the fuzzer
-              run: cmake --build build/jsi-fuzz --target native_jsi_fuzz -j"$(nproc)"
+            - name: Build the Hermes tests and fuzzer
+              run: cmake --build build/jsi-fuzz --target native_platform_hermes native_jsi_fuzz -j"$(nproc)"
+
+            - name: Test the native bridge on Hermes
+              run: build/jsi-fuzz/native_platform_hermes
 
             - name: Fuzz
               env:

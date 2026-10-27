@@ -64,9 +64,12 @@ func runDev(args []string) error {
 
 func runAndroidAVD(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: dev android-avd <status|setup|start> [--name <name>] [--root <path>]")
+		return errors.New("usage: dev android-avd <status|setup|start|snapshot> [--name <name>] [--root <path>]")
 	}
 	action := args[0]
+	if action == "snapshot" {
+		return runAVDSnapshot(args[1:])
+	}
 	if action != "status" && action != "setup" && action != "start" {
 		return fmt.Errorf("unknown android-avd action %q", action)
 	}
@@ -123,7 +126,7 @@ func reportDevStatus(root string) error {
 		return err
 	}
 	fmt.Printf("Host: %s/%s\n", runtime.GOOS, runtime.GOARCH)
-	for _, name := range []string{"go", "git", "emulator", "adb", "avdmanager", "sdkmanager", "xcodebuild", "xcrun", "vphone-cli", "jb-p1lot"} {
+	for _, name := range []string{"go", "git", "emulator", "adb", "sdkmanager", "xcodebuild", "xcrun", "vphone-cli", "jb-p1lot"} {
 		if _, err := exec.LookPath(name); err != nil {
 			fmt.Printf("Tool %-12s unavailable\n", name)
 			continue
@@ -231,20 +234,42 @@ func createAVD(profile avdProfile) error {
 		return err
 	}
 	if _, err := os.Stat(image); errors.Is(err, os.ErrNotExist) {
-		if err := devRunCommand("sdkmanager", "--install", profile.SystemImage); err != nil {
+		sdkRoot, err := androidSDKRoot()
+		if err != nil {
+			return err
+		}
+		if err := devRunCommand("sdkmanager", "--sdk_root="+sdkRoot, "--install", profile.SystemImage); err != nil {
 			return fmt.Errorf("install Android system image; accept Android SDK licenses with `sdkmanager --licenses` if prompted: %w", err)
 		}
 	} else if err != nil {
 		return err
 	}
-	command := exec.Command("avdmanager", "create", "avd", "--name", profile.Name, "--package", profile.SystemImage, "--device", profile.Device)
-	command.Stdin = strings.NewReader("no\n")
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	if err := command.Run(); err != nil {
+	configPath, err := avdConfigPath(profile.Name)
+	if err != nil {
+		return err
+	}
+	avdDirectory := filepath.Dir(configPath)
+	if err := os.MkdirAll(avdDirectory, 0o755); err != nil {
+		return fmt.Errorf("create Android AVD: %w", err)
+	}
+	target := avdTarget(profile.SystemImage)
+	pointer := fmt.Sprintf("avd.ini.encoding=UTF-8\npath=%s\npath.rel=avd/%s.avd\ntarget=%s\n", avdDirectory, profile.Name, target)
+	if err := os.WriteFile(filepath.Join(filepath.Dir(avdDirectory), profile.Name+".ini"), []byte(pointer), 0o644); err != nil {
+		return fmt.Errorf("create Android AVD: %w", err)
+	}
+	config := fmt.Sprintf("avd.ini.displayname=%s\navd.ini.encoding=UTF-8\ntag.ids=google_apis\ntarget=%s\nhw.mainKeys=no\nhw.keyboard=yes\nsdcard.size=512M\n", profile.Name, target)
+	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
 		return fmt.Errorf("create Android AVD: %w", err)
 	}
 	return nil
+}
+
+func avdTarget(systemImage string) string {
+	parts := strings.Split(systemImage, ";")
+	if len(parts) < 2 {
+		return ""
+	}
+	return parts[1]
 }
 
 func startAVD(profile avdProfile) error {

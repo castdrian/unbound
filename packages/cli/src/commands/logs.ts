@@ -1,8 +1,14 @@
 import type { CommandDefinition } from '@unbound-app/debugger-protocol/registry';
+import { resolve } from 'node:path';
 import { z } from 'zod';
 
+import {
+	defaultLogFolder,
+	pullAndroidLogs,
+	pullIOSLogs,
+	symbolicatePulledLogs,
+} from '~/lib/log-pull';
 import { createLogPrinter, LOG_LEVELS, parseLogLevel, type LogEvent } from '~/lib/log-lines';
-import { defaultLogFolder, pullAndroidLogs, pullIOSLogs } from '~/lib/log-pull';
 import { loadFrameRewriter } from '~/lib/log-symbolicator';
 import { tailAndroid, tailIOS } from '~/lib/log-tail';
 
@@ -92,10 +98,26 @@ const logsCommand: CommandDefinition<typeof schema> = {
 
 		if (pull) {
 			const folder = out ?? defaultLogFolder();
+			const pulled = onIOS
+				? await pullIOSLogs({ udid, out: folder })
+				: await pullAndroidLogs({ serial, out: folder });
 
-			return onIOS
-				? pullIOSLogs({ udid, out: folder })
-				: pullAndroidLogs({ serial, out: folder });
+			if (!pulled.ok || !symbolicate) {
+				return pulled;
+			}
+
+			const rewriter = await loadFrameRewriter(bundle);
+
+			if (typeof rewriter !== 'function') {
+				return {
+					ok: false,
+					text: `${pulled.text} Symbolicating them failed: ${rewriter.error}`,
+				};
+			}
+
+			const written = symbolicatePulledLogs(resolve(folder), rewriter);
+
+			return { ok: true, text: `${pulled.text} Symbolicated copies: ${written.join(', ')}.` };
 		}
 
 		const minimum = parseLogLevel(level);

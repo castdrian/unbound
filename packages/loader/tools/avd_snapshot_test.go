@@ -124,3 +124,29 @@ func TestSnapshotTarRoundTripRejectsEscapingEntries(t *testing.T) {
 		t.Fatal("escaping entry was extracted")
 	}
 }
+
+func TestPublishableSnapshotsLeaveDiscordOut(t *testing.T) {
+	names := snapshotPackageNames(true)
+	for _, name := range names {
+		if name == discordPackage {
+			t.Fatal("a snapshot without Discord must not pull its APKs")
+		}
+	}
+	if len(names) != len(avdSnapshotPackages)-1 || len(snapshotPackageNames(false)) != len(avdSnapshotPackages) {
+		t.Fatalf("unexpected package lists %v", names)
+	}
+	without := avdSnapshotManifest{Packages: map[string][]string{"app.unbound.android": {"base.apk"}}}
+	if !strings.Contains(describeSnapshotDiscord(without), "restore downloads") {
+		t.Fatalf("unexpected description %q", describeSnapshotDiscord(without))
+	}
+	with := avdSnapshotManifest{DiscordVersion: "352.10", Packages: map[string][]string{discordPackage: {"base.apk"}}}
+	if describeSnapshotDiscord(with) != "Discord 352.10" {
+		t.Fatalf("unexpected description %q", describeSnapshotDiscord(with))
+	}
+}
+
+func TestLocalSnapshotFileKeepsLocalPaths(t *testing.T) {
+	if got, err := localSnapshotFile("/tmp/snapshot.tar", t.TempDir()); err != nil || got != "/tmp/snapshot.tar" {
+		t.Fatalf("local paths must be used as they are, got %q %v", got, err)
+	}
+}

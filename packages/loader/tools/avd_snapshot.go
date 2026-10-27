@@ -3,11 +3,13 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -48,9 +50,14 @@ type avdSnapshotManifest struct {
 	Settings       bool                `json:"settings"`
 }
 
+type avdSnapshotRestoreOptions struct {
+	sha256         string
+	discordChannel string
+}
+
 func runAVDSnapshot(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: dev android-avd snapshot <save|restore> (--out <file> [--with-settings] | --from <file>) [--name <name>] [--root <path>]")
+		return errors.New("usage: dev android-avd snapshot <save|restore> (--out <file> [--with-settings] [--without-discord] | --from <file|https-url> [--sha256 <hex>] [--discord-channel <channel>]) [--name <name>] [--root <path>]")
 	}
 	set := flag.NewFlagSet("dev android-avd snapshot", flag.ContinueOnError)
 	root := set.String("root", ".", "repository root")
@@ -58,6 +65,9 @@ func runAVDSnapshot(args []string) error {
 	out := set.String("out", "", "snapshot file to write")
 	from := set.String("from", "", "snapshot file to restore")
 	withSettings := set.Bool("with-settings", false, "include Unbound settings.json")
+	withoutDiscord := set.Bool("without-discord", false, "leave Discord's APKs out, so the snapshot can be published; restore downloads Discord")
+	checksum := set.String("sha256", "", "SHA-256 the snapshot must match when restoring")
+	discordChannel := set.String("discord-channel", "stable", "Discord channel restore downloads when the snapshot has no Discord")
 	if err := set.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -77,18 +87,21 @@ func runAVDSnapshot(args []string) error {
 		if *out == "" {
 			return errors.New("snapshot save needs --out <file>")
 		}
-		return saveAVDSnapshot(profile, *out, *withSettings)
+		return saveAVDSnapshot(profile, *out, *withSettings, *withoutDiscord)
 	case "restore":
 		if *from == "" {
 			return errors.New("snapshot restore needs --from <file>")
 		}
-		return restoreAVDSnapshot(profile, *from)
+		if discordAndroidChannelRank(*discordChannel) < 0 {
+			return fmt.Errorf("--discord-channel takes stable, beta or alpha, not %q", *discordChannel)
+		}
+		return restoreAVDSnapshot(profile, *from, avdSnapshotRestoreOptions{sha256: *checksum, discordChannel: *discordChannel})
 	default:
 		return fmt.Errorf("unknown snapshot action %q", args[0])
 	}
 }
 
-func saveAVDSnapshot(profile avdProfile, out string, withSettings bool) error {
+func saveAVDSnapshot(profile avdProfile, out string, withSettings, withoutDiscord bool) error {
 	serial, err := runningAVDSerial(profile.Name)
 	if err != nil {
 		return err
@@ -105,7 +118,7 @@ func saveAVDSnapshot(profile avdProfile, out string, withSettings bool) error {
 	if err := copyPatchedRamdisk(profile, filepath.Join(staging, avdSnapshotRamdiskName)); err != nil {
 		return err
 	}
-	packages, err := pullSnapshotPackages(serial, staging)
+	packages, err := pullSnapshotPackages(serial, staging, snapshotPackageNames(withoutDiscord))
 	if err != nil {
 		return err
 	}
@@ -118,11 +131,15 @@ func saveAVDSnapshot(profile avdProfile, out string, withSettings bool) error {
 	if err := ensureNoDiscordToken(filepath.Join(staging, avdSnapshotAdbName), filepath.Join(staging, avdSnapshotUnboundName)); err != nil {
 		return err
 	}
-	dumpsys, _ := devCommandOutput("adb", "-s", serial, "shell", "dumpsys", "package", discordPackage)
+	discordVersion := ""
+	if !withoutDiscord {
+		dumpsys, _ := devCommandOutput("adb", "-s", serial, "shell", "dumpsys", "package", discordPackage)
+		discordVersion = packageVersionName(dumpsys)
+	}
 	manifest := avdSnapshotManifest{
 		Profile:        profile.Name,
 		SystemImage:    profile.SystemImage,
-		DiscordVersion: packageVersionName(dumpsys),
+		DiscordVersion: discordVersion,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		Packages:       packages,
 		Settings:       withSettings,
@@ -137,18 +154,28 @@ func saveAVDSnapshot(profile avdProfile, out string, withSettings bool) error {
 	if err := writeTarDirectory(staging, out); err != nil {
 		return err
 	}
-	fmt.Printf("Saved AVD snapshot to %s (Discord %s, no account data)\n", out, valueOr(manifest.DiscordVersion, "unknown"))
+	fmt.Printf("Saved AVD snapshot to %s (%s, no account data)\n", out, describeSnapshotDiscord(manifest))
 	return nil
 }
 
-func restoreAVDSnapshot(profile avdProfile, from string) error {
+func restoreAVDSnapshot(profile avdProfile, from string, options avdSnapshotRestoreOptions) error {
 	staging, err := os.MkdirTemp("", "unbound-avd-restore-")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(staging)
-	if err := extractTarFile(from, staging); err != nil {
+	archive, err := localSnapshotFile(from, staging)
+	if err != nil {
 		return err
+	}
+	if options.sha256 != "" && !matchesSHA256(archive, options.sha256) {
+		return errors.New("the snapshot does not match --sha256")
+	}
+	if err := extractTarFile(archive, staging); err != nil {
+		return err
+	}
+	if archive != from {
+		os.Remove(archive)
 	}
 	manifest, err := readAVDSnapshotManifest(staging)
 	if err != nil {
@@ -175,6 +202,11 @@ func restoreAVDSnapshot(profile avdProfile, from string) error {
 	}
 	if err := installSnapshotPackages(serial, staging, manifest.Packages); err != nil {
 		return err
+	}
+	if len(manifest.Packages[discordPackage]) == 0 {
+		if err := installLatestDiscord(serial, options.discordChannel, staging); err != nil {
+			return fmt.Errorf("install Discord %s: %w", options.discordChannel, err)
+		}
 	}
 	if err := pushDeviceArchive(serial, filepath.Join(staging, avdSnapshotAdbName), "tar -xzf "+avdSnapshotDeviceDir+"/archive.tgz -C /data && restorecon -R /data/adb"); err != nil {
 		return err
@@ -238,9 +270,29 @@ func installPatchedRamdisk(profile avdProfile, source string) error {
 	return copyFile(source, filepath.Join(image, "ramdisk.img"))
 }
 
-func pullSnapshotPackages(serial, staging string) (map[string][]string, error) {
-	packages := map[string][]string{}
+func snapshotPackageNames(withoutDiscord bool) []string {
+	if !withoutDiscord {
+		return avdSnapshotPackages
+	}
+	names := []string{}
 	for _, name := range avdSnapshotPackages {
+		if name != discordPackage {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func describeSnapshotDiscord(manifest avdSnapshotManifest) string {
+	if len(manifest.Packages[discordPackage]) == 0 {
+		return "without Discord, which restore downloads"
+	}
+	return "Discord " + valueOr(manifest.DiscordVersion, "unknown")
+}
+
+func pullSnapshotPackages(serial, staging string, names []string) (map[string][]string, error) {
+	packages := map[string][]string{}
+	for _, name := range names {
 		output, err := devCommandOutput("adb", "-s", serial, "shell", "pm", "path", name)
 		if err != nil {
 			return nil, fmt.Errorf("%s is not installed on the AVD: %w", name, err)
@@ -274,6 +326,9 @@ func packagePaths(output string) []string {
 func installSnapshotPackages(serial, staging string, packages map[string][]string) error {
 	for _, name := range avdSnapshotPackages {
 		files := packages[name]
+		if len(files) == 0 && name == discordPackage {
+			continue
+		}
 		if len(files) == 0 {
 			return fmt.Errorf("snapshot is missing %s", name)
 		}
@@ -493,4 +548,48 @@ func extractTarFile(source, directory string) error {
 			return err
 		}
 	}
+}
+
+func localSnapshotFile(from, staging string) (string, error) {
+	if !strings.HasPrefix(from, "https://") {
+		return from, nil
+	}
+	destination := filepath.Join(staging, "download.tar")
+	fmt.Fprintf(os.Stderr, "Downloading %s\n", from)
+	if err := downloadDirect(from, "", destination); err != nil {
+		return "", err
+	}
+	return destination, nil
+}
+
+func installLatestDiscord(serial, channel, staging string) error {
+	ctx := context.Background()
+	adb := adbForSerial(serial)
+	splits, err := discordDeviceSplits(ctx, adb)
+	if err != nil {
+		return err
+	}
+	sources := discordAPKSources{
+		sniffURL:   strings.TrimRight(envOr("DISCORD_SNIFF_URL", defaultSniffURL), "/"),
+		trackerURL: strings.TrimRight(envOr("DISCORD_TRACKER", defaultAndroidTracker), "/"),
+		client:     &http.Client{Timeout: discordAPKLookupLimit},
+	}
+	code, err := sources.latestCode(ctx, channel)
+	if err != nil {
+		return err
+	}
+	directory := filepath.Join(staging, "discord")
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return err
+	}
+	files := map[string]string{}
+	downloads := &http.Client{Timeout: discordAPKDownloadLimit}
+	for split, endpoint := range sources.splitURLs(ctx, channel, code, orderSplits(append([]string{"base"}, splits...))) {
+		path := filepath.Join(directory, split+".apk")
+		if _, err := downloadDiscordSplit(ctx, downloads, endpoint, path, code); err != nil {
+			return err
+		}
+		files[split] = path
+	}
+	return installDiscordSplits(ctx, adb, files)
 }

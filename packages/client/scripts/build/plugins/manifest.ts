@@ -66,12 +66,18 @@ function getBytecodeVersions(): number[] {
 	return [...new Set(versions)].sort((a, b) => b - a);
 }
 
+/** The native bridge versions a bundle is built against. */
+export type NativeBridgeVersion = {
+	api: string;
+	abi: string;
+};
+
 /**
  * @description Reads the native bridge API and ABI versions the loader declares in `NativePluginVersion.h`.
  * @param header The header's source text.
  * @returns The bridge versions the bundle is built against.
  */
-export function parseNativeBridgeVersion(header: string): { api: string; abi: string } {
+export function parseNativeBridgeVersion(header: string): NativeBridgeVersion {
 	function read(name: string): string {
 		const match = header.match(new RegExp(`${name}\\[\\]\\s*=\\s*"(\\d+\\.\\d+\\.\\d+)"`));
 

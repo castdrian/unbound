@@ -8,6 +8,14 @@ import { bundleHashes } from '../sign';
 const logger = Logger.create('Build', 'Manifest');
 const root = resolve(__dirname, '..', '..', '..');
 const dist = resolve(root, 'dist');
+const nativePluginVersionHeader = resolve(
+	root,
+	'..',
+	'loader',
+	'core',
+	'include',
+	'NativePluginVersion.h',
+);
 
 // Hermes bytecode (HBC) file header: an 8-byte magic followed by a uint32
 // version, both little-endian.
@@ -56,6 +64,31 @@ function getBytecodeVersions(): number[] {
 	}
 
 	return [...new Set(versions)].sort((a, b) => b - a);
+}
+
+/** The native bridge versions a bundle is built against. */
+export type NativeBridgeVersion = {
+	api: string;
+	abi: string;
+};
+
+/**
+ * @description Reads the native bridge API and ABI versions the loader declares in `NativePluginVersion.h`.
+ * @param header The header's source text.
+ * @returns The bridge versions the bundle is built against.
+ */
+export function parseNativeBridgeVersion(header: string): NativeBridgeVersion {
+	function read(name: string): string {
+		const match = header.match(new RegExp(`${name}\\[\\]\\s*=\\s*"(\\d+\\.\\d+\\.\\d+)"`));
+
+		if (!match) {
+			throw new Error(`NativePluginVersion.h does not declare ${name}.`);
+		}
+
+		return match[1];
+	}
+
+	return { api: read('kNativePluginApiVersion'), abi: read('kNativePluginAbiVersion') };
 }
 
 /**
@@ -114,6 +147,9 @@ export default function generateManifest(
 				channel,
 				buildTime: new Date().toISOString(),
 				bytecodeVersions,
+				nativeBridge: parseNativeBridgeVersion(
+					readFileSync(nativePluginVersionHeader, 'utf8'),
+				),
 				sha512: bundleHashes(dist),
 			};
 

@@ -17,6 +17,8 @@ struct BundleManifest {
     std::optional<int64_t>             buildTimeMilliseconds;
     std::vector<uint32_t>              bytecodeVersions;
     std::map<std::string, std::string> sha512;
+    std::string                        nativeBridgeApi;
+    std::string                        nativeBridgeAbi;
 
     bool        isSignable() const;
     std::string bundleFile(uint32_t bytecodeVersion) const;
@@ -36,6 +38,9 @@ struct BundleBaseline {
 std::string                   serializeBaseline(const BundleBaseline &baseline);
 std::optional<BundleBaseline> parseBaseline(const std::string &text);
 BundleBaseline baselineFromManifest(const BundleManifest &manifest, const std::string &source);
+std::optional<std::string> nativeBridgeProblem(const BundleManifest &manifest,
+                                               std::string_view      loaderApi,
+                                               std::string_view      loaderAbi);
 std::optional<std::string> rollbackProblem(const BundleManifest                &manifest,
                                            const std::string                   &source,
                                            const std::optional<BundleBaseline> &baseline);

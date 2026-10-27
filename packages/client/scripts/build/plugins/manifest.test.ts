@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
-import { describeBytecodeMismatch } from './manifest';
+import { describeBytecodeMismatch, parseNativeBridgeVersion } from './manifest';
 import { bytecodeVersions } from '../hermes.json';
 
 describe('describeBytecodeMismatch', () => {
@@ -17,5 +19,33 @@ describe('describeBytecodeMismatch', () => {
 
 	test('declares at least one version', () => {
 		expect(bytecodeVersions.length).toBeGreaterThan(0);
+	});
+});
+
+describe('parseNativeBridgeVersion', () => {
+	test('reads the versions the loader declares', () => {
+		const header = readFileSync(
+			resolve(__dirname, '../../../../loader/core/include/NativePluginVersion.h'),
+			'utf8',
+		);
+
+		expect(parseNativeBridgeVersion(header)).toEqual({
+			api: expect.stringMatching(/^\d+\.\d+\.\d+$/),
+			abi: expect.stringMatching(/^\d+\.\d+\.\d+$/),
+		});
+	});
+
+	test('reads both constants', () => {
+		expect(
+			parseNativeBridgeVersion(
+				'inline constexpr char kNativePluginApiVersion[] = "1.4.0";\ninline constexpr char kNativePluginAbiVersion[] = "2.0.1";',
+			),
+		).toEqual({ api: '1.4.0', abi: '2.0.1' });
+	});
+
+	test('fails when a constant is missing', () => {
+		expect(() => parseNativeBridgeVersion('kNativePluginApiVersion[] = "1.0.0";')).toThrow(
+			'kNativePluginAbiVersion',
+		);
 	});
 });

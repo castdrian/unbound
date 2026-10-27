@@ -78,10 +78,36 @@ static void enforcesTheBaseline()
     assert(!loader::parseBaseline(R"({"source":"x","buildTime":"yesterday"})"));
 }
 
+static loader::BundleManifest bridgeManifest(const std::string &api, const std::string &abi)
+{
+    return *loader::parseBundleManifest(R"({"nativeBridge":{"api":")" + api + R"(","abi":")" + abi +
+                                        R"("}})");
+}
+
+static void checksTheNativeBridge()
+{
+    loader::BundleManifest parsed = bridgeManifest("1.2.0", "1.0.0");
+    assert(parsed.nativeBridgeApi == "1.2.0" && parsed.nativeBridgeAbi == "1.0.0");
+
+    assert(!loader::nativeBridgeProblem(*loader::parseBundleManifest("{}"), "1.0.0", "1.0.0"));
+    assert(!loader::nativeBridgeProblem(bridgeManifest("1.0.0", "1.0.0"), "1.0.0", "1.0.0"));
+    assert(!loader::nativeBridgeProblem(bridgeManifest("1.0.0", "1.0.0"), "1.3.0", "1.2.0"));
+    assert(!loader::nativeBridgeProblem(bridgeManifest("1.2.9", "1.0.0"), "1.3.0", "1.0.0"));
+    assert(loader::nativeBridgeProblem(bridgeManifest("1.4.0", "1.0.0"), "1.3.0", "1.0.0"));
+    assert(loader::nativeBridgeProblem(bridgeManifest("1.0.1", "1.0.0"), "1.0.0", "1.0.0"));
+    assert(loader::nativeBridgeProblem(bridgeManifest("2.0.0", "1.0.0"), "1.9.0", "1.0.0"));
+    assert(loader::nativeBridgeProblem(bridgeManifest("1.0.0", "1.0.0"), "2.0.0", "1.0.0"));
+    assert(loader::nativeBridgeProblem(bridgeManifest("1.0.0", "2.0.0"), "1.0.0", "1.0.0"));
+    assert(loader::nativeBridgeProblem(bridgeManifest("1.0", "1.0.0"), "1.0.0", "1.0.0"));
+    assert(loader::nativeBridgeProblem(bridgeManifest("1.0.0-beta", "1.0.0"), "1.0.0", "1.0.0"));
+    assert(loader::nativeBridgeProblem(bridgeManifest("", "1.0.0"), "1.0.0", "1.0.0"));
+}
+
 int main()
 {
     parsesBuildTimes();
     parsesManifests();
     enforcesTheBaseline();
+    checksTheNativeBridge();
     return 0;
 }

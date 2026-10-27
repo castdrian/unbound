@@ -1,5 +1,6 @@
 #include "LoaderBundleManifest.h"
 
+#include <array>
 #include <cctype>
 #include <limits>
 #include <nlohmann/json.hpp>
@@ -133,6 +134,13 @@ std::optional<BundleManifest> parseBundleManifest(const std::string &text)
         }
     }
 
+    auto bridge = json.find("nativeBridge");
+    if (bridge != json.end() && bridge->is_object())
+    {
+        manifest.nativeBridgeApi = stringField(*bridge, "api");
+        manifest.nativeBridgeAbi = stringField(*bridge, "abi");
+    }
+
     auto hashes = json.find("sha512");
     if (hashes != json.end() && hashes->is_object())
     {
@@ -209,6 +217,73 @@ BundleBaseline baselineFromManifest(const BundleManifest &manifest, const std::s
     baseline.revision              = manifest.revision;
     baseline.buildTimeMilliseconds = manifest.buildTimeMilliseconds.value_or(0);
     return baseline;
+}
+
+static std::optional<std::array<uint64_t, 3>> parseVersion(std::string_view text)
+{
+    std::array<uint64_t, 3> parts{};
+    size_t                  index = 0;
+    for (size_t part = 0; part < parts.size(); part++)
+    {
+        size_t start = index;
+        while (index < text.size() && text[index] >= '0' && text[index] <= '9')
+        {
+            parts[part] = parts[part] * 10 + static_cast<uint64_t>(text[index] - '0');
+            if (parts[part] > 1'000'000)
+            {
+                return std::nullopt;
+            }
+            index++;
+        }
+        if (index == start)
+        {
+            return std::nullopt;
+        }
+        if (part + 1 < parts.size())
+        {
+            if (index >= text.size() || text[index] != '.')
+            {
+                return std::nullopt;
+            }
+            index++;
+        }
+    }
+    return index == text.size() ? std::optional(parts) : std::nullopt;
+}
+
+std::optional<std::string> nativeBridgeProblem(const BundleManifest &manifest,
+                                               std::string_view      loaderApi,
+                                               std::string_view      loaderAbi)
+{
+    if (manifest.nativeBridgeApi.empty() && manifest.nativeBridgeAbi.empty())
+    {
+        return std::nullopt;
+    }
+
+    auto requiredApi  = parseVersion(manifest.nativeBridgeApi);
+    auto requiredAbi  = parseVersion(manifest.nativeBridgeAbi);
+    auto installedApi = parseVersion(loaderApi);
+    auto installedAbi = parseVersion(loaderAbi);
+    if (!requiredApi || !requiredAbi)
+    {
+        return "the bundle declares an unreadable native bridge version (api " +
+               manifest.nativeBridgeApi + ", abi " + manifest.nativeBridgeAbi + ")";
+    }
+    if (!installedApi || !installedAbi)
+    {
+        return std::nullopt;
+    }
+    if ((*requiredAbi)[0] != (*installedAbi)[0])
+    {
+        return "the bundle needs native bridge ABI " + manifest.nativeBridgeAbi +
+               " but this loader provides " + std::string(loaderAbi);
+    }
+    if ((*requiredApi)[0] != (*installedApi)[0] || *requiredApi > *installedApi)
+    {
+        return "the bundle needs native bridge API " + manifest.nativeBridgeApi +
+               " but this loader provides " + std::string(loaderApi);
+    }
+    return std::nullopt;
 }
 
 std::optional<std::string> rollbackProblem(const BundleManifest                &manifest,

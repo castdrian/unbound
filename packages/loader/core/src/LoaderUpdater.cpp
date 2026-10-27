@@ -7,6 +7,7 @@
 #include "LoaderFiles.h"
 #include "LoaderLog.h"
 #include "NativeBundleTransaction.h"
+#include "NativePluginVersion.h"
 
 namespace loader {
 static const char *const kExtensions[]    = {"bundle", "js"};
@@ -414,6 +415,14 @@ BundleUpdater::DownloadPlan BundleUpdater::planDownload(const std::optional<std:
             "Refused the update: the signed manifest would roll back the active bundle, as " +
                 *rollback + ".");
         throw std::runtime_error("Bundle manifest would roll back the active bundle");
+    }
+
+    if (std::optional<std::string> bridge =
+            nativeBridgeProblem(*manifest, kNativePluginApiVersion, kNativePluginAbiVersion))
+    {
+        log(LogLevel::Error, LOG_CATEGORY_UPDATER,
+            "Refused the update: " + *bridge + ". Update the loader to use this bundle.");
+        throw std::runtime_error("Bundle needs a different native bridge");
     }
 
     auto hash = manifest->sha512.find(urlFileName(plan.url));

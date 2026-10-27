@@ -35,7 +35,9 @@ You can't. There is no setting for the blocking, and it stays on in **Recovery M
 
 ### What Unbound itself contacts
 
-Unbound has no analytics of its own. It contacts these servers to download files, and doesn't attach your Discord account to these requests. Like any download, the server can see your IP address.
+Unbound has no analytics of its own. **Send Crash Reports** in Unbound's general settings is off until you turn it on. When it is on and a plugin crashes, freezes or fails to start, Unbound sends `unbound.rip` the plugin's id and version, whether it is signed, how long a freeze lasted, the error message and stack for a failed start, the Unbound, loader and Discord versions, your platform, OS version and device model. It never sends your Discord account, messages or plugin settings.
+
+It contacts these servers to download files, and doesn't attach your Discord account to these requests. Like any download, the server can see your IP address.
 
 <Tabs>
 	<Tab title='iOS'>

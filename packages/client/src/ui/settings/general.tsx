@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 
 import { Screens, SOCIAL_LINKS, DISCORD_INVITE, VERSION } from '~/lib/constants';
 import { BundleInfo, reload, getRuntimeProperties } from '~/api/native';
+import { CRASH_REPORTS_SETTING } from '~/lib/crash-reports';
 import { Linking, Invites } from '~/api/metro/api';
 import { Discord } from '~/api/metro/components';
 import { useSettingsStore } from '~/api/storage';
@@ -86,6 +87,13 @@ function GeneralPage() {
 			</Discord.TableRowGroup>
 
 			<Discord.TableRowGroup title={Messages.UNBOUND_ADVANCED}>
+				<Discord.TableSwitchRow
+					label={Messages.UNBOUND_CRASH_REPORTS}
+					subLabel={Messages.UNBOUND_CRASH_REPORTS_DESCRIPTION}
+					icon={<Discord.TableRowIcon source={Icons.BugIcon ?? Icons.WarningIcon} />}
+					value={settings.get(CRASH_REPORTS_SETTING, false)}
+					onValueChange={() => settings.toggle(CRASH_REPORTS_SETTING, false)}
+				/>
 				<Discord.TableSwitchRow
 					label={Messages.UNBOUND_STAFF_MODE}
 					icon={<Discord.TableRowIcon source={Icons.EyeIcon} />}

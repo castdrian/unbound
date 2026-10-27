@@ -26,8 +26,10 @@ import {
 } from '~/api/crash-guard';
 import { consentCapabilities, consentKey, needsConsent } from '~/lib/native-consent';
 import type { AddonAttribution, AddonFreeze } from '~/api/crash-guard';
+import type { CrashReportAddon } from '~/lib/crash-reports';
 import type { NativeConsents } from '~/lib/native-consent';
 import { Manager, ManagerType } from '~/managers/base';
+import { reportCrash } from '~/lib/crash-reports';
 import { showToast } from '~/api/toasts';
 import storage from '~/api/storage';
 import fs from '~/api/fs';
@@ -485,8 +487,17 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 			resolved.context?.dispose();
 			resolved.context = undefined;
 			this.logger.error(`Failed to start addon ${resolved.id}:`, error);
-			this.errors.set(resolved.id, toError(error));
+			const failure = toError(error);
+
+			this.errors.set(resolved.id, failure);
 			resolved.failed = true;
+			void reportCrash({
+				kind: 'start-failure',
+				phase: 'starting',
+				addon: this.reportedAddon(resolved),
+				message: failure.message,
+				stack: failure.stack,
+			});
 		} finally {
 			if (!recoveryMode) {
 				finishAddonStart(guardKey);
@@ -511,6 +522,12 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		const disable = count >= 2 || freeze.seconds >= LONG_FREEZE_SECONDS;
 
 		this.freezes.set(entity.id, count);
+		void reportCrash({
+			kind: 'freeze',
+			phase: 'frozen',
+			addon: this.reportedAddon(entity),
+			seconds: freeze.seconds,
+		});
 		this.logger.warn(
 			`${entity.data.name} froze Discord for ${seconds} seconds (freeze ${count} this session).`,
 		);
@@ -525,6 +542,19 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 				? `Disabled ${entity.data.name} because it froze Discord for ${seconds} seconds.`
 				: `${entity.data.name} froze Discord for ${seconds} seconds.`,
 		});
+	}
+
+	/**
+	 * @description Describes an addon in a crash report.
+	 * @param entity The addon.
+	 * @returns Its id, version and whether it is signed.
+	 */
+	private reportedAddon(entity: T): CrashReportAddon {
+		return {
+			id: entity.id,
+			version: entity.data.version,
+			trust: Reflect.get(entity.data, 'trust') === 'signed' ? 'signed' : 'unsigned',
+		};
 	}
 
 	/**
@@ -565,6 +595,11 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		void storage.persist();
 
 		this.logger.warn(crashDisabledNotice(crashed, entity.data.name));
+		void reportCrash({
+			kind: crashed.phase === 'frozen' ? 'freeze' : 'crash',
+			phase: crashed.phase ?? 'starting',
+			addon: this.reportedAddon(entity),
+		});
 
 		return true;
 	}

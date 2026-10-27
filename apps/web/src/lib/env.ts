@@ -76,6 +76,8 @@ export const envSchema = z.object({
 	STAGING_ORPHAN_GRACE_SECONDS: positiveInt.default(3600),
 	UPDATES_RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(60),
 	UPDATES_RATE_LIMIT_MAX: positiveInt.default(30),
+	CRASH_REPORTS_RATE_LIMIT_WINDOW_SECONDS: positiveInt.default(3600),
+	CRASH_REPORTS_RATE_LIMIT_MAX: positiveInt.default(20),
 	ADDON_LIST_PAGE_SIZE: positiveInt.default(50),
 	DEVELOPER_LIST_PAGE_SIZE: positiveInt.default(24),
 	USER_LIST_PAGE_SIZE: positiveInt.default(25),

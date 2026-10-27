@@ -9,6 +9,8 @@
 #else
 #include <cstdio>
 #include <link.h>
+#include <sys/uio.h>
+#include <unistd.h>
 #endif
 
 #if defined(__has_feature)
@@ -209,4 +211,23 @@ bool isInstructionSectionAddress(void *address)
 bool isCallableSymbolAddress(void *address)
 {
     return isExecutableAddress(address) && isInstructionSectionAddress(address);
+}
+
+bool readMemorySafely(const void *address, void *destination, std::size_t size)
+{
+    if (!address || !destination || size == 0)
+    {
+        return false;
+    }
+#if defined(__APPLE__)
+    vm_size_t     copied = 0;
+    kern_return_t result =
+        vm_read_overwrite(mach_task_self(), reinterpret_cast<vm_address_t>(address), size,
+                          reinterpret_cast<vm_address_t>(destination), &copied);
+    return result == KERN_SUCCESS && copied == size;
+#else
+    struct iovec local  = {destination, size};
+    struct iovec remote = {const_cast<void *>(address), size};
+    return process_vm_readv(getpid(), &local, 1, &remote, 1, 0) == static_cast<ssize_t>(size);
+#endif
 }

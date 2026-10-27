@@ -7,3 +7,4 @@ bool addressWithinRegion(std::uintptr_t address, std::uintptr_t base, std::size_
 bool isExecutableAddress(void *address);
 bool isInstructionSectionAddress(void *address);
 bool isCallableSymbolAddress(void *address);
+bool readMemorySafely(const void *address, void *destination, std::size_t size);

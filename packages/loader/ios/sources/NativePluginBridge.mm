@@ -19,6 +19,7 @@
 #import <substrate.h>
 #import <thread>
 #import <unordered_map>
+#import <unordered_set>
 #import <vector>
 
 #import "CoreConversions.h"
@@ -1537,6 +1538,67 @@ static void validateNativeScalarArgument(id value, const std::string &type)
     }
 }
 
+static bool isRegisteredClassAddress(uintptr_t candidate)
+{
+    static std::mutex                    mutex;
+    static std::unordered_set<uintptr_t> classes;
+    static int                           known = 0;
+
+    std::lock_guard<std::mutex> lock(mutex);
+    int                         count = objc_getClassList(nullptr, 0);
+    if (count != known)
+    {
+        unsigned int               copied = 0;
+        __unsafe_unretained Class *list   = objc_copyClassList(&copied);
+        classes.clear();
+        for (unsigned int index = 0; index < copied; index++)
+        {
+            classes.insert(reinterpret_cast<uintptr_t>((__bridge void *) list[index]));
+        }
+        free(list);
+        known = count;
+    }
+    return classes.count(candidate) != 0;
+}
+
+static bool isObjectPointer(const void *pointer)
+{
+    uintptr_t address = reinterpret_cast<uintptr_t>(pointer);
+    if (address == 0 || (address >> 63) != 0)
+    {
+        return true;
+    }
+    if (address % alignof(void *) != 0)
+    {
+        return false;
+    }
+    if (isRegisteredClassAddress(address))
+    {
+        return true;
+    }
+    uintptr_t isa = 0;
+    if (!readMemorySafely(pointer, &isa, sizeof(isa)))
+    {
+        return false;
+    }
+    for (uintptr_t mask :
+         {~uintptr_t(0), uintptr_t(0x007ffffffffffff8ULL), uintptr_t(0x0000000ffffffff8ULL)})
+    {
+        if (isRegisteredClassAddress(isa & mask))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool isSelectorPointer(const void *pointer)
+{
+    char first = 0;
+    return pointer && readMemorySafely(pointer, &first, sizeof(first)) &&
+           sel_isMapped(static_cast<SEL>(const_cast<void *>(pointer)));
+}
+
 static void setInvocationArgument(NSInvocation *invocation, NSMethodSignature *signature, id object,
                                   NSUInteger index, std::vector<id> &retained,
                                   std::vector<std::vector<uint8_t>> &storage)
@@ -1555,7 +1617,13 @@ static void setInvocationArgument(NSInvocation *invocation, NSMethodSignature *s
         if ([object isKindOfClass:[NSValue class]] &&
             strncmp([(NSValue *) object objCType], "^", 1) == 0)
         {
-            argument = (__bridge id)[(NSValue *) object pointerValue];
+            void *pointer = [(NSValue *) object pointerValue];
+            if (!isObjectPointer(pointer))
+            {
+                throw std::runtime_error(
+                    "Native pointer passed for an object argument is not an Objective-C object");
+            }
+            argument = (__bridge id) pointer;
         }
         retained.push_back(argument);
         id retainedArgument = retained.back();
@@ -1579,7 +1647,13 @@ static void setInvocationArgument(NSInvocation *invocation, NSMethodSignature *s
         }
         else if ([object isKindOfClass:[NSValue class]])
         {
-            argument = (SEL)[(NSValue *) object pointerValue];
+            void *pointer = [(NSValue *) object pointerValue];
+            if (!isSelectorPointer(pointer))
+            {
+                throw std::runtime_error(
+                    "Native pointer passed for a selector argument is not a registered selector");
+            }
+            argument = static_cast<SEL>(pointer);
         }
         [invocation setArgument:&argument atIndex:index];
         return;

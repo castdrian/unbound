@@ -72,7 +72,7 @@ function getBytecodeVersions(): number[] {
  * @returns The bridge versions the bundle is built against.
  */
 export function parseNativeBridgeVersion(header: string): { api: string; abi: string } {
-	const read = (name: string) => {
+	function read(name: string): string {
 		const match = header.match(new RegExp(`${name}\\[\\]\\s*=\\s*"(\\d+\\.\\d+\\.\\d+)"`));
 
 		if (!match) {
@@ -80,7 +80,7 @@ export function parseNativeBridgeVersion(header: string): { api: string; abi: st
 		}
 
 		return match[1];
-	};
+	}
 
 	return { api: read('kNativePluginApiVersion'), abi: read('kNativePluginAbiVersion') };
 }

@@ -30,6 +30,7 @@ import { Route as SiteDevelopersDiscordIdRouteImport } from './routes/_site/deve
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiV1AddonsRouteImport } from './routes/api/v1/addons'
 import { Route as ApiV1CatalogRouteImport } from './routes/api/v1/catalog'
+import { Route as ApiV1CrashReportsRouteImport } from './routes/api/v1/crash-reports'
 import { Route as ApiV1MeRouteImport } from './routes/api/v1/me'
 import { Route as ApiV1SubmissionsRouteImport } from './routes/api/v1/submissions'
 import { Route as ApiV1SyncRouteImport } from './routes/api/v1/sync'
@@ -162,6 +163,11 @@ const ApiV1AddonsRoute = ApiV1AddonsRouteImport.update({
 const ApiV1CatalogRoute = ApiV1CatalogRouteImport.update({
   id: '/api/v1/catalog',
   path: '/api/v1/catalog',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1CrashReportsRoute = ApiV1CrashReportsRouteImport.update({
+  id: '/api/v1/crash-reports',
+  path: '/api/v1/crash-reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1MeRoute = ApiV1MeRouteImport.update({
@@ -341,6 +347,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
   '/api/v1/catalog': typeof ApiV1CatalogRoute
+  '/api/v1/crash-reports': typeof ApiV1CrashReportsRoute
   '/api/v1/me': typeof ApiV1MeRouteWithChildren
   '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
   '/api/v1/sync': typeof ApiV1SyncRouteWithChildren
@@ -392,6 +399,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
   '/api/v1/catalog': typeof ApiV1CatalogRoute
+  '/api/v1/crash-reports': typeof ApiV1CrashReportsRoute
   '/api/v1/me': typeof ApiV1MeRouteWithChildren
   '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
   '/api/v1/sync': typeof ApiV1SyncRouteWithChildren
@@ -446,6 +454,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/addons': typeof ApiV1AddonsRouteWithChildren
   '/api/v1/catalog': typeof ApiV1CatalogRoute
+  '/api/v1/crash-reports': typeof ApiV1CrashReportsRoute
   '/api/v1/me': typeof ApiV1MeRouteWithChildren
   '/api/v1/submissions': typeof ApiV1SubmissionsRouteWithChildren
   '/api/v1/sync': typeof ApiV1SyncRouteWithChildren
@@ -499,6 +508,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/v1/addons'
     | '/api/v1/catalog'
+    | '/api/v1/crash-reports'
     | '/api/v1/me'
     | '/api/v1/submissions'
     | '/api/v1/sync'
@@ -550,6 +560,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/v1/addons'
     | '/api/v1/catalog'
+    | '/api/v1/crash-reports'
     | '/api/v1/me'
     | '/api/v1/submissions'
     | '/api/v1/sync'
@@ -603,6 +614,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/v1/addons'
     | '/api/v1/catalog'
+    | '/api/v1/crash-reports'
     | '/api/v1/me'
     | '/api/v1/submissions'
     | '/api/v1/sync'
@@ -643,6 +655,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiV1AddonsRoute: typeof ApiV1AddonsRouteWithChildren
   ApiV1CatalogRoute: typeof ApiV1CatalogRoute
+  ApiV1CrashReportsRoute: typeof ApiV1CrashReportsRoute
   ApiV1MeRoute: typeof ApiV1MeRouteWithChildren
   ApiV1SubmissionsRoute: typeof ApiV1SubmissionsRouteWithChildren
   ApiV1SyncRoute: typeof ApiV1SyncRouteWithChildren
@@ -806,6 +819,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/catalog'
       fullPath: '/api/v1/catalog'
       preLoaderRoute: typeof ApiV1CatalogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/crash-reports': {
+      id: '/api/v1/crash-reports'
+      path: '/api/v1/crash-reports'
+      fullPath: '/api/v1/crash-reports'
+      preLoaderRoute: typeof ApiV1CrashReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/me': {
@@ -1170,6 +1190,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiV1AddonsRoute: ApiV1AddonsRouteWithChildren,
   ApiV1CatalogRoute: ApiV1CatalogRoute,
+  ApiV1CrashReportsRoute: ApiV1CrashReportsRoute,
   ApiV1MeRoute: ApiV1MeRouteWithChildren,
   ApiV1SubmissionsRoute: ApiV1SubmissionsRouteWithChildren,
   ApiV1SyncRoute: ApiV1SyncRouteWithChildren,

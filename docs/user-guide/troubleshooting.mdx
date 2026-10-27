@@ -109,6 +109,13 @@ The Android loader doesn't have a toolbox yet. When something goes wrong while l
 
 ### An addon keeps breaking the app
 
+Unbound turns off a plugin on its own when it causes trouble:
+
+- **Crashes.** If Discord crashes while a plugin is starting or running on two launches in a row, the plugin is disabled on the next launch.
+- **Freezes.** If a plugin keeps Discord's JavaScript busy for 6 seconds or more, a toast names it once Discord responds again. A second freeze in the same session, or a single freeze of 20 seconds or more, disables it. If you have to close Discord while it is frozen, that counts the same way as a crash.
+
+Re-enable the plugin from its settings once it has been updated. If that doesn't help, remove it as described below.
+
 On iOS, the toolbox's **Addons** section deletes every addon of one type at once. To remove only one addon, see [Remove a single addon on iOS](#remove-a-single-addon-on-ios).
 
 <Warning>

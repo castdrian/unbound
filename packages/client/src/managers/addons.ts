@@ -22,10 +22,13 @@ import {
 	crashDisabledNotice,
 	crashedAddon,
 	finishAddonStart,
+	withAddonAttribution,
 } from '~/api/crash-guard';
+import type { AddonAttribution, AddonFreeze } from '~/api/crash-guard';
 import { consentCapabilities, consentKey, needsConsent } from '~/lib/native-consent';
 import type { NativeConsents } from '~/lib/native-consent';
 import { Manager, ManagerType } from '~/managers/base';
+import { showToast } from '~/api/toasts';
 import storage from '~/api/storage';
 import fs from '~/api/fs';
 
@@ -40,6 +43,9 @@ const managerDirectories: Record<ManagerType, string> = {
 
 /** The outcome of {@link Addons.reload}: success, or failure carrying the recorded error. */
 export type ReloadResult = { ok: true } | { ok: false; error: Error };
+
+/** A single freeze at least this long disables the addon at once. */
+export const LONG_FREEZE_SECONDS = 20;
 
 type AddonEvents<T extends Addon> = {
 	loaded: (entity: T) => void;
@@ -89,6 +95,7 @@ export class NativeConsentRequiredError extends Error {
  * @template T The addon entity type this manager governs.
  */
 export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>> {
+	private freezes = new Map<string, number>();
 	private pendingStops = new Map<string, Promise<void>>();
 	private pendingStarts = new Set<string>();
 	protected stopTimeoutMs = 5000;
@@ -455,16 +462,22 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		}
 
 		try {
+			const attribution = this.attribution(resolved);
+
 			if (recoveryMode) {
 				resolved.instance = { start: noop, stop: noop };
 			} else {
-				const instance = this.handleBundle(resolved.bundle, resolved.id);
+				const instance = withAddonAttribution(attribution, () =>
+					this.handleBundle(resolved.bundle, resolved.id),
+				);
 
 				resolved.instance = instance;
 			}
 
 			resolved.context = this.createContext(resolved);
-			resolved.instance?.start?.(resolved.context);
+			const context = resolved.context;
+
+			withAddonAttribution(attribution, () => resolved.instance?.start?.(context));
 			resolved.started = true;
 
 			this.emit('started', resolved);
@@ -479,6 +492,49 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 				finishAddonStart(guardKey);
 			}
 		}
+	}
+
+	/**
+	 * @description Handles a freeze the loader attributed to an addon: tells the user, and disables the
+	 * addon after its second freeze this session or after one that lasted {@link LONG_FREEZE_SECONDS}.
+	 * @param freeze The freeze the loader reported.
+	 */
+	handleFreeze(freeze: AddonFreeze): void {
+		const entity = this.getEntities().find(
+			(candidate) => this.crashGuardKey(candidate.id) === freeze.id,
+		);
+
+		if (!entity) return;
+
+		const count = (this.freezes.get(entity.id) ?? 0) + 1;
+		const seconds = Math.round(freeze.seconds);
+		const disable = count >= 2 || freeze.seconds >= LONG_FREEZE_SECONDS;
+
+		this.freezes.set(entity.id, count);
+		this.logger.warn(
+			`${entity.data.name} froze Discord for ${seconds} seconds (freeze ${count} this session).`,
+		);
+
+		if (disable) {
+			this.disable(entity);
+		}
+
+		showToast({
+			title: entity.data.name,
+			content: disable
+				? `Disabled ${entity.data.name} because it froze Discord for ${seconds} seconds.`
+				: `${entity.data.name} froze Discord for ${seconds} seconds.`,
+		});
+	}
+
+	/**
+	 * @description Returns how the loader attributes an addon's code to it, so a crash or freeze inside it
+	 * disables that addon. Only plugins run code, so other kinds return `undefined`.
+	 * @param _entity The addon.
+	 * @returns The attribution wrapper, or `undefined`.
+	 */
+	protected attribution(_entity: T): AddonAttribution | undefined {
+		return undefined;
 	}
 
 	/**
@@ -536,7 +592,9 @@ export abstract class Addons<T extends Addon> extends Manager<T, AddonEvents<T>>
 		resolved.started = false;
 
 		try {
-			const result = instance?.stop?.();
+			const result = withAddonAttribution(this.attribution(resolved), () =>
+				instance?.stop?.(),
+			);
 
 			if (result && typeof result.then === 'function') {
 				let timer: ReturnType<typeof setTimeout> | undefined;

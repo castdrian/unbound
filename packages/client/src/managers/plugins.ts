@@ -1,9 +1,10 @@
 import type { Addon, AddonManifest, Plugin, PluginContext, PluginEntity } from '@unbound-app/types';
 
 import { createScopedReact, performRefresh, withRefreshScope } from '~/lib/hot/runtime';
+import { attributeAddon, setFreezeListener } from '~/api/crash-guard';
 import { createPluginContext } from '~/api/native-runtime';
+import type { AddonAttribution } from '~/api/crash-guard';
 import type { ReloadResult } from '~/managers/addons';
-import { attributeAddon } from '~/api/crash-guard';
 import { reload as reloadApp } from '~/api/native';
 import { ManagerType } from '~/managers/base';
 import { Addons } from '~/managers/addons';
@@ -23,6 +24,8 @@ export class Plugins extends Addons<PluginEntity> {
 	 * @description Loads every plugin exposed on `window.UNBOUND_PLUGINS`, then marks the manager initialised.
 	 */
 	initialize() {
+		setFreezeListener((freeze) => this.handleFreeze(freeze));
+
 		for (const { bundle, manifest } of window.UNBOUND_PLUGINS ?? []) {
 			this.load(bundle, manifest);
 		}
@@ -77,10 +80,11 @@ export class Plugins extends Addons<PluginEntity> {
 	}
 
 	protected createContext(entity: PluginEntity): PluginContext {
-		return createPluginContext(
-			entity.data,
-			attributeAddon(this.crashGuardKey(entity.id), entity.data.name),
-		);
+		return createPluginContext(entity.data, this.attribution(entity));
+	}
+
+	protected attribution(entity: PluginEntity): AddonAttribution | undefined {
+		return attributeAddon(this.crashGuardKey(entity.id), entity.data.name);
 	}
 }
 

@@ -88,9 +88,69 @@ export function crashedAddon(key: string): NativeCrashedAddon | undefined {
  * @returns The notice shown to the user.
  */
 export function crashDisabledNotice(addon: NativeCrashedAddon, name: string): string {
+	if (addon.phase === 'frozen') {
+		return `Disabled ${name} because Discord froze in it and had to be closed.`;
+	}
+
 	const activity = addon.phase === 'running' ? 'running' : 'starting';
 
 	return `Disabled ${name} because Discord crashed while ${activity} it.`;
+}
+
+/** A freeze of Discord's JavaScript thread the loader attributed to an addon, reported once it ended. */
+export type AddonFreeze = {
+	/** The addon's crash guard key. */
+	id: string;
+	name: string;
+	seconds: number;
+};
+
+type FreezeListenerGlobal = typeof globalThis & {
+	__UnboundFreezeListener?: (freeze: AddonFreeze) => void;
+};
+
+/**
+ * @description Receives the freezes the loader's watchdog attributes to an addon, after each one ends.
+ * @param listener Called with each freeze, or `undefined` to stop listening.
+ */
+export function setFreezeListener(listener: ((freeze: AddonFreeze) => void) | undefined): void {
+	(globalThis as FreezeListenerGlobal).__UnboundFreezeListener = listener;
+}
+
+let activeAttribution: AddonAttribution | undefined;
+
+/**
+ * @description Runs addon code with the loader attributing it to the addon, so a crash or freeze inside it
+ * is blamed on that addon. Patches registered while it runs are attributed the same way.
+ * @param attribution The addon's attribution wrapper from {@link attributeAddon}.
+ * @param run The addon code to run.
+ * @returns What `run` returned.
+ */
+export function withAddonAttribution<R>(
+	attribution: AddonAttribution | undefined,
+	run: () => R,
+): R {
+	if (!attribution) {
+		return run();
+	}
+
+	const previous = activeAttribution;
+
+	activeAttribution = attribution;
+
+	try {
+		return attribution(run)();
+	} finally {
+		activeAttribution = previous;
+	}
+}
+
+/**
+ * @description Returns the attribution of the addon whose code is running, while {@link withAddonAttribution} runs it.
+ * @returns The active attribution, or `undefined` outside addon code.
+ */
+export function currentAddonAttribution(): AddonAttribution | undefined {
+	return activeAttribution;
 }
 
 /**

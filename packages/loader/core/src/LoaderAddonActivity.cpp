@@ -205,17 +205,30 @@ uint32_t *claimActivityCell()
     return activity ? &activity->addon : nullptr;
 }
 
-static AddonSlot crashingThreadAddon()
+uintptr_t currentActivityThread()
 {
-    uintptr_t key = currentThreadKey();
+    return currentThreadKey();
+}
+
+AddonSlot addonOnThread(uintptr_t thread)
+{
+    if (thread == 0)
+    {
+        return kNoAddon;
+    }
     for (const ThreadActivity &activity : gThreads)
     {
-        if (activity.owner.load(std::memory_order_acquire) == key)
+        if (activity.owner.load(std::memory_order_acquire) == thread)
         {
             return loadAddon(&activity.addon);
         }
     }
     return kNoAddon;
+}
+
+static AddonSlot crashingThreadAddon()
+{
+    return addonOnThread(currentThreadKey());
 }
 
 bool writeCrashingAddonRecord(int descriptor)

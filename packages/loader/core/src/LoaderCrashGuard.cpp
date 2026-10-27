@@ -61,6 +61,11 @@ std::string AddonCrashGuard::runningPath() const
     return joinPath(directory_, kRunningFile);
 }
 
+std::string AddonCrashGuard::frozenPath() const
+{
+    return joinPath(directory_, kFrozenFile);
+}
+
 std::string AddonCrashGuard::crashesPath() const
 {
     return joinPath(directory_, kCrashesFile);
@@ -85,7 +90,16 @@ static std::optional<CrashRecord> takeMarker(const std::string &path, CrashPhase
 
 static std::string crashActivity(CrashPhase phase)
 {
-    return phase == CrashPhase::Running ? "running" : "starting";
+    switch (phase)
+    {
+        case CrashPhase::Running:
+            return "running";
+        case CrashPhase::Frozen:
+            return "frozen";
+        case CrashPhase::Starting:
+            return "starting";
+    }
+    return "starting";
 }
 
 std::vector<CrashedAddon> AddonCrashGuard::recoverFromPreviousLaunch() const
@@ -94,7 +108,8 @@ std::vector<CrashedAddon> AddonCrashGuard::recoverFromPreviousLaunch() const
     std::optional<CrashRecord> starting =
         takeMarker(startingPath(), CrashPhase::Starting, unreadable);
     std::optional<CrashRecord> running = takeMarker(runningPath(), CrashPhase::Running, unreadable);
-    std::optional<CrashRecord> crashed = starting ? starting : running;
+    std::optional<CrashRecord> frozen  = takeMarker(frozenPath(), CrashPhase::Frozen, unreadable);
+    std::optional<CrashRecord> crashed = starting ? starting : running ? running : frozen;
 
     if (!crashed)
     {
@@ -110,10 +125,12 @@ std::vector<CrashedAddon> AddonCrashGuard::recoverFromPreviousLaunch() const
     std::optional<CrashRecord> previous = readRecord(crashesPath());
     int crashes = previous && previous->addon.id == crashed->addon.id ? previous->crashes + 1 : 1;
 
+    std::string exited = crashed->addon.phase == CrashPhase::Frozen
+                             ? "Discord was closed while frozen in "
+                             : "Discord exited while " + crashActivity(crashed->addon.phase) + " ";
     log(LogLevel::Warning, LOG_CATEGORY_PLUGINS,
-        "Discord exited while " + crashActivity(crashed->addon.phase) + " " + crashed->addon.name +
-            " (" + crashed->addon.id + "), crash " + std::to_string(crashes) + " of " +
-            std::to_string(kCrashLimit) + ".");
+        exited + crashed->addon.name + " (" + crashed->addon.id + "), crash " +
+            std::to_string(crashes) + " of " + std::to_string(kCrashLimit) + ".");
 
     if (crashes >= kCrashLimit)
     {
@@ -192,6 +209,10 @@ std::vector<CrashedAddon> takeUnannouncedCrashDisabledAddons(const std::string &
 
 std::string crashDisabledNotice(const CrashedAddon &addon)
 {
+    if (addon.phase == CrashPhase::Frozen)
+    {
+        return "Disabled " + addon.name + " because Discord froze in it and had to be closed.";
+    }
     return "Disabled " + addon.name + " because Discord crashed while " +
            crashActivity(addon.phase) + " it.";
 }

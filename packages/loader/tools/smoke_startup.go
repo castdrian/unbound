@@ -104,3 +104,17 @@ func renderSlowestStarts(statuses []smokePluginStatus) string {
 	}
 	return fmt.Sprintf("Plugins took %.0f ms to start in total. Slowest: %s.\n\n", total, strings.Join(names, ", "))
 }
+
+func pluginStartBudgetProblems(statuses []smokePluginStatus, budget time.Duration) []string {
+	if budget == 0 {
+		return nil
+	}
+	limit := float64(budget.Milliseconds())
+	problems := []string{}
+	for _, status := range statuses {
+		if status.StartMs != nil && *status.StartMs > limit {
+			problems = append(problems, fmt.Sprintf("%s took %s to start, over the %s plugin start budget", status.ID, describeStartMs(status.StartMs), budget))
+		}
+	}
+	return problems
+}

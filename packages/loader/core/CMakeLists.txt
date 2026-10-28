@@ -156,5 +156,12 @@ if(UNBOUND_CORE_JSI_FUZZ)
     target_link_libraries(native_platform_hermes PRIVATE unbound_core hermesvm_a)
     target_include_directories(native_platform_hermes PRIVATE ${UNBOUND_HERMES_SOURCE_DIR}/API ${UNBOUND_HERMES_SOURCE_DIR}/public)
     add_test(NAME native_platform_hermes COMMAND native_platform_hermes)
+    add_executable(native_runtime_hermes ${CMAKE_CURRENT_LIST_DIR}/tests/hermes/native_runtime_hermes.cpp)
+    target_link_libraries(native_runtime_hermes PRIVATE unbound_core hermesvm_a)
+    target_include_directories(native_runtime_hermes PRIVATE ${UNBOUND_HERMES_SOURCE_DIR}/API ${UNBOUND_HERMES_SOURCE_DIR}/public)
+    target_compile_definitions(native_runtime_hermes PRIVATE
+        UNBOUND_BOOTSTRAP_DIR="${CMAKE_CURRENT_LIST_DIR}/../bootstrap"
+        UNBOUND_TEST_FFI=$<IF:$<BOOL:${UNBOUND_CORE_FFI_TARGET}>,1,0>)
+    add_test(NAME native_runtime_hermes COMMAND native_runtime_hermes)
 endif()
 

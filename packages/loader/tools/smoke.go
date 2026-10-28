@@ -65,8 +65,9 @@ type smokeOptions struct {
 }
 
 type smokeStartupBudget struct {
-	bundle  time.Duration
-	plugins time.Duration
+	bundle      time.Duration
+	plugins     time.Duration
+	pluginStart time.Duration
 }
 
 type smokeStartupTimes struct {
@@ -143,6 +144,7 @@ func registerSmokeFlags(set *flag.FlagSet) *smokeOptions {
 	set.IntVar(&options.bundlePort, "bundle-port", 3000, "port the built client is served on")
 	set.DurationVar(&options.budget.bundle, "bundle-budget", 0, "longest Discord may take from launch to executing Unbound's bundle; 0 only reports it")
 	set.DurationVar(&options.budget.plugins, "plugins-budget", 0, "longest Discord may take from launch to loading every plugin; 0 only reports it")
+	set.DurationVar(&options.budget.pluginStart, "plugin-start-budget", 0, "longest any single plugin may take to start; 0 only reports it")
 	return options
 }
 
@@ -453,6 +455,7 @@ func smokeProblems(result *smokeResult) []string {
 		problems = append(problems, fmt.Sprintf("%s failed to start: %s", id, result.failures[id][0]))
 	}
 	problems = append(problems, startupBudgetProblems(result.startup, result.budget, result.crashes)...)
+	problems = append(problems, pluginStartBudgetProblems(result.statuses, result.budget.pluginStart)...)
 	if result.evalError != "" {
 		problems = append(problems, "debugger check: "+result.evalError)
 		return problems

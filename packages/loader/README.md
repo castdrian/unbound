@@ -520,13 +520,15 @@ Both build the client and the plugins from the same commit. The tool serves `pac
 - nothing logs `Failed to start addon` or `Failed to load addon`, and Discord neither crashes nor exits,
 - `bun packages/cli/src/index.ts eval` over the bridge reports every plugin as `started`.
 
-On a fresh simulator Discord first downloads its own over-the-air update, which can take several minutes on hosted runners before React Native starts, so the iOS test waits up to 25 minutes. If Discord crashes before every plugin loads, the test relaunches it once and keeps the crash as a warning in the report. The iOS test skips, with the reason in the job summary, when the simulator build patches a Discord older than the iOS minimum in `compat-policy.json`, since the loader does not inject into those. Pull request builds patch the pinned Discord 205.0 IPA, so on pull requests only the Android test runs end to end, while main pushes and releases test both platforms against current Discord. The job summary has a table of each plugin's result, and the `android smoke test` and `ios smoke test` artifacts keep the full log, the bridge transcript, the bundle requests, the settings before and after, a screenshot, and on iOS any crash report. Run it against your own emulator or simulator:
+On a fresh simulator React Native waits for Discord's own over-the-air update check (`DCDBundleUpdater` fetching `discord.com/ios/<version>/manifest.json`). That request sometimes sits in Discord's request queue for minutes before a connection even opens: 7 seconds on one fresh simulator, 3 to 6 minutes on others, with nothing in the network to explain it. So the iOS test waits up to 25 minutes, and its bundle budget stays loose. If Discord crashes before every plugin loads, the test relaunches it once and keeps the crash as a warning in the report. The iOS test skips, with the reason in the job summary, when the simulator build patches a Discord older than the iOS minimum in `compat-policy.json`, since the loader does not inject into those. Pull request builds patch the pinned Discord 205.0 IPA, so on pull requests only the Android test runs end to end, while main pushes and releases test both platforms against current Discord. The job summary has a table of each plugin's result, and the `android smoke test` and `ios smoke test` artifacts keep the full log, the bridge transcript, the bundle requests, the settings before and after, a screenshot, and on iOS any crash report. Run it against your own emulator or simulator:
 
 ```bash
 bun run --cwd ../client build && bun run --cwd ../.. plugins:build
 go run ./tools smoke android --apks patched-discord --client ../client/dist
 go run ./tools smoke ios --app Payload/Discord.app --client ../client/dist
 ```
+
+`--plugin-start-budget` fails the run when any single plugin's start, from evaluating its bundle to its `start` returning, takes longer than the given duration. Android CI uses 1s.
 
 `--apks` is a directory of patched split APKs, from which the base, the emulator's ABI split and the other config splits are installed. Without `--client` the app keeps its default bundle URL. The simulator build retargets frameworks that only declare an iPhoneOS deployment target, such as `CydiaSubstrate.framework`, to the simulator platform, since the simulator refuses to load them otherwise.
 

@@ -89,3 +89,15 @@ func TestRenderSlowestStartsListsTheSlowestFirst(t *testing.T) {
 		t.Fatal("unexpected start cell")
 	}
 }
+
+func TestPluginStartBudgetFlagsSlowPlugins(t *testing.T) {
+	ms := func(value float64) *float64 { return &value }
+	statuses := []smokePluginStatus{{ID: "unbound.fast", StartMs: ms(40)}, {ID: "unbound.slow", StartMs: ms(1200)}, {ID: "unbound.untimed"}}
+	problems := pluginStartBudgetProblems(statuses, time.Second)
+	if len(problems) != 1 || !strings.Contains(problems[0], "unbound.slow took 1200 ms to start, over the 1s plugin start budget") {
+		t.Fatalf("unexpected problems %v", problems)
+	}
+	if pluginStartBudgetProblems(statuses, 0) != nil {
+		t.Fatal("no budget only reports")
+	}
+}

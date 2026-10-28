@@ -63,7 +63,13 @@ static std::optional<std::string> resolveManifestEntry(const std::string    &dir
         return std::nullopt;
     }
 
-    std::string path = joinPath(directory, value->get<std::string>());
+    std::optional<std::string> inside =
+        resolveInsideDirectory(directory, value->get<std::string>());
+    if (!inside)
+    {
+        return std::nullopt;
+    }
+    const std::string &path = *inside;
     if (!fileExists(path) || isDirectory(path))
     {
         return std::nullopt;

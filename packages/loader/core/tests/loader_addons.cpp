@@ -22,8 +22,30 @@ static void write(const std::filesystem::path &path, const std::string &contents
     assert(loader::writeTextFileAtomically(path.string(), contents));
 }
 
+static void pluginEntriesStayInsideTheirFolder()
+{
+    const auto root    = makeTemporaryDirectory();
+    const auto plugins = root / "Plugins";
+    write(root / "secret.txt", "outside");
+    write(plugins / "relative" / "manifest.json",
+          R"({"id":"a.relative","main":"./sub/../index.js"})");
+    write(plugins / "relative" / "index.js", "relative");
+    write(plugins / "absolute" / "manifest.json", R"({"id":"a.absolute","main":"/etc/hosts"})");
+    write(plugins / "parent" / "manifest.json", R"({"id":"a.parent","main":"../../secret.txt"})");
+    write(plugins / "linked" / "manifest.json", R"({"id":"a.linked","main":"index.js"})");
+    std::filesystem::create_symlink(root / "secret.txt", plugins / "linked" / "index.js");
+
+    nlohmann::json found = loader::scanPlugins(root.string());
+    assert(found.size() == 1);
+    assert(found[0]["manifest"]["id"] == "a.relative");
+    assert(found[0]["bundle"] == "relative");
+    std::filesystem::remove_all(root);
+}
+
 int main()
 {
+    pluginEntriesStayInsideTheirFolder();
+
     const auto root = makeTemporaryDirectory();
 
     write(root / "Plugins" / "good" / "manifest.json", R"({"id":"a.good","main":"index.js"})");
